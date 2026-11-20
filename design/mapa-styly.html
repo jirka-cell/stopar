@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stopař – styly mapy</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root { --bg: #f6f3ec; --ink: #1f2a22; --muted: #5b6b60; --accent: #2f7d4f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 10px 16px 2px; }
+  h1 { font-size: 17px; margin: 0 0 2px; }
+  #desc { color: var(--muted); margin: 0; font-size: 14px; }
+  .tabs { display: flex; gap: 6px; padding: 8px 16px; overflow-x: auto; }
+  .tabs button { flex: 0 0 auto; border: 1px solid #cfc8bd; background: #fff; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .phone { position: relative; margin: 2px auto 12px; width: min(440px, calc(100% - 16px)); height: calc(100vh - 150px); min-height: 420px; border-radius: 18px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.18); background: #ddd; }
+  #map { position: absolute; inset: 0; }
+  .hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; z-index: 2; }
+  .pill { background: rgba(255,255,255,.92); border-radius: 999px; padding: 5px 10px; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  #layersBtn { position: absolute; right: 10px; top: 10px; z-index: 3; border: 0; background: #fff; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.2); cursor: pointer; }
+  #panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 70%; overflow-y: auto; z-index: 4; background: #fff; border-radius: 16px 16px 0 0; box-shadow: 0 -4px 18px rgba(0,0,0,.2); padding: 12px 16px 16px; transform: translateY(105%); transition: transform .25s; }
+  #panel.on { transform: none; }
+  #panel h3 { margin: 10px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  #panel h3:first-of-type { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+  .grid label { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 14px; }
+  .grid input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .row button { border: 1px solid #cfc8bd; background: #fff; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  .row button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .close { float: right; border: 0; background: #eee; border-radius: 999px; padding: 4px 12px; font: inherit; cursor: pointer; }
+  .me { width: 22px; height: 22px; border-radius: 50%; background: #2f7d4f; border: 4px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  .bird { width: 46px; height: 40px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  .bird img { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stopař – návrhy vzhledu mapy</h1>
+  <p id="desc"></p>
+</header>
+<div class="tabs" id="tabs"></div>
+<div class="phone">
+  <div id="map"></div>
+  <div class="hud"><span class="pill">Biotop: Park</span><span class="pill">1,2 km</span></div>
+  <button id="layersBtn">Vrstvy</button>
+  <div id="panel"><button class="close" id="closeBtn">Zavřít</button><div id="opts"></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module">
+import { birdURL } from '../js/birds.js';
+import { DEFAULTS } from '../js/config.js';
+
+const FONT = ['Noto Sans Regular'], FONT_B = ['Noto Sans Bold'], FONT_I = ['Noto Sans Italic'];
+const center = [12.8711, 50.2306];
+
+// Vrstvy, které jde zapínat (stejné vektorové podklady, nic navíc ke stažení kromě terénu)
+const OPTS = [
+  ['Popisky', [['roadNames', 'Názvy ulic'], ['waterNames', 'Názvy vod'], ['parkNames', 'Názvy parků'], ['places', 'Čtvrti a obce']]],
+  ['Místa', [['poiShop', 'Obchody'], ['poiFood', 'Jídlo a pití'], ['poiTransport', 'Doprava'], ['poiEdu', 'Školy'], ['poiHealth', 'Zdraví'], ['poiTourism', 'Turistika'], ['poiParking', 'Parkování'], ['poiNames', 'Názvy míst']]],
+  ['Cesty a příroda', [['paths', 'Pěšiny'], ['rail', 'Železnice'], ['peaks', 'Vrcholy'], ['protected', 'Chráněná území'], ['landDetail', 'Skály, písek'], ['hillshade', 'Stínování terénu']]],
+  ['Herní', [['biotopes', 'Barvy biotopů'], ['radius', 'Dosah chytání']]]
+];
+const BUILDINGS = [['off', 'Bez budov'], ['flat', 'Ploché'], ['3d', '3D']];
+
+const STYLES = [
+  { name: '1 · Herní den', desc: 'Jasná zelená, tyrkysová voda, měkké silnice, minimum popisků.',
+    bg: '#a8e09a', wood: '#7fcf7a', grass: '#b6eaa0', farm: '#c9ec9c', wet: '#9fd8c0', water: '#5ccbe6', waterLine: '#5ccbe6', rock: '#c9cfc0', sand: '#efe6b8',
+    res: '#b9e3a8', ind: '#c6dcb8', park: '#8fdc86', bld: '#cfe8c4', bldLine: '#b4d6a8', road: '#f4fff0', roadCase: '#8cc79a', minor: '#e8fbe2', path: '#e6f5c8', rail: '#9bb8a0',
+    label: '#3b6b4a', halo: '#e9ffe2', shade: '#2f5a3a',
+    def: { roadNames: false, places: true, paths: true, radius: true, buildings: 'flat' } },
+  { name: '2 · Herní noc', desc: 'Stejný styl v nočních barvách; přepínal by se sám podle slunce.',
+    bg: '#2c3a63', wood: '#25456a', grass: '#33507a', farm: '#3a4f78', wet: '#2f557a', water: '#1d6fa0', waterLine: '#2a86bd', rock: '#45507a', sand: '#4a5478',
+    res: '#36456f', ind: '#3a4572', park: '#2f5a74', bld: '#46547f', bldLine: '#56669a', road: '#8fb6ff', roadCase: '#20294a', minor: '#6f8fd6', path: '#5f78b8', rail: '#6c7aa8',
+    label: '#d8e4ff', halo: '#1c2546', shade: '#0d1430',
+    def: { roadNames: false, places: true, paths: true, radius: true, buildings: 'flat' } },
+  { name: '3 · Bohatá data', desc: 'Hodně informací jako na Mapy.com v měkkých barvách. Všechno jde v „Vrstvy“ vypnout.',
+    bg: '#e9f2df', wood: '#a6d79a', grass: '#cdeab9', farm: '#e4efc4', wet: '#bfe3d5', water: '#8fd0ee', waterLine: '#6fc1e8', rock: '#d6d2c8', sand: '#f3e9c2',
+    res: '#e6e6dc', ind: '#e4dccf', park: '#b7e3a4', bld: '#d9d2c7', bldLine: '#bdb3a5', road: '#ffffff', roadCase: '#b9b1a3', minor: '#fffdf6', path: '#c79a6a', rail: '#9a8f86',
+    label: '#3c3a36', halo: '#ffffff', shade: '#4a4238',
+    def: { roadNames: true, waterNames: true, parkNames: true, places: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiNames: true, paths: true, rail: true, peaks: true, protected: true, landDetail: true, hillshade: true, radius: true, buildings: '3d' } },
+  { name: '4 · Papír a akvarel', desc: 'Teplé pastelové barvy jako kolorovaná mapa v zápisníku.',
+    bg: '#f2e8d2', wood: '#b9cf9a', grass: '#dfe3b4', farm: '#ece0b0', wet: '#c9dccb', water: '#a9cfd6', waterLine: '#8fbcc6', rock: '#ddd2bd', sand: '#efe2bf',
+    res: '#eadfc8', ind: '#e5d6bf', park: '#c9d8a4', bld: '#e0cfb2', bldLine: '#c7b291', road: '#fbf6ea', roadCase: '#cbb48f', minor: '#f7efdc', path: '#b98d5c', rail: '#a8957a',
+    label: '#6a5136', halo: '#f7efdc', shade: '#6a5136',
+    def: { roadNames: true, waterNames: true, places: true, paths: true, peaks: true, hillshade: true, radius: true, buildings: 'flat' } },
+  { name: '5 · Biotopy', desc: 'Plochy sytě podle herních biotopů – hned je vidět, kde hledat které ptáky.',
+    bg: '#c8dc8a', wood: '#4f9a52', grass: '#c8dc8a', farm: '#d9e48f', wet: '#7fc7b8', water: '#3fa7e0', waterLine: '#3fa7e0', rock: '#b5b0a5', sand: '#e8dc9a',
+    res: '#cfc8bd', ind: '#bdb6aa', park: '#7ec36a', bld: '#b3aa9c', bldLine: '#9a9183', road: '#ffffff', roadCase: '#8f877b', minor: '#f4f1ea', path: '#f4f1ea', rail: '#7a7266',
+    label: '#2c2a26', halo: '#ffffff', shade: '#2c2a26',
+    def: { roadNames: true, places: true, paths: true, biotopes: true, radius: true, buildings: 'flat' } }
+];
+
+let cur = 0, opt = {};
+
+function circle(lon, lat, r) {
+  const pts = [];
+  for (let i = 0; i <= 64; i++) { const a = i / 64 * 2 * Math.PI; pts.push([lon + r / (111320 * Math.cos(lat * Math.PI / 180)) * Math.cos(a), lat + r / 111320 * Math.sin(a)]); }
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts] } };
+}
+
+function makeStyle(p, o) {
+  const L = [], add = l => L.push(l), vis = on => ({ visibility: on ? 'visible' : 'none' });
+  const cls = list => ['in', ['get', 'class'], ['literal', list]];
+  const txt = (extra = {}) => ({ 'text-color': p.label, 'text-halo-color': p.halo, 'text-halo-width': 1.6, ...extra });
+  add({ id: 'bg', type: 'background', paint: { 'background-color': p.bg } });
+  add({ id: 'landuse-res', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['residential', 'suburb', 'neighbourhood', 'commercial', 'retail']), paint: { 'fill-color': p.res } });
+  add({ id: 'landuse-ind', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['industrial', 'railway', 'garages']), paint: { 'fill-color': p.ind } });
+  [['farmland', p.farm], ['grass', p.grass], ['wetland', p.wet], ['wood', p.wood]].forEach(([c, col]) =>
+    add({ id: 'lc-' + c, type: 'fill', source: 'om', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], c], paint: { 'fill-color': col } }));
+  add({ id: 'lc-rock', type: 'fill', source: 'om', 'source-layer': 'landcover', filter: cls(['rock', 'sand']), layout: vis(o.landDetail), paint: { 'fill-color': ['match', ['get', 'class'], 'rock', p.rock, p.sand] } });
+  add({ id: 'park', type: 'fill', source: 'om', 'source-layer': 'park', filter: ['!', cls(['national_park', 'nature_reserve', 'protected_area'])], paint: { 'fill-color': p.park } });
+  add({ id: 'landuse-green', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['cemetery', 'pitch', 'stadium', 'playground']), paint: { 'fill-color': p.park } });
+  if (o.hillshade) add({ id: 'hillshade', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': p.shade, 'hillshade-exaggeration': .35, 'hillshade-highlight-color': '#ffffff' } });
+  add({ id: 'water', type: 'fill', source: 'om', 'source-layer': 'water', paint: { 'fill-color': p.water } });
+  add({ id: 'waterway', type: 'line', source: 'om', 'source-layer': 'waterway', paint: { 'line-color': p.waterLine, 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1, 18, 6] } });
+  // Herní vrstva: biotopy sytě a průsvitně přes podklad (barvy jako v adminu)
+  const bio = Object.fromEntries(DEFAULTS.biotopes.map(b => [b.id, b.color]));
+  add({ id: 'bio-land', type: 'fill', source: 'om', 'source-layer': 'landcover', filter: cls(['wood', 'grass', 'farmland', 'wetland']), layout: vis(o.biotopes),
+    paint: { 'fill-color': ['match', ['get', 'class'], 'wood', bio.les, 'wetland', bio.voda, bio.louka], 'fill-opacity': .55 } });
+  add({ id: 'bio-use', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['residential', 'commercial', 'retail', 'industrial', 'cemetery']), layout: vis(o.biotopes),
+    paint: { 'fill-color': ['match', ['get', 'class'], 'cemetery', bio.park, bio.mesto], 'fill-opacity': .55 } });
+  add({ id: 'bio-park', type: 'fill', source: 'om', 'source-layer': 'park', layout: vis(o.biotopes), paint: { 'fill-color': bio.park, 'fill-opacity': .55 } });
+  add({ id: 'protected', type: 'line', source: 'om', 'source-layer': 'park', filter: cls(['national_park', 'nature_reserve', 'protected_area']), layout: vis(o.protected), paint: { 'line-color': '#2e7d32', 'line-width': 2.5, 'line-dasharray': [3, 2], 'line-opacity': .8 } });
+  if (o.buildings === 'flat') add({ id: 'building', type: 'fill', source: 'om', 'source-layer': 'building', minzoom: 14, paint: { 'fill-color': p.bld, 'fill-outline-color': p.bldLine } });
+  add({ id: 'path', type: 'line', source: 'om', 'source-layer': 'transportation', filter: cls(['path', 'track']), layout: vis(o.paths), paint: { 'line-color': p.path, 'line-width': ['interpolate', ['linear'], ['zoom'], 14, .8, 18, 3], 'line-dasharray': [2, 1.5] } });
+  const minor = cls(['minor', 'service']), major = cls(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']);
+  const w = k => ['interpolate', ['exponential', 1.6], ['zoom'], 12, .6 * k, 18, 14 * k];
+  const road = (id, f, col, k) => add({ id, type: 'line', source: 'om', 'source-layer': 'transportation', filter: f, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': col, 'line-width': w(k) } });
+  road('road-minor-case', minor, p.roadCase, 1.25); road('road-major-case', major, p.roadCase, 1.75);
+  road('road-minor', minor, p.minor, 1); road('road-major', major, p.road, 1.45);
+  add({ id: 'rail', type: 'line', source: 'om', 'source-layer': 'transportation', filter: ['==', ['get', 'class'], 'rail'], layout: vis(o.rail), paint: { 'line-color': p.rail, 'line-width': 1.5, 'line-dasharray': [3, 2] } });
+  if (o.buildings === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
+  add({ id: 'radius', type: 'line', source: 'radius', layout: vis(o.radius), paint: { 'line-color': '#2f7d4f', 'line-width': 2, 'line-dasharray': [3, 3] } });
+  add({ id: 'radius-fill', type: 'fill', source: 'radius', layout: vis(o.radius), paint: { 'fill-color': '#2f7d4f', 'fill-opacity': .06 } });
+  add({ id: 'water-name', type: 'symbol', source: 'om', 'source-layer': 'water_name', layout: { ...vis(o.waterNames), 'text-field': ['get', 'name'], 'text-font': FONT_I, 'text-size': 12 }, paint: txt() });
+  add({ id: 'park-name', type: 'symbol', source: 'om', 'source-layer': 'park', minzoom: 14, layout: { ...vis(o.parkNames), 'text-field': ['get', 'name'], 'text-font': FONT_I, 'text-size': 12 }, paint: txt({ 'text-color': '#2e6b34' }) });
+  add({ id: 'road-name', type: 'symbol', source: 'om', 'source-layer': 'transportation_name', minzoom: 14, layout: { ...vis(o.roadNames), 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 12 }, paint: txt() });
+  const POI = [['poiShop', ['shop', 'grocery', 'clothing_store', 'bakery', 'butcher', 'hardware', 'furniture', 'jewelry', 'books', 'mobile_phone', 'convenience', 'supermarket'], '#e07a3f'],
+    ['poiFood', ['restaurant', 'cafe', 'fast_food', 'bar', 'beer', 'pub', 'ice_cream'], '#d14b6b'],
+    ['poiTransport', ['bus', 'railway', 'tram', 'ferry_terminal', 'fuel'], '#3a7bd5'],
+    ['poiEdu', ['school', 'college', 'library', 'kindergarten', 'university'], '#7a5cc7'],
+    ['poiHealth', ['hospital', 'doctors', 'pharmacy', 'dentist', 'veterinary'], '#d33b3b'],
+    ['poiTourism', ['attraction', 'museum', 'information', 'castle', 'monument', 'theatre', 'cinema', 'viewpoint', 'zoo', 'place_of_worship'], '#2a8f86'],
+    ['poiParking', ['parking', 'bicycle_parking'], '#5c7cfa']];
+  const onPoi = POI.filter(([k]) => o[k]);
+  if (onPoi.length) {
+    const f = cls(onPoi.flatMap(x => x[1]));
+    const col = ['match', ['get', 'class'], ...onPoi.flatMap(([, list, c]) => [list, c]), '#8a7d6b'];
+    add({ id: 'poi-dot', type: 'circle', source: 'om', 'source-layer': 'poi', minzoom: 15, filter: f, paint: { 'circle-radius': 5, 'circle-color': col, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5 } });
+    add({ id: 'poi-name', type: 'symbol', source: 'om', 'source-layer': 'poi', minzoom: 16, filter: f, layout: { ...vis(o.poiNames), 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-optional': true }, paint: txt() });
+  }
+  add({ id: 'peak', type: 'symbol', source: 'om', 'source-layer': 'mountain_peak', layout: { ...vis(o.peaks), 'text-field': ['concat', '▲ ', ['coalesce', ['get', 'name'], ''], ' ', ['to-string', ['coalesce', ['get', 'ele'], '']], ' m'], 'text-font': FONT, 'text-size': 11 }, paint: txt({ 'text-color': '#7a4b2a' }) });
+  add({ id: 'place', type: 'symbol', source: 'om', 'source-layer': 'place', filter: cls(['city', 'town', 'village', 'suburb', 'quarter', 'neighbourhood']), layout: { ...vis(o.places), 'text-field': ['get', 'name'], 'text-font': FONT_B, 'text-size': ['match', ['get', 'class'], ['city', 'town'], 15, 12] }, paint: txt() });
+  return {
+    version: 8,
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+    sources: {
+      om: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© přispěvatelé <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a>' },
+      dem: { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Terén: Mapzen/AWS Terrain Tiles' },
+      radius: { type: 'geojson', data: circle(center[0], center[1], 100) }
+    },
+    layers: L
+  };
+}
+
+const map = new maplibregl.Map({ container: 'map', style: makeStyle(STYLES[0], { ...STYLES[0].def }), center, zoom: 16.3, attributionControl: { compact: true } });
+const el = c => { const d = document.createElement('div'); d.className = c; return d; };
+new maplibregl.Marker({ element: el('me') }).setLngLat(center).addTo(map);
+const sp = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
+[['kos', 12.8722, 50.2311], ['konadra', 12.8698, 50.2299], ['holub', 12.8730, 50.2297], ['volavka', 12.8703, 50.2316]].forEach(([id, lon, lat]) => {
+  const d = el('bird'); d.innerHTML = `<img src="${birdURL(sp[id])}" alt="">`;
+  new maplibregl.Marker({ element: d, anchor: 'bottom' }).setLngLat([lon, lat]).addTo(map);
+});
+
+const tabs = document.getElementById('tabs'), desc = document.getElementById('desc'), box = document.getElementById('opts');
+function apply() {
+  map.setStyle(makeStyle(STYLES[cur], opt));
+  map.easeTo({ pitch: opt.buildings === '3d' ? 50 : 0, duration: 500 });
+  renderOpts();
+}
+function renderOpts() {
+  box.innerHTML = '<h3>Budovy</h3><div class="row">' + BUILDINGS.map(([k, l]) => `<button data-b="${k}" class="${opt.buildings === k ? 'on' : ''}">${l}</button>`).join('') + '</div>' +
+    OPTS.map(([title, items]) => `<h3>${title}</h3><div class="grid">${items.map(([k, l]) => `<label><input type="checkbox" data-k="${k}"${opt[k] ? ' checked' : ''}>${l}</label>`).join('')}</div>`).join('') +
+    '<h3>Styl</h3><div class="row"><button data-reset>Výchozí vrstvy stylu</button></div>';
+}
+box.addEventListener('change', e => { const k = e.target.dataset.k; if (k) { opt[k] = e.target.checked; apply(); } });
+box.addEventListener('click', e => {
+  const b = e.target.closest('[data-b]'); if (b) { opt.buildings = b.dataset.b; apply(); }
+  if (e.target.closest('[data-reset]')) { opt = { ...STYLES[cur].def }; apply(); }
+});
+document.getElementById('layersBtn').onclick = () => document.getElementById('panel').classList.add('on');
+document.getElementById('closeBtn').onclick = () => document.getElementById('panel').classList.remove('on');
+function pick(i) {
+  cur = i; opt = { ...STYLES[i].def };
+  desc.textContent = STYLES[i].desc;
+  [...tabs.children].forEach((b, j) => b.classList.toggle('on', j === i));
+  apply();
+}
+STYLES.forEach((s, i) => { const b = document.createElement('button'); b.textContent = s.name; b.onclick = () => pick(i); tabs.appendChild(b); });
+pick(0);
+window.__pick = pick;
+</script>
+</body>
+</html>
