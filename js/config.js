@@ -5,6 +5,7 @@ import { SPECIES, EDU_FIELDS, EMPTY_EDU, GROUPS } from './species.js';
 import { BATCH1 } from './species-batch1.js';
 import { BATCH2 } from './species-batch2.js';
 import { BATCH3 } from './species-batch3.js';
+import { BATCH4 } from './species-batch4.js';
 export { EDU_FIELDS, GROUPS };
 
 export const CONFIG_VERSION = 4;
@@ -164,7 +165,7 @@ export const DEFAULTS = {
     { id: 'zaby', name: 'Žáby a pulci' },
     { id: 'maso', name: 'Kousek masa' }
   ],
-  species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3],
+  species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3, ...BATCH4],
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
     { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
   ],
