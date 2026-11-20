@@ -2,6 +2,7 @@
 // Mapy (biotopy, potrava) se zapisují jako text "klic:vaha, klic:vaha", aby šly snadno upravit ve formuláři.
 
 import { SPECIES, EDU_FIELDS, EMPTY_EDU, GROUPS } from './species.js';
+import { BATCH1 } from './species-batch1.js';
 export { EDU_FIELDS, GROUPS };
 
 export const CONFIG_VERSION = 4;
@@ -152,9 +153,14 @@ export const DEFAULTS = {
     { id: 'bobule', name: 'Bobule' },
     { id: 'ryba', name: 'Ryba' },
     { id: 'hlodavec', name: 'Hlodavec' },
-    { id: 'rostliny', name: 'Vodní rostliny' }
+    { id: 'rostliny', name: 'Vodní rostliny' },
+    { id: 'listi', name: 'Listí a tráva' },
+    { id: 'orisky', name: 'Žaludy a oříšky' },
+    { id: 'nektar', name: 'Nektar a květy' },
+    { id: 'slimaci', name: 'Slimáci a plži' },
+    { id: 'drobotina', name: 'Vodní drobotina' }
   ],
-  species: SPECIES,
+  species: [...SPECIES, ...BATCH1],
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
     { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
   ],

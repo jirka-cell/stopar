@@ -47,12 +47,29 @@ function shade(hex, k) {
   return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
+// Zástupné obrázky pro skupiny, které kreslený vzhled neumí (do doby, než budou ilustrace z kroku 2.6)
+const GROUP_ICON = {
+  'Savci': ['#8a5a36', '<ellipse cx="80" cy="88" rx="26" ry="22"/><ellipse cx="50" cy="56" rx="10" ry="13"/><ellipse cx="70" cy="42" rx="10" ry="13"/><ellipse cx="92" cy="42" rx="10" ry="13"/><ellipse cx="112" cy="56" rx="10" ry="13"/>'],
+  'Ryby': ['#3a86c8', '<ellipse cx="74" cy="72" rx="44" ry="24"/><path d="M114 72L146 48V96Z"/><circle cx="52" cy="66" r="5" fill="#fff"/><circle cx="52" cy="66" r="2.5" fill="#123"/>'],
+  'Obojživelníci': ['#4f9a3a', '<ellipse cx="80" cy="80" rx="40" ry="26"/><circle cx="62" cy="54" r="12"/><circle cx="98" cy="54" r="12"/><circle cx="62" cy="52" r="5" fill="#fff"/><circle cx="98" cy="52" r="5" fill="#fff"/><path d="M42 96L24 116M118 96L136 116" stroke="#4f9a3a" stroke-width="9" stroke-linecap="round"/>'],
+  'Plazi': ['#7d8a3a', '<path d="M30 92C50 60 90 100 120 70C130 60 140 58 148 62" fill="none" stroke="#7d8a3a" stroke-width="16" stroke-linecap="round"/><path d="M58 84L48 104M70 84L82 102M104 80L96 60M116 74L128 92" stroke="#7d8a3a" stroke-width="7" stroke-linecap="round"/>'],
+  'Hmyz': ['#e0802a', '<ellipse cx="54" cy="56" rx="26" ry="20"/><ellipse cx="106" cy="56" rx="26" ry="20"/><ellipse cx="60" cy="92" rx="18" ry="14"/><ellipse cx="100" cy="92" rx="18" ry="14"/><rect x="74" y="40" width="12" height="70" rx="6" fill="#3a2a1e"/>'],
+  'Pavoukovci': ['#5a4a3a', '<circle cx="80" cy="74" r="20"/><circle cx="80" cy="48" r="12"/><path d="M62 66L30 46M62 74L26 74M62 82L30 104M66 90L44 120M98 66L130 46M98 74L134 74M98 82L130 104M94 90L116 120" stroke="#5a4a3a" stroke-width="5" stroke-linecap="round"/>'],
+  'Měkkýši': ['#b07a4a', '<path d="M24 104H130C140 104 146 96 140 90L120 84" fill="#d9b88a"/><circle cx="84" cy="70" r="30"/><path d="M84 70m-18 0a18 18 0 1 0 18 -18a10 10 0 1 0 6 10" fill="none" stroke="#7a4f2a" stroke-width="4"/>'],
+  'Ostatní': ['#5f8f5a', '<path d="M40 110C40 50 90 30 130 30C130 80 100 120 40 110Z"/><path d="M40 110L110 50" stroke="#fff" stroke-width="4"/>']
+};
+function groupSVG(group) {
+  const [col, shapes] = GROUP_ICON[group] || GROUP_ICON['Ostatní'];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 140"><ellipse cx="80" cy="128" rx="30" ry="5" fill="rgba(0,0,0,.12)"/><g fill="${col}">${shapes}</g></svg>`;
+}
+
 const cache = new Map();
-// URL obrázku druhu (vlastní obrázek nebo vygenerované SVG)
+// URL obrázku druhu (vlastní obrázek, kreslený pták, nebo zástupný obrázek skupiny)
 export function birdURL(sp) {
   if (safeImage(sp.image)) return sp.image;
-  const key = sp.id + JSON.stringify(sp.look);
-  if (!cache.has(key)) cache.set(key, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(birdSVG(sp.look)));
+  const bird = !sp.group || sp.group === 'Ptáci';
+  const key = sp.id + (bird ? JSON.stringify(sp.look) : '|' + sp.group);
+  if (!cache.has(key)) cache.set(key, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(bird ? birdSVG(sp.look) : groupSVG(sp.group)));
   return cache.get(key);
 }
 export function birdImg(sp, cls = '') {

@@ -324,3 +324,25 @@ test('kód rozmístění: stejné nastavení = stejný kód, vzhled mapy ho nem�
   b.spawn.seed++;
   assert.notEqual(spawnCode(a), spawnCode(b));
 });
+
+test('data druhů jsou konzistentní: potrava, biotopy, pásma, vzácnost, skupina, statistiky, měsíce', async () => {
+  const { GROUPS } = await import('../js/species.js');
+  const { parseMap, parseNums } = await import('../js/config.js');
+  const foods = new Set(DEFAULTS.foods.map(f => f.id)), bios = new Set(DEFAULTS.biotopes.map(b => b.id));
+  const rar = new Set(DEFAULTS.rarities.map(r => String(r.id))), zones = new Set(parseZones(DEFAULTS.regions[0].zones).map(z => z[0]));
+  const ids = new Set();
+  for (const s of DEFAULTS.species) {
+    assert.ok(!ids.has(s.id), `duplicitní id ${s.id}`); ids.add(s.id);
+    assert.ok(/^[a-z0-9_]+$/.test(s.id), `id bez diakritiky: ${s.id}`);
+    assert.ok(GROUPS.includes(s.group), `${s.id}: neznámá skupina ${s.group}`);
+    assert.ok(rar.has(String(s.rarity)), `${s.id}: neznámá vzácnost`);
+    for (const f of Object.keys(parseMap(s.food))) assert.ok(foods.has(f), `${s.id}: neznámá potrava ${f}`);
+    const b = Object.keys(parseMap(s.bio)); assert.ok(b.length, `${s.id}: chybí biotop`);
+    for (const x of b) assert.ok(bios.has(x), `${s.id}: neznámý biotop ${x}`);
+    for (const z of Object.keys(parseMap(s.alt))) assert.ok(zones.has(z), `${s.id}: neznámé pásmo ${z}`);
+    assert.equal(parseNums(s.stats).length, DEFAULTS.stats.length, `${s.id}: počet statistik`);
+    if (s.months) assert.ok(parseMonths(s.months).size < 12, `${s.id}: měsíce`);
+    assert.ok(s.fact && s.edu.sources, `${s.id}: chybí zajímavost nebo zdroj`);
+  }
+  assert.ok(DEFAULTS.species.length >= 35);
+});

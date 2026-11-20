@@ -11,8 +11,10 @@ import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './map
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Texty pro různé skupiny živočichů
-const isBird = sp => sp.group === 'Ptáci';
-const fled = sp => isBird(sp) ? 'odletěl' : 'utekl';
+const APPROACH = { 'Ptáci': 'Přiletěl a zobe.', 'Ryby': 'Připlaval a bere.', 'Hmyz': 'Přiletěl na návnadu.', 'Měkkýši': 'Pomalu se připlazil a hoduje.' };
+const FLED = { 'Ptáci': 'odletěl', 'Hmyz': 'odletěl', 'Ryby': 'odplaval', 'Obojživelníci': 'odskákal', 'Plazi': 'zmizel v trávě', 'Měkkýši': 'zalezl do ulity' };
+const approach = sp => APPROACH[sp.group] || 'Přišel blíž a žere.';
+const fled = sp => FLED[sp.group] || 'utekl';
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const shortUrl = u => { try { return decodeURIComponent(u.replace(/^https:\/\/(www\.)?/, '')).slice(0, 60); } catch (e) { return u.slice(0, 60); } };
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
@@ -492,7 +494,7 @@ function pickFood(f) {
   const C = cfg.catch, food = parseMap(enc.sp.food), m = food[f] || 0;
   const ch = m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong;
   enc.tries++;
-  if (Math.random() < ch) { enc.step = 'photo'; enc.msg = m >= 1 ? (isBird(enc.sp) ? 'Přiletěl a zobe.' : 'Přišel blíž a žere.') + ' Cvakni, až je značka v zelené.' : 'Opatrně se přiblížil. Rychle fotku!'; renderEnc(); return; }
+  if (Math.random() < ch) { enc.step = 'photo'; enc.msg = m >= 1 ? approach(enc.sp) + ' Cvakni, až je značka v zelené.' : 'Opatrně se přiblížil. Rychle fotku!'; renderEnc(); return; }
   if ((m === 0 && Math.random() < C.fleeWrong) || enc.tries >= C.maxFoodTries) { gone(); enc.step = 'fled'; enc.msg = m === 0 ? (FN[f] || f) + ' ho nezajímá. ' + cap(fled(enc.sp)) + '.' : 'Vyplašil se a ' + fled(enc.sp) + '.'; renderEnc(); return; }
   const main = Object.keys(food).sort((a, b) => food[b] - food[a])[0];
   enc.msg = (m === 0 ? (FN[f] || f) + ' ho nezajímá.' : 'Váhá…') + (enc.tries >= C.hintAfter && main ? ' Tip: zkus ' + String(FN[main] || main).toLowerCase() + '.' : ' Zkus jinou potravu.');
