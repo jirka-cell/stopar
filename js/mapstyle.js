@@ -76,10 +76,12 @@ export function makeStyle(id, o, ctx) {
   // Herní obarvení ploch podle biotopů (přibližně z vektorové mapy, barvy z adminu)
   const bio = Object.fromEntries((ctx.biotopes || []).map(b => [b.id, b.color]));
   const bc = (k, d) => bio[k] || d;
-  add({ id: 'bio-land', type: 'fill', source: 'om', 'source-layer': 'landcover', filter: cls(['wood', 'grass', 'farmland', 'wetland']), layout: vis(o.biotopes),
-    paint: { 'fill-color': ['match', ['get', 'class'], 'wood', bc('les', '#6fa36b'), 'wetland', bc('voda', '#6bb6e0'), bc('louka', '#c8dc8a')], 'fill-opacity': .55 } });
-  add({ id: 'bio-use', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['residential', 'commercial', 'retail', 'industrial', 'cemetery']), layout: vis(o.biotopes),
-    paint: { 'fill-color': ['match', ['get', 'class'], 'cemetery', bc('park', '#9fd08a'), bc('mesto', '#cfc8bd')], 'fill-opacity': .55 } });
+  add({ id: 'bio-land', type: 'fill', source: 'om', 'source-layer': 'landcover', filter: cls(['wood', 'grass', 'farmland', 'wetland', 'rock', 'sand']), layout: vis(o.biotopes),
+    paint: { 'fill-color': ['match', ['get', 'class'], 'wood', bc('les', '#6fa36b'), 'wetland', bc('mokrad', bc('voda', '#6bb6e0')), 'farmland', bc('pole', bc('louka', '#c8dc8a')),
+      ['rock', 'sand'], bc('skaly', '#b5b0a5'), bc('louka', '#c8dc8a')], 'fill-opacity': .55 } });
+  add({ id: 'bio-use', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['residential', 'commercial', 'retail', 'industrial', 'cemetery', 'quarry', 'farmyard', 'orchard', 'vineyard', 'allotments']), layout: vis(o.biotopes),
+    paint: { 'fill-color': ['match', ['get', 'class'], 'cemetery', bc('park', '#9fd08a'), 'quarry', bc('skaly', '#b5b0a5'), 'farmyard', bc('vesnice', '#e2cfa8'),
+      ['orchard', 'vineyard', 'allotments'], bc('sad', '#b9d36b'), bc('mesto', '#cfc8bd')], 'fill-opacity': .55 } });
   add({ id: 'bio-park', type: 'fill', source: 'om', 'source-layer': 'park', layout: vis(o.biotopes), paint: { 'fill-color': bc('park', '#9fd08a'), 'fill-opacity': .55 } });
   add({ id: 'protected', type: 'line', source: 'om', 'source-layer': 'park', filter: cls(['national_park', 'nature_reserve', 'protected_area']), layout: vis(o.protected), paint: { 'line-color': '#2e7d32', 'line-width': 2.5, 'line-dasharray': [3, 2], 'line-opacity': .8 } });
 

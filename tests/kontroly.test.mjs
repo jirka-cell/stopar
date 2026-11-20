@@ -1,9 +1,9 @@
 // Automatické kontroly logiky, na které stojí hra. Spuštění: node --test tests/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers, parseMonths, parseZones, zoneFor, EDU_FIELDS, formatMonths } from '../js/config.js';
+import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers, parseMonths, parseZones, zoneFor, EDU_FIELDS, formatMonths, compactConfig } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
-import { parseOverpass, osmSetConfig, ensureArea, errorAt, status } from '../js/osm.js';
+import { parseOverpass, osmSetConfig, ensureArea, errorAt, status, biotopeAt, clearOsmCache } from '../js/osm.js';
 import { makeStyle, styleIdFor, circle, STYLES } from '../js/mapstyle.js';
 
 const NOW = Date.UTC(2026, 10, 20, 10, 0);
@@ -111,7 +111,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 3);
+  assert.equal(m.version, 4);
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
   assert.equal(m.map.attribution, DEFAULTS.map.attribution);
   assert.equal(m.map.tileCacheMax, DEFAULTS.map.tileCacheMax);
@@ -180,11 +180,11 @@ test('druhy: nové výchozí se doplní, smazané výchozí se nevrátí, vlastn
   assert.equal(m.species[0].name, 'Datel (upravený)');
   assert.equal(m.species[0].edu.family, DEFAULTS.species[0].edu.family, 'vzdělávací údaje se doplní');
   // nová verze: uživatel smazal holuba → zůstane smazaný
-  const v3 = clone(m); v3.species = v3.species.filter(s => s.id !== 'holub');
+  const v3 = compactConfig(m); v3.species = v3.species.filter(s => s.id !== 'holub');
   const m2 = mergeDefaults(v3);
   assert.ok(!m2.species.some(s => s.id === 'holub'));
   // druh přidaný v budoucí aktualizaci (není ve speciesKnown) se doplní
-  const v4 = clone(m2); v4.speciesKnown = v4.speciesKnown.filter(id => id !== 'kos'); v4.species = v4.species.filter(s => s.id !== 'kos');
+  const v4 = compactConfig(m2); v4.listsKnown.species = v4.listsKnown.species.filter(id => id !== 'kos'); v4.species = v4.species.filter(s => s.id !== 'kos');
   assert.ok(mergeDefaults(v4).species.some(s => s.id === 'kos'));
   // každý výchozí druh má všechna vzdělávací pole
   for (const s of DEFAULTS.species) for (const [k] of EDU_FIELDS) assert.ok(k in s.edu, `${s.id} nemá pole ${k}`);
@@ -245,4 +245,82 @@ test('sezónnost: druh jen ve svých měsících, simulovaný měsíc z adminu, 
   assert.equal(formatMonths('3-10'), 'březen–říjen');
   assert.equal(formatMonths('11-2'), 'listopad–únor');
   assert.equal(formatMonths(''), '');
+});
+
+test('ukládání jen změn: úpravy zůstanou, nové výchozí hodnoty a biotopy se dostanou i k uloženému nastavení', () => {
+  const cfg = mergeDefaults(null);
+  cfg.spawn.density = 9;
+  cfg.species.find(s => s.id === 'kos').name = 'Kos (můj)';
+  cfg.biotopes = cfg.biotopes.filter(b => b.id !== 'skaly');
+  const saved = compactConfig(cfg);
+  assert.deepEqual(saved.spawn, { density: 9 }, 'ukládá se jen změněná hodnota');
+  assert.deepEqual(saved.species.find(s => s.id === 'kos'), { id: 'kos', name: 'Kos (můj)' });
+  assert.ok(JSON.stringify(saved).length < JSON.stringify(cfg).length / 4, 'uložené nastavení je výrazně menší');
+  const back = mergeDefaults(saved);
+  assert.equal(back.spawn.density, 9);
+  assert.equal(back.species.find(s => s.id === 'kos').name, 'Kos (můj)');
+  assert.equal(back.species.find(s => s.id === 'kos').edu.family, DEFAULTS.species[2].edu.family);
+  assert.ok(!back.biotopes.some(b => b.id === 'skaly'), 'smazaný biotop zůstane smazaný');
+  assert.deepEqual(compactConfig(back), saved, 'uložení → načtení → uložení dává stejný výsledek');
+});
+
+test('převod z verze 3: staré výchozí váhy a biotopy se nahradí novými, vlastní úpravy zůstanou', () => {
+  const v3 = clone(DEFAULTS); v3.version = 3;
+  v3.species = v3.species.map(s => ({ ...s }));
+  v3.species.find(s => s.id === 'vrabec').bio = 'mesto:4, louka:1';      // stará výchozí → nahradí se
+  v3.species.find(s => s.id === 'kos').bio = 'park:1';                   // vlastní úprava → zůstane
+  v3.biotopes = [
+    { id: 'voda', name: 'Voda', color: '#6bb6e0', priority: 1, tags: DEFAULTS.biotopes[0].tags },
+    { id: 'louka', name: 'Louka', color: '#c8dc8a', priority: 5, tags: 'landuse=meadow\nlanduse=farmland\nlanduse=grass\nnatural=grassland\nnatural=heath\nnatural=scrub\nlanduse=orchard\nlanduse=allotments' }
+  ];
+  const m = mergeDefaults(v3);
+  assert.equal(m.species.find(s => s.id === 'vrabec').bio, DEFAULTS.species.find(s => s.id === 'vrabec').bio);
+  assert.equal(m.species.find(s => s.id === 'kos').bio, 'park:1');
+  const louka = m.biotopes.find(b => b.id === 'louka');
+  assert.equal(louka.priority, 6); assert.ok(!/farmland/.test(louka.tags), 'pole už nejsou louka');
+  for (const id of ['mokrad', 'skaly', 'sad', 'vesnice', 'pole']) assert.ok(m.biotopes.some(b => b.id === id), `nový biotop ${id}`);
+});
+
+test('vesnice × město podle nejbližšího názvu obce, nové biotopy z tagů OSM', () => {
+  osmSetConfig(DEFAULTS);
+  const sq = (a, b, s) => [[a, b], [a, b + s], [a + s, b + s], [a + s, b], [a, b]].map(([lat, lon]) => ({ lat, lon }));
+  const f = parseOverpass({ elements: [
+    { type: 'way', tags: { landuse: 'residential' }, geometry: sq(50, 12, 0.01) },
+    { type: 'way', tags: { landuse: 'farmland' }, geometry: sq(51, 12, 0.01) },
+    { type: 'way', tags: { natural: 'wetland', wetland: 'reedbed' }, geometry: sq(52, 12, 0.01) },
+    { type: 'way', tags: { landuse: 'orchard' }, geometry: sq(53, 12, 0.01) },
+    { type: 'way', tags: { landuse: 'quarry' }, geometry: sq(54, 12, 0.01) },
+    { type: 'node', lat: 50.004, lon: 12.004, tags: { place: 'village', name: 'Ves' } }
+  ] });
+  assert.deepEqual(f.filter(x => !x.pl).map(x => x.b), ['mesto', 'pole', 'mokrad', 'sad', 'skaly']);
+  assert.equal(f.filter(x => x.pl).length, 1);
+});
+
+test('biotop zástavby: u vesnice „vesnice“, u města „město“', async () => {
+  const realFetch = globalThis.fetch;
+  const sq = (a, b, s) => [[a, b], [a, b + s], [a + s, b + s], [a + s, b], [a, b]].map(([lat, lon]) => ({ lat, lon }));
+  const run = async place => {
+    osmSetConfig(clone(DEFAULTS)); try { await clearOsmCache(); } catch (e) {}
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ elements: [
+      { type: 'way', tags: { landuse: 'residential' }, geometry: sq(50, 12, 0.01) },
+      { type: 'node', lat: 50.006, lon: 12.006, tags: { place } }
+    ] }) });
+    ensureArea(50.005, 12.005, 10); await new Promise(r => setTimeout(r, 50));
+    return biotopeAt(50.005, 12.005);
+  };
+  try {
+    assert.equal(await run('village'), 'vesnice');
+    assert.equal(await run('town'), 'mesto');
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test('kód rozmístění: stejné nastavení = stejný kód, vzhled mapy ho nemění, seed ano', async () => {
+  const { spawnCode } = await import('../js/spawn.js');
+  const a = mergeDefaults(null), b = mergeDefaults(null);
+  assert.match(spawnCode(a), /^[2-9A-Z]{2}-[2-9A-Z]{2}$/);
+  assert.equal(spawnCode(a), spawnCode(b));
+  b.layers.contours = true; b.map.style = 'papir'; b.mapPresets = [];
+  assert.equal(spawnCode(a), spawnCode(b), 'vzhled mapy kód nemění');
+  b.spawn.seed++;
+  assert.notEqual(spawnCode(a), spawnCode(b));
 });

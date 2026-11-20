@@ -1,8 +1,8 @@
-import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths } from './config.js';
+import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths, compactConfig } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
 import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
-import { visibleBirds, currentSlot, currentRegion, currentMonth } from './spawn.js';
+import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin } from './admin.js';
@@ -99,7 +99,7 @@ function applyConfig(first) {
 
 async function saveConfig(newCfg) {
   cfg = newCfg;
-  try { await store.set('config', cfg); } catch (e) {}
+  try { await store.set('config', compactConfig(cfg)); } catch (e) {}
   applyConfig(false);
 }
 
@@ -217,7 +217,7 @@ function openLook() {
   <p class="msg small">Uloží současný styl a vrstvy. Všechny vrstvy jsou v Admin → Vrstvy mapy.</p>
   <button class="btn full ghost" data-act="close">Zavřít</button>`);
 }
-async function saveLook() { try { await store.set('config', cfg); } catch (e) {} applyMapStyle(true); }
+async function saveLook() { try { await store.set('config', compactConfig(cfg)); } catch (e) {} applyMapStyle(true); }
 function onLookClick(act, a) {
   const i = Number(a.dataset.i);
   if (act === 'lookStyle') { cfg.map.style = a.dataset.v; }
@@ -645,6 +645,7 @@ function openMenu() {
   <button class="btn full" data-act="export">Uložit zálohu (soubor)</button>
   <label class="btn full">Obnovit ze zálohy<input type="file" accept="application/json,.json" data-import hidden></label>
   <p class="msg small">Ušlo celkem ${(state.dist / 1000).toFixed(2).replace('.', ',')} km · ${Object.values(state.caught).filter(c => c.count).length} druhů</p>
+  <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b><br>Před společnou procházkou ho porovnejte – stejný kód = stejná zvířata na stejném místě.</p>
   <p class="msg small">Mapa a biotopy: ${safeAttribution(cfg.map.attribution)}</p>
   <button class="btn full ghost" data-act="close">Zavřít</button></div>`);
 }
@@ -710,7 +711,7 @@ function checkPin() {
     clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => { state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last }; await store.clear('photos'); await store.set('state', state); hudDist(); toast('Postup smazán.'); },
     respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Zvířata obnovena.'); },
-    info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, alt: elevationAt(pos.lat, pos.lon), region: currentRegion(cfg).id, month: currentMonth(cfg) + (Number(cfg.general.monthOverride) ? ' (simulovaný)' : ''), osmError: osmStatus.error })
+    info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, alt: elevationAt(pos.lat, pos.lon), region: currentRegion(cfg).id, month: currentMonth(cfg) + (Number(cfg.general.monthOverride) ? ' (simulovaný)' : ''), code: spawnCode(cfg), osmError: osmStatus.error })
   });
 }
 

@@ -4,7 +4,7 @@
 import { SPECIES, EDU_FIELDS, EMPTY_EDU, GROUPS } from './species.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 3;
+export const CONFIG_VERSION = 4;
 
 export const DEFAULTS = {
   version: CONFIG_VERSION,
@@ -95,7 +95,10 @@ export const DEFAULTS = {
     cacheDays: 30,
     lineBuffer: 15,         // m – šířka řek/potoků zadaných jako čára
     timeout: 25,            // s
-    defaultBiotope: 'louka' // biotop, když OSM nic nemá
+    defaultBiotope: 'louka', // biotop, když OSM nic nemá
+    villagePlaces: 'village,hamlet,isolated_dwelling', // place=… vesnice (rozliší vesnici od města)
+    townPlaces: 'city,town,suburb,quarter,borough',     // place=… město
+    villageRadius: 1500     // m – jak daleko hledat nejbližší název obce
   },
   daynight: {
     mode: 'sun',            // sun = podle slunce, hours = podle hodin, day = vždy den, night = vždy noc
@@ -119,17 +122,27 @@ export const DEFAULTS = {
     { id: 'maskovani', name: 'Maskování' },
     { id: 'vydrz', name: 'Výdrž' }
   ],
-  biotopes: [
+  biotopes: [               // priorita: nižší vyhrává (malé plochy uvnitř velkých)
     { id: 'voda', name: 'Voda', color: '#6bb6e0', priority: 1,
       tags: 'natural=water\nwaterway=riverbank\nlanduse=reservoir\nlanduse=basin\nwater=*\nwaterway=river|line\nwaterway=stream|line\nwaterway=canal|line' },
-    { id: 'park', name: 'Park', color: '#9fd08a', priority: 2,
+    { id: 'mokrad', name: 'Mokřad', color: '#7fc7b8', priority: 2,
+      tags: 'natural=wetland\nwetland=*' },
+    { id: 'skaly', name: 'Skály a lomy', color: '#b5b0a5', priority: 2,
+      tags: 'natural=bare_rock\nnatural=scree\nnatural=cliff|line\nlanduse=quarry' },
+    { id: 'park', name: 'Park', color: '#9fd08a', priority: 3,
       tags: 'leisure=park\nleisure=garden\nlanduse=cemetery\nlanduse=recreation_ground\nlanduse=village_green\nleisure=golf_course' },
-    { id: 'les', name: 'Les', color: '#6fa36b', priority: 3,
+    { id: 'sad', name: 'Sad a zahrádky', color: '#b9d36b', priority: 3,
+      tags: 'landuse=orchard\nlanduse=vineyard\nlanduse=allotments' },
+    { id: 'les', name: 'Les', color: '#6fa36b', priority: 4,
       tags: 'landuse=forest\nnatural=wood' },
-    { id: 'mesto', name: 'Město', color: '#cfc8bd', priority: 4,
+    { id: 'vesnice', name: 'Vesnice', color: '#e2cfa8', priority: 5, villageFrom: 'mesto',
+      tags: 'landuse=farmyard' },
+    { id: 'mesto', name: 'Město', color: '#cfc8bd', priority: 5,
       tags: 'landuse=residential\nlanduse=commercial\nlanduse=retail\nlanduse=industrial\nlanduse=railway\nlanduse=construction' },
-    { id: 'louka', name: 'Louka', color: '#c8dc8a', priority: 5,
-      tags: 'landuse=meadow\nlanduse=farmland\nlanduse=grass\nnatural=grassland\nnatural=heath\nnatural=scrub\nlanduse=orchard\nlanduse=allotments' }
+    { id: 'pole', name: 'Pole', color: '#e8dc8f', priority: 6,
+      tags: 'landuse=farmland' },
+    { id: 'louka', name: 'Louka', color: '#c8dc8a', priority: 6,
+      tags: 'landuse=meadow\nlanduse=grass\nnatural=grassland\nnatural=heath\nnatural=scrub' }
   ],
   foods: [
     { id: 'zrni', name: 'Zrní a semena' },
@@ -142,7 +155,6 @@ export const DEFAULTS = {
     { id: 'rostliny', name: 'Vodní rostliny' }
   ],
   species: SPECIES,
-  speciesKnown: SPECIES.map(s => s.id), // id výchozích druhů známá při uložení (smazané výchozí se nevrátí, nové se doplní)
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
     { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
   ],
@@ -230,7 +242,10 @@ export const SCHEMA = [
     ['cacheDays', 'Platnost cache (dny)', 'number', { min: 1, max: 365, step: 1 }],
     ['lineBuffer', 'Šířka vodních toků (m)', 'number', { min: 1, max: 200, step: 1 }],
     ['timeout', 'Timeout dotazu (s)', 'number', { min: 5, max: 180, step: 1 }],
-    ['defaultBiotope', 'Výchozí biotop (id)', 'text']
+    ['defaultBiotope', 'Výchozí biotop (id)', 'text'],
+    ['villagePlaces', 'Názvy obcí = vesnice (place=…)', 'text'],
+    ['townPlaces', 'Názvy obcí = město (place=…)', 'text'],
+    ['villageRadius', 'Hledat název obce do (m)', 'number', { min: 100, max: 5000, step: 100 }]
   ] },
   { sec: 'daynight', title: 'Den a noc', fields: [
     ['mode', 'Režim', 'select', { options: [['sun', 'Podle slunce'], ['hours', 'Podle hodin'], ['day', 'Vždy den'], ['night', 'Vždy noc']] }],
@@ -264,7 +279,8 @@ export const LISTS = [
   { sec: 'biotopes', title: 'Biotopy', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['color', 'Barva', 'color'],
     ['priority', 'Priorita (nižší vyhrává)', 'number', { step: 1 }],
-    ['tags', 'OSM tagy (řádek = klíč=hodnota, * = cokoliv, |line = čára)', 'textarea']
+    ['tags', 'OSM tagy (řádek = klíč=hodnota, * = cokoliv, |line = čára)', 'textarea'],
+    ['villageFrom', 'U vesnic převzít plochy biotopu (id, např. mesto)', 'text']
   ] },
   { sec: 'foods', title: 'Potrava', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
   { sec: 'rarities', title: 'Vzácnosti', label: o => o.id + ' – ' + o.name, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text'], ['weight', 'Váha spawnu', 'number', { min: 0, step: 0.01 }]] },
@@ -342,8 +358,71 @@ export function presetLayers(p) {
   return cleanLayers(p && p.layers, all);
 }
 
+// Seznamy s id: ukládají se jen změny proti výchozím položkám, nové výchozí položky z aktualizací se doplní
+export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions'];
+const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Hodnoty výchozích položek z verze 3 (≤ 1.4.0), které 1.5.0 změnila. Staré uložené nastavení je obsahovalo celé,
+// takže hodnota shodná se starou výchozí = uživatel ji neměnil → má dostat novou výchozí.
+const V3_STALE = {
+  species: {
+    datel: { bio: 'les:3' }, holub: { bio: 'mesto:3, park:2, louka:1' }, kos: { bio: 'park:3, mesto:2, les:2' },
+    konadra: { bio: 'park:3, les:2, mesto:1' }, vrabec: { bio: 'mesto:4, louka:1' }, kachna: { bio: 'voda:4, park:0.5' },
+    volavka: { bio: 'voda:3, louka:1' }, kane: { bio: 'louka:3, les:1' }, pustik: { bio: 'les:3, park:1' }, lednacek: { bio: 'voda:2' }
+  },
+  biotopes: {
+    park: { priority: 2 }, les: { priority: 3 }, mesto: { priority: 4 },
+    louka: { priority: 5, tags: 'landuse=meadow\nlanduse=farmland\nlanduse=grass\nnatural=grassland\nnatural=heath\nnatural=scrub\nlanduse=orchard\nlanduse=allotments' }
+  }
+};
+
+function mergeList(k, saved, known, stale) {
+  const defs = DEFAULTS[k], byId = Object.fromEntries(defs.map(d => [String(d.id), d]));
+  const savedIds = new Set(saved.map(s => String(s.id)));
+  const added = defs.filter(d => !savedIds.has(String(d.id)) && !known.has(String(d.id)));
+  return [...saved, ...clone(added)].map(s => {
+    const d = byId[String(s.id)];
+    if (!d) return s;
+    const st = stale && stale[String(s.id)];
+    if (st) for (const f of Object.keys(st)) if (same(s[f], st[f])) delete s[f];
+    const m = Object.assign(clone(d), s);
+    for (const f of Object.keys(d)) if (isObj(d[f])) m[f] = Object.assign(clone(d[f]), isObj(s[f]) ? s[f] : {});
+    return m;
+  });
+}
+
+// Rozdíl objektu proti výchozímu (vnořené objekty po klíčích)
+function diffObj(v, d) {
+  const o = {};
+  for (const key of Object.keys(v)) {
+    const a = v[key], b = d ? d[key] : undefined;
+    if (isObj(a) && isObj(b)) { const sub = diffObj(a, b); if (Object.keys(sub).length) o[key] = sub; }
+    else if (!same(a, b)) o[key] = clone(a);
+  }
+  return o;
+}
+
+// Co uložit do telefonu: jen změny proti výchozímu nastavení. Díky tomu se úpravy výchozích dat
+// (nové biotopy, opravené údaje o druzích…) dostanou i k hráčům, kteří si nastavení někdy uložili.
+export function compactConfig(cfg) {
+  const out = { version: CONFIG_VERSION, listsKnown: {} };
+  for (const k of Object.keys(DEFAULTS)) {
+    if (k === 'version' || cfg[k] === undefined) continue;
+    const d = DEFAULTS[k], v = cfg[k];
+    if (ID_LISTS.includes(k)) {
+      out.listsKnown[k] = d.map(x => String(x.id));
+      const byId = Object.fromEntries(d.map(x => [String(x.id), x]));
+      out[k] = v.map(item => { const di = byId[String(item.id)]; return di ? { id: item.id, ...diffObj(item, di) } : clone(item); });
+    } else if (Array.isArray(d)) out[k] = clone(v);
+    else if (isObj(d)) { const df = diffObj(v, d); if (Object.keys(df).length) out[k] = df; }
+    else if (!same(v, d)) out[k] = v;
+  }
+  return out;
+}
+
 // Doplní chybějící klíče z výchozí konfigurace (při upgradu verze).
-// Druhy se slučují po položkách: uložený druh dostane nová pole (i v "look") z výchozího druhu se stejným id.
+// Seznamy s id se slučují po položkách: uložené změny přes výchozí položku se stejným id.
 export function mergeDefaults(cfg) {
   const out = clone(DEFAULTS);
   if (!cfg || typeof cfg !== 'object') return out;
@@ -353,25 +432,22 @@ export function mergeDefaults(cfg) {
     else if (typeof out[k] === 'object') { if (typeof cfg[k] === 'object') Object.assign(out[k], cfg[k]); }
     else out[k] = cfg[k];
   }
-  // Druhy: uložené úpravy + výchozí druhy, které v uloženém nastavení ještě nebyly (přišly s aktualizací).
-  // Výchozí druh, který uživatel znal a smazal (je ve speciesKnown, ale chybí), se nevrátí.
-  const defSp = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
+  const old = !(Number(cfg.version) >= 4);
+  for (const k of ID_LISTS) {
+    const saved = Array.isArray(cfg[k]) ? out[k] : [];
+    const kn = cfg.listsKnown && Array.isArray(cfg.listsKnown[k]) ? cfg.listsKnown[k]
+      : k === 'species' && Array.isArray(cfg.speciesKnown) ? cfg.speciesKnown
+      : saved.map(s => s.id); // starší nastavení: za známé se berou jen uložené položky
+    out[k] = mergeList(k, saved, new Set(kn.map(String)), old ? V3_STALE[k] : null);
+  }
+  // Vlastní druhy (bez výchozí předlohy) dostanou kreslený vzhled a prázdné vzdělávací údaje
   const baseLook = DEFAULTS.species[1].look;
-  const saved = Array.isArray(cfg.species) ? out.species : [];
-  const savedIds = new Set(saved.map(s => s.id));
-  const known = new Set(Array.isArray(cfg.speciesKnown) ? cfg.speciesKnown : (Array.isArray(cfg.species) ? [...savedIds] : []));
-  const added = DEFAULTS.species.filter(d => !savedIds.has(d.id) && !known.has(d.id));
-  out.species = [...saved, ...clone(added)].map(s => {
-    const d = defSp[s.id];
-    const obj = v => v && typeof v === 'object' ? v : {};
-    const m = Object.assign(d ? clone(d) : {}, s, {
-      look: Object.assign(clone(d ? d.look : baseLook), obj(s.look)),
-      edu: Object.assign(clone(d ? d.edu : EMPTY_EDU), obj(s.edu))
-    });
+  out.species = out.species.map(s => {
+    const m = { ...s, look: Object.assign(clone(baseLook), isObj(s.look) ? s.look : {}), edu: Object.assign(clone(EMPTY_EDU), isObj(s.edu) ? s.edu : {}) };
     m.image = safeImage(m.image);
     return m;
   });
-  out.speciesKnown = DEFAULTS.species.map(s => s.id);
+  delete out.listsKnown; delete out.speciesKnown;
   // Verze 2 → 3: doplnit nové výchozí předvolby vzhledu (vlastní předvolby zůstanou)
   if (!(Number(cfg.version) >= 3) && Array.isArray(cfg.mapPresets)) {
     const names = new Set(out.mapPresets.map(p => p && p.name));

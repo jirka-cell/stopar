@@ -72,3 +72,24 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
   }
   return { birds: out, pending };
 }
+
+// Verze algoritmu rozmisťování – zvýšit při každé změně, která mění, kde a jaká zvířata se objeví
+export const SPAWN_ALGO = 4;
+
+// Krátký kód z nastavení, které ovlivňuje rozmístění. Stejný kód = stejná zvířata na stejném místě.
+export function spawnCode(cfg) {
+  const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o[k]]));
+  const data = [
+    SPAWN_ALGO, cfg.spawn, pick(cfg.daynight, ['mode', 'sunAltitude', 'nightFrom', 'nightTo']),
+    pick(cfg.osm, ['chunkDeg', 'lineBuffer', 'defaultBiotope', 'villagePlaces', 'townPlaces', 'villageRadius']),
+    cfg.species.map(s => pick(s, ['id', 'active', 'rarity', 'night', 'bio', 'alt', 'months', 'regions'])),
+    cfg.rarities, cfg.regions, cfg.biotopes.map(b => pick(b, ['id', 'priority', 'tags', 'villageFrom']))
+  ];
+  const s = JSON.stringify(data);
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const A = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // bez 0/O a 1/I, ať se kód dobře čte nahlas
+  let c = '';
+  for (let i = 0; i < 4; i++) { c += A[h & 31]; h >>>= 5; }
+  return c.slice(0, 2) + '-' + c.slice(2);
+}

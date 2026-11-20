@@ -5,6 +5,8 @@ import { inRing, distToLine, mPerDegLat, mPerDegLon } from './geo.js';
 let CFG = null;
 let rules = [];          // [{k,v,line,bio,prio}]
 let rulesHash = '';
+let villageMap = {};     // biotop → biotop pro vesnice (např. mesto → vesnice)
+let placeSets = { v: new Set(), t: new Set() };
 const chunks = new Map(); // key -> features
 const loading = new Map();
 let onChange = () => {};
@@ -21,7 +23,10 @@ export function osmSetConfig(cfg, cb) {
       if (k) rules.push({ k, v: v || '*', line: isLine, bio: b.id, prio: Number(b.priority) || 99 });
     });
   }
-  const h = JSON.stringify(rules) + '|' + cfg.osm.chunkDeg;
+  villageMap = Object.fromEntries(cfg.biotopes.filter(b => b.villageFrom).map(b => [String(b.villageFrom).trim(), b.id]));
+  const list = s => new Set(String(s || '').split(',').map(x => x.trim()).filter(Boolean));
+  placeSets = { v: list(cfg.osm.villagePlaces), t: list(cfg.osm.townPlaces) };
+  const h = JSON.stringify(rules) + '|' + cfg.osm.chunkDeg + '|places:' + [...placeSets.v, ...placeSets.t].join(',') + '|' + cfg.osm.villageRadius;
   if (h !== rulesHash) { rulesHash = h; chunks.clear(); }
 }
 
@@ -45,6 +50,12 @@ function buildQuery(bb) {
     if (seen.has(key)) continue; seen.add(key);
     parts.push(`way${sel}${box};`);
     if (!r.line) parts.push(`relation${sel}${box};`);
+  }
+  // Názvy obcí (place=village/town…) v okolí čtverce rozšířeném o villageRadius → rozliší vesnici od města
+  const places = [...placeSets.v, ...placeSets.t].filter(p => /^\w+$/.test(p));
+  if (places.length && Object.keys(villageMap).length) {
+    const dLat = CFG.osm.villageRadius / 111320, dLon = CFG.osm.villageRadius / (111320 * Math.cos(bb[0] * Math.PI / 180));
+    parts.push(`node["place"~"^(${places.join('|')})$"](${bb[0] - dLat},${bb[1] - dLon},${bb[2] + dLat},${bb[3] + dLon});`);
   }
   return `[out:json][timeout:${CFG.osm.timeout}];(${parts.join('')});out geom;`;
 }
@@ -92,6 +103,10 @@ export function parseOverpass(json) {
   const feats = [];
   for (const el of json.elements || []) {
     const tags = el.tags || {};
+    if (el.type === 'node') {
+      if (tags.place && el.lat != null) feats.push({ pl: tags.place, lat: el.lat, lon: el.lon });
+      continue;
+    }
     if (el.type === 'way' && el.geometry) {
       const pts = el.geometry.map(g => [g.lat, g.lon]);
       const closed = pts.length > 3 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1];
@@ -186,6 +201,7 @@ export function biotopeAt(lat, lon) {
   if (!feats) return null;
   let best = null;
   for (const f of feats) {
+    if (f.pl) continue;
     if (best && f.p >= best.p) continue;
     const bb = f.bb;
     if (f.line) {
@@ -197,12 +213,24 @@ export function biotopeAt(lat, lon) {
       if (f.outer.some(r => inRing(lat, lon, r)) && !f.inner.some(r => inRing(lat, lon, r))) best = f;
     }
   }
-  return best ? best.b : CFG.osm.defaultBiotope;
+  const b = best ? best.b : CFG.osm.defaultBiotope;
+  return villageMap[b] ? villageOrTown(feats, lat, lon, b) : b;
+}
+
+// Zástavba u vesnice → biotop vesnice: rozhoduje nejbližší název obce v okolí (stejná data pro všechny hráče)
+function villageOrTown(feats, lat, lon, b) {
+  let near = null, nd = CFG.osm.villageRadius;
+  for (const f of feats) {
+    if (!f.pl || !(placeSets.v.has(f.pl) || placeSets.t.has(f.pl))) continue;
+    const d = Math.hypot((f.lat - lat) * mPerDegLat, (f.lon - lon) * mPerDegLon(lat));
+    if (d < nd) { nd = d; near = f; }
+  }
+  return near && placeSets.v.has(near.pl) ? villageMap[b] : b;
 }
 
 export function loadedFeatures() {
   const out = [];
-  chunks.forEach(f => out.push(...f));
+  chunks.forEach(f => { for (const x of f) if (!x.pl) out.push(x); });
   return out;
 }
 
