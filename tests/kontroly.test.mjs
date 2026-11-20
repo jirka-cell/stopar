@@ -1,7 +1,7 @@
 // Automatické kontroly logiky, na které stojí hra. Spuštění: node --test tests/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, mergeDefaults, safeImage, clone } from '../js/config.js';
+import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
 import { parseOverpass, osmSetConfig, ensureArea, errorAt, status } from '../js/osm.js';
 import { makeStyle, styleIdFor, circle, STYLES } from '../js/mapstyle.js';
@@ -139,4 +139,18 @@ test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryt�
   assert.match(on.sources['tr-hiking'].tiles[0], /\/hiking\//);
   assert.ok(on.layers.some(l => l.type === 'fill-extrusion'));
   assert.equal(on.sources.catch.data.geometry.type, 'Polygon');
+});
+
+test('předvolby vzhledu: neznámé vrstvy a nesmysly se zahodí, chybějící vrstvy jsou vypnuté', () => {
+  const m = mergeDefaults({ version: 2, mapPresets: [{ name: ' Les ', style: 'papir', layers: { contours: 1, buildings: 'x', hack: true } }, { name: '' }, 'nesmysl'], layers: { contours: 'ano', buildings: '3d', zlo: 1 } });
+  assert.equal(m.mapPresets.length, 1);
+  assert.deepEqual(m.mapPresets[0], { name: 'Les', style: 'papir', layers: { contours: true } });
+  assert.equal(m.layers.contours, true);
+  assert.equal(m.layers.buildings, '3d');
+  assert.equal('zlo' in m.layers, false);
+  const l = presetLayers(m.mapPresets[0]);
+  assert.equal(l.contours, true);
+  assert.equal(l.roadNames, false);
+  assert.equal(l.buildings, 'flat');
+  assert.equal(mergeDefaults(null).mapPresets.length, 3, 'výchozí předvolby');
 });

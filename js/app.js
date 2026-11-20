@@ -1,11 +1,11 @@
-import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage } from './config.js';
+import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
 import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
 import { visibleBirds, currentSlot } from './spawn.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin } from './admin.js';
-import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS } from './mapstyle.js';
+import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -193,9 +193,51 @@ function setPos(lat, lon, acc, src) {
   if (follow) map.easeTo({ center: [lon, lat], duration: 400 });
 }
 
+/* ---------- rychlý vzhled mapy (bez PINu) ---------- */
+const LOOK_LAYERS = [['contours', 'Vrstevnice'], ['hillshade', 'Stínování terénu'], ['trHiking', 'Turistické trasy (KČT)'], ['trCycling', 'Cyklotrasy'],
+  ['peaks', 'Vrcholy'], ['protected', 'Chráněná území'], ['roadNames', 'Názvy ulic'], ['biotopes', 'Barvy biotopů']];
+const LOOK_POI = ['poiShop', 'poiFood', 'poiTransport', 'poiEdu', 'poiHealth', 'poiTourism', 'poiNames'];
+function openLook() {
+  const L = cfg.layers, styles = [['auto', 'Automaticky'], ...Object.entries(STYLES).map(([k, s]) => [k, s.name])];
+  const box = (k, n, on) => `<label class="fld row"><span>${esc(n)}</span><input type="checkbox" data-look="${k}"${on ? ' checked' : ''}></label>`;
+  openM(`<h2>Vzhled mapy</h2>
+  <div class="chips look">${styles.map(([k, n]) => `<button class="chip${cfg.map.style === k ? ' on' : ''}" data-act="lookStyle" data-v="${k}">${esc(n)}</button>`).join('')}</div>
+  <h3>Vrstvy</h3><div class="lookgrid">${LOOK_LAYERS.map(([k, n]) => box(k, n, L[k])).join('')}${box('poi', 'Místa (obchody, doprava, školy…)', LOOK_POI.some(k => L[k]))}</div>
+  <div class="fld"><label for="lookB">Budovy</label><select id="lookB" data-lookb>${[['off', 'Bez budov'], ['flat', 'Ploché'], ['3d', '3D']].map(([k, n]) => `<option value="${k}"${L.buildings === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+  <h3>Uložené předvolby</h3>
+  ${cfg.mapPresets.map((p, i) => `<div class="preset"><button class="btn" data-act="lookPreset" data-i="${i}">${esc(p.name)}</button><button class="btn sm ghost" data-act="lookDel" data-i="${i}" aria-label="Smazat ${esc(p.name)}">Smazat</button></div>`).join('') || '<p class="msg small">Zatím žádné.</p>'}
+  <div class="presetnew"><input type="text" id="lookName" maxlength="40" placeholder="Název, např. Les s dětmi" aria-label="Název předvolby"><button class="btn" data-act="lookSave">Uložit</button></div>
+  <p class="msg small">Uloží současný styl a vrstvy. Všechny vrstvy jsou v Admin → Vrstvy mapy.</p>
+  <button class="btn full ghost" data-act="close">Zavřít</button>`);
+}
+async function saveLook() { try { await store.set('config', cfg); } catch (e) {} applyMapStyle(true); }
+function onLookClick(act, a) {
+  const i = Number(a.dataset.i);
+  if (act === 'lookStyle') { cfg.map.style = a.dataset.v; }
+  else if (act === 'lookPreset') { const p = cfg.mapPresets[i]; if (!p) return; cfg.map.style = p.style; cfg.layers = presetLayers(p); toast('Vzhled: ' + p.name); }
+  else if (act === 'lookDel') { const p = cfg.mapPresets.splice(i, 1)[0]; if (p) toast('Předvolba „' + p.name + '“ smazána.'); }
+  else if (act === 'lookSave') {
+    const name = ($('lookName').value || '').trim().slice(0, 40);
+    if (!name) { toast('Napiš název předvolby.'); return; }
+    const p = { name, style: cfg.map.style, layers: { ...cfg.layers } }, j = cfg.mapPresets.findIndex(x => x.name === name);
+    if (j >= 0) cfg.mapPresets[j] = p; else cfg.mapPresets.push(p);
+    toast('Uloženo jako „' + name + '“.');
+  } else return;
+  saveLook(); openLook();
+}
+function onLookChange(t) {
+  if (t.dataset.look) {
+    if (t.dataset.look === 'poi') LOOK_POI.forEach(k => { cfg.layers[k] = t.checked; });
+    else cfg.layers[t.dataset.look] = t.checked;
+  } else if (t.hasAttribute('data-lookb')) cfg.layers.buildings = t.value;
+  else return false;
+  saveLook(); return true;
+}
+
 /* ---------- kompas ---------- */
 let compassOn = false, lastRot = 0, headingSeen = false, headingTimer = 0;
 function updateCompassBtn() {
+  const lb = $('lookBtn'); if (lb) lb.hidden = !cfg.map.quickLook;
   const b = $('compassBtn'); if (!b) return;
   b.hidden = !cfg.map.compass;
   b.classList.toggle('on', compassOn);
@@ -368,6 +410,7 @@ function bindUI() {
   document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
   $('centerBtn').onclick = () => { follow = true; if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); };
   $('compassBtn').onclick = toggleCompass;
+  $('lookBtn').onclick = openLook;
   $('menuBtn').onclick = openMenu;
   $('logo').addEventListener('click', () => {
     clearTimeout(logoT); logoTaps++;
@@ -482,8 +525,10 @@ function onModalClick(e) {
   else if (act === 'pin') checkPin();
   else if (act === 'importOk') doImport();
   else if (act === 'menu') openMenu();
+  else if (act.startsWith('look')) onLookClick(act, a);
 }
 function onModalChange(e) {
+  if (onLookChange(e.target)) return;
   const real = e.target.closest('input[data-real]');
   if (real && real.files && real.files[0]) { addRealPhoto(real.dataset.real, real.files[0]); return; }
   const imp = e.target.closest('input[data-import]');

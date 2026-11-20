@@ -21,13 +21,13 @@ main{flex:1;position:relative;overflow:hidden}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .fab2{bottom:calc(58px + var(--sab))}
 .fab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-.me{width:20px;height:20px;border-radius:50%;background:var(--acc);border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2);position:relative}
+.me{width:20px;height:20px;border-radius:50%;background:var(--acc);border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
 .me .dir{display:none;position:absolute;left:50%;top:-13px;margin-left:-6px;border:6px solid transparent;border-bottom:9px solid var(--acc)}
 body.compass .me .dir{display:block}
 .maplibregl-ctrl-top-right{top:38px}
 .maplibregl-ctrl-bottom-left{bottom:var(--sab)}
 .maplibregl-marker{cursor:pointer}
-.bmk{width:46px;height:40px;position:relative}
+.bmk{width:46px;height:40px}
 .bmk img{width:46px;height:40px;animation:bob 1.6s ease-in-out infinite;filter:drop-shadow(0 2px 1px rgba(0,0,0,.25))}
 .bmk.far img{opacity:.75}
 @keyframes bob{50%{transform:translateY(-3px)}}
@@ -109,3 +109,11 @@ nav button.on{color:var(--acc);font-weight:700}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
 .rowbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .bio-tip{background:#fff;border:1px solid var(--line);border-radius:8px;padding:2px 6px;font-size:11px}
+.fab3{bottom:calc(102px + var(--sab))}
+.look .chip{font:inherit;font-size:13px;padding:6px 11px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.look .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.lookgrid .fld.row{font-size:14px;color:var(--ink);margin:4px 0}
+.preset{display:flex;gap:6px;margin:6px 0}
+.preset .btn:first-child{flex:1;text-align:left}
+.presetnew{display:flex;gap:6px;margin:10px 0 4px}
+.presetnew input{flex:1;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0}

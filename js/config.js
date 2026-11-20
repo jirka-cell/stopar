@@ -48,6 +48,7 @@ export const DEFAULTS = {
   map: {
     style: 'auto',          // auto = herní den/noc podle slunce, jinak hra | noc | data | papir | bio
     compass: true,          // tlačítko režimu kompasu (mapa se otáčí podle telefonu)
+    quickLook: true,        // tlačítko „Vzhled“ na mapě (rychlé přepínání bez PINu)
     vectorUrl: 'https://tiles.openfreemap.org/planet',
     glyphsUrl: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     demUrl: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
@@ -68,6 +69,12 @@ export const DEFAULTS = {
     buildings: 'flat',      // off | flat | 3d
     trHiking: false, trCycling: false, trMtb: false, trSkating: false, trRiding: false, trSlopes: false
   },
+  // Uložené předvolby vzhledu (styl + vrstvy); vrstvy, které předvolba neuvádí, jsou vypnuté
+  mapPresets: [
+    { name: 'Úsporný', style: 'auto', layers: { places: true, paths: true, buildings: 'off' } },
+    { name: 'Výlet', style: 'auto', layers: { places: true, paths: true, peaks: true, protected: true, waterNames: true, contours: true, hillshade: true, trHiking: true, buildings: 'flat' } },
+    { name: 'Město', style: 'data', layers: { roadNames: true, places: true, paths: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiNames: true, buildings: 'flat' } }
+  ],
   osm: {
     overpassUrl: 'https://overpass-api.de/api/interpreter',
     chunkDeg: 0.01,         // velikost stahovaného čtverce ve stupních (~1,1 × 0,7 km)
@@ -209,6 +216,7 @@ export const SCHEMA = [
   { sec: 'map', title: 'Mapa', fields: [
     ['style', 'Styl mapy', 'select', { options: [['auto', 'Automaticky (herní den / noc)'], ['hra', 'Herní den'], ['noc', 'Herní noc'], ['data', 'Bohatá data'], ['papir', 'Papír a akvarel'], ['bio', 'Biotopy']] }],
     ['compass', 'Tlačítko režimu kompasu', 'bool'],
+    ['quickLook', 'Tlačítko „Vzhled“ na mapě (bez PINu)', 'bool'],
     ['vectorUrl', 'Vektorová mapa (TileJSON URL)', 'text'],
     ['glyphsUrl', 'Písma popisků (URL)', 'text'],
     ['demUrl', 'Výškové dlaždice Terrarium (URL)', 'text'],
@@ -297,6 +305,23 @@ export function safeImage(s) {
 }
 const safeUrl = (s, def) => typeof s === 'string' && /^https:\/\/[^\s"'<>]+$/.test(s) ? s : def;
 
+// Vrstvy: jen známé klíče; přepínače jako true/false, budovy jen off/flat/3d
+export function cleanLayers(l, base) {
+  const out = Object.assign({}, base);
+  if (!l || typeof l !== 'object') return out;
+  for (const k of Object.keys(DEFAULTS.layers)) {
+    if (!(k in l)) continue;
+    if (k === 'buildings') { if (['off', 'flat', '3d'].includes(l[k])) out[k] = l[k]; }
+    else out[k] = !!l[k];
+  }
+  return out;
+}
+// Vrstvy předvolby: co neuvádí, je vypnuté (budovy ploché)
+export function presetLayers(p) {
+  const all = Object.fromEntries(Object.keys(DEFAULTS.layers).map(k => [k, k === 'buildings' ? 'flat' : false]));
+  return cleanLayers(p && p.layers, all);
+}
+
 // Doplní chybějící klíče z výchozí konfigurace (při upgradu verze).
 // Druhy se slučují po položkách: uložený druh dostane nová pole (i v "look") z výchozího druhu se stejným id.
 export function mergeDefaults(cfg) {
@@ -323,6 +348,9 @@ export function mergeDefaults(cfg) {
     if (Number(cfg.map.tileCacheMax) === 1500) out.map.tileCacheMax = DEFAULTS.map.tileCacheMax;
   }
   delete out.map.tileUrl;
+  out.layers = cleanLayers(out.layers, DEFAULTS.layers);
+  out.mapPresets = out.mapPresets.filter(p => typeof p.name === 'string' && p.name.trim())
+    .map(p => ({ name: p.name.trim().slice(0, 40), style: typeof p.style === 'string' ? p.style : 'auto', layers: cleanLayers(p.layers, {}) }));
   for (const k of ['vectorUrl', 'glyphsUrl', 'demUrl', 'trailsUrl']) out.map[k] = safeUrl(out.map[k], DEFAULTS.map[k]);
   out.osm.overpassUrl = safeUrl(out.osm.overpassUrl, DEFAULTS.osm.overpassUrl);
   out.version = CONFIG_VERSION;
