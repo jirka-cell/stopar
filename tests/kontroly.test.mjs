@@ -199,3 +199,32 @@ test('verze 2 → 3: doplní nové výchozí předvolby vzhledu, vlastní zůsta
   const again = mergeDefaults({ ...m, mapPresets: m.mapPresets.filter(p => p.name !== 'Zima') });
   assert.ok(!again.mapPresets.some(p => p.name === 'Zima'), 'smazaná předvolba se ve verzi 3 nevrátí');
 });
+
+test('výška z dlaždic Terrarium: dekódování a výpočet pixelu', async () => {
+  const { elevationFromRGB, tileFor } = await import('../js/elevation.js');
+  assert.equal(elevationFromRGB(128, 0, 0), 0, 'hladina moře');
+  assert.equal(elevationFromRGB(129, 144, 0), 400);
+  const t = tileFor(50.2306, 12.8711, 12);
+  assert.deepEqual([t.tx, t.ty], [2194, 1385], 'dlaždice z12 pro Karlovy Vary (ověřeno vzorcem s asinh)');
+  assert.ok(t.px >= 0 && t.px <= 255 && t.py >= 0 && t.py <= 255);
+});
+
+test('rozmisťování podle výškových pásem a regionů', () => {
+  const cfg = clone(DEFAULTS);
+  cfg.species = [
+    { ...clone(DEFAULTS.species[2]), id: 'horak', bio: 'les:1', alt: 'hory:1', regions: '' },
+    { ...clone(DEFAULTS.species[2]), id: 'vsude', bio: 'les:1', alt: '', regions: '' },
+    { ...clone(DEFAULTS.species[2]), id: 'cizinec', bio: 'les:1', alt: '', regions: 'sk' }
+  ];
+  const run = altAt => visibleBirds(cfg, 50.2306, 12.8711, false, {}, NOW, lesVsude, altAt);
+  const low = run(() => 200).birds.map(b => b.sp);
+  assert.ok(low.length > 0 && low.every(s => s === 'vsude'), 'v nížině jen druh bez omezení');
+  const high = run(() => 1000).birds;
+  assert.ok(high.some(b => b.sp === 'horak'), 'v horách se objeví horský druh');
+  assert.ok(high.every(b => b.zone === 'hory'));
+  assert.ok(!high.some(b => b.sp === 'cizinec'), 'druh z jiného regionu se neobjeví');
+  const wait = run(() => null);
+  assert.equal(wait.birds.length, 0); assert.ok(wait.pending > 0, 'výška se načítá → zvířata počkají');
+  assert.ok(run(() => NaN).birds.some(b => b.sp === 'horak'), 'bez výšky se pásma ignorují');
+  assert.deepEqual(run(() => 1000), run(() => 1000), 'stále deterministické');
+});

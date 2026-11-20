@@ -24,7 +24,9 @@ export const DEFAULTS = {
     jitter: 0.8,            // 0–1 – náhodný posun ptáka uvnitř buňky
     nightFactorDay: 0.25,   // váha denních ptáků v noci
     seed: 20261119,         // změna seedu = jiné rozmístění
-    refLat: 50              // ° – šířka pro převod mřížky na metry; musí být stejná pro všechny hráče (ČR = 50)
+    refLat: 50,             // ° – šířka pro převod mřížky na metry; musí být stejná pro všechny hráče (ČR = 50)
+    region: 'cz',           // region pro výšková pásma a výběr druhů
+    elevZoom: 12            // zoom výškových dlaždic pro výšku (~30 m na pixel); stejný pro všechny hráče
   },
   catch: {
     radius: 100,            // m – dosah pro chytání
@@ -168,7 +170,9 @@ export const SCHEMA = [
     ['jitter', 'Náhodný posun v buňce (0–1)', 'number', { min: 0, max: 1, step: 0.05 }],
     ['nightFactorDay', 'Váha denních zvířat v noci', 'number', { min: 0, max: 1, step: 0.05 }],
     ['seed', 'Seed rozmístění', 'number', { step: 1 }],
-    ['refLat', 'Referenční šířka mřížky (°, změna = jiné rozmístění)', 'number', { min: -80, max: 80, step: 1 }]
+    ['refLat', 'Referenční šířka mřížky (°, změna = jiné rozmístění)', 'number', { min: -80, max: 80, step: 1 }],
+    ['region', 'Region (id z Regiony a výšková pásma)', 'text'],
+    ['elevZoom', 'Zoom výškových dlaždic (10–14, změna = jiná pásma)', 'number', { min: 10, max: 14, step: 1 }]
   ] },
   { sec: 'catch', title: 'Chytání', fields: [
     ['radius', 'Dosah chytání (m)', 'number', { min: 5, max: 2000, step: 5 }],
@@ -386,3 +390,7 @@ export function mergeDefaults(cfg) {
   out.version = CONFIG_VERSION;
   return out;
 }
+
+// Čitelné názvy výškových pásem (id z regionu; neznámé id se ukáže tak, jak je)
+export const ZONE_NAMES = { nizina: 'nížina', pahorkatina: 'pahorkatina', vrchovina: 'vrchovina', hory: 'hory', nad_lesem: 'nad hranicí lesa' };
+export const zoneName = id => ZONE_NAMES[id] || String(id || '').replace(/_/g, ' ');

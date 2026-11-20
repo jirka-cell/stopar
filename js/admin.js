@@ -79,7 +79,7 @@ function renderInfo() {
   const el = root && root.querySelector('#admInfo');
   if (!el || !api.info) return;
   const i = api.info();
-  el.textContent = `Poloha: ${i.pos.lat != null ? i.pos.lat.toFixed(5) + ', ' + i.pos.lon.toFixed(5) : '–'} (${i.pos.src}) · zvířat: ${i.birds} · OSM prvků: ${i.features} · slot: ${i.slot} · ${i.night ? 'noc' : 'den'}${i.osmError ? ' · chyba OSM: ' + i.osmError : ''}`;
+  el.textContent = `Poloha: ${i.pos.lat != null ? i.pos.lat.toFixed(5) + ', ' + i.pos.lon.toFixed(5) : '–'} (${i.pos.src}) · zvířat: ${i.birds} · OSM prvků: ${i.features} · výška: ${Number.isFinite(i.alt) ? i.alt + ' m' : '–'} · region: ${i.region} · slot: ${i.slot} · ${i.night ? 'noc' : 'den'}${i.osmError ? ' · chyba OSM: ' + i.osmError : ''}`;
 }
 
 function readVal(t) {

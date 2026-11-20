@@ -1,8 +1,9 @@
-import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS } from './config.js';
+import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
 import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
-import { visibleBirds, currentSlot } from './spawn.js';
+import { visibleBirds, currentSlot, currentRegion } from './spawn.js';
+import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin } from './admin.js';
 import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
@@ -80,6 +81,7 @@ function applyConfig(first) {
   BIO = Object.fromEntries(cfg.biotopes.map(b => [b.id, b]));
   RAR = Object.fromEntries(cfg.rarities.map(r => [String(r.id), r]));
   osmSetConfig(cfg, () => { refreshBirds(); if (cfg.general.showBiotopes) drawBiotopes(); });
+  elevSetConfig(cfg, () => { refreshBirds(); if (pos.lat != null) hudBio(); });
   $('logo').textContent = cfg.general.appName;
   document.title = cfg.general.appName;
   $('legend').innerHTML = cfg.biotopes.map(b => `<span><i style="background:${esc(b.color)}"></i>${esc(b.name)}</span>`).join('');
@@ -346,7 +348,7 @@ function tick() {
 
 function refreshBirds() {
   if (pos.lat == null || !map) return;
-  const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone);
+  const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone, Date.now(), biotopeAt, elevationAt);
   birds = r.birds;
   const ids = new Set(birds.map(b => b.id));
   markers.forEach((_, id) => { if (!ids.has(id)) removeMarker(id); });
@@ -373,6 +375,8 @@ function hudBio() {
   const b = biotopeAt(pos.lat, pos.lon);
   const hb = $('hbio');
   let t = 'Biotop: ' + (b === null ? 'načítám…' : (BIO[b] ? BIO[b].name : b));
+  const alt = elevationAt(pos.lat, pos.lon), zone = Number.isFinite(alt) ? zoneFor(alt, parseZones(currentRegion(cfg).zones)) : null;
+  if (Number.isFinite(alt)) t += ' · ' + alt + ' m' + (zone ? ' ' + zoneName(zone) : '');
   if (isNight()) t += ' · noc';
   const err = errorAt(pos.lat, pos.lon);
   if (err) { t += ' · OSM chyba'; hb.classList.add('bad'); hb.title = err; } else { hb.classList.remove('bad'); hb.title = ''; }
@@ -575,6 +579,11 @@ function eduHTML(sp, c) {
     return `<details class="edu"${lock[sec] ? '' : ' open'}><summary>${esc(title)}${lock[sec] ? ' <span class="lock">zamčeno</span>' : ''}</summary>${lock[sec] ? `<p class="msg small">Odemkne se ${esc(lock[sec])}.</p>` : body}</details>`;
   }).join('') + (sp.review ? '<p class="msg small">Údaje čekají na odbornou kontrolu.</p>' : '');
 }
+// Kde ve výšce druh hledat (jen pásma s nenulovou váhou)
+function altHint(sp) {
+  const a = Object.entries(parseMap(sp.alt)).filter(([, w]) => w > 0).map(([z]) => zoneName(z));
+  return a.length ? ' – ' + a.map(esc).join(', ') : '';
+}
 async function openDetail(id) {
   const sp = SP[id], c = state.caught[id], ok = c && c.count;
   let h = `<div class="encimg${ok ? '' : ' sil'}">${birdImg(sp)}</div><h2>${ok ? esc(sp.name) : '???'}</h2>`;
@@ -587,7 +596,7 @@ async function openDetail(id) {
     for (const pid of (c.photos || [])) { try { const p = await store.get(pid, 'photos'); if (p) ph.push(p); } catch (e) {} }
     if (ph.length) h += `<div class="kv"><span>Tvoje fotky z terénu:</span></div><div class="thumbs">${ph.map(p => safeImage(p.img) ? `<img src="${esc(p.img)}" alt="">` : '').join('')}</div>`;
   } else {
-    h += `<p class="msg">Ještě ho nemáš. Hledej: ${Object.keys(parseMap(sp.bio)).map(b => esc(String(BIO[b]?.name || b).toLowerCase())).join(', ')}${sp.night ? ' (jen v noci)' : ''}.</p>`;
+    h += `<p class="msg">Ještě ho nemáš. Hledej: ${Object.keys(parseMap(sp.bio)).map(b => esc(String(BIO[b]?.name || b).toLowerCase())).join(', ')}${altHint(sp)}${sp.night ? ' (jen v noci)' : ''}.</p>`;
   }
   h += `<label class="btn primary full">Vyfotil jsem ho venku<input type="file" accept="image/*" capture="environment" data-real="${esc(id)}" hidden></label>
   <p class="msg small">Skutečná fotka dá jednorázově +${cfg.catch.realPhotoBonus} ke všem statistikám. Druh zatím určuješ ty.</p>
@@ -699,7 +708,7 @@ function checkPin() {
     clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => { state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last }; await store.clear('photos'); await store.set('state', state); hudDist(); toast('Postup smazán.'); },
     respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Zvířata obnovena.'); },
-    info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, osmError: osmStatus.error })
+    info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, alt: elevationAt(pos.lat, pos.lon), region: currentRegion(cfg).id, osmError: osmStatus.error })
   });
 }
 
