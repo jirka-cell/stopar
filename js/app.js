@@ -1,8 +1,8 @@
-import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName } from './config.js';
+import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
 import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
-import { visibleBirds, currentSlot, currentRegion } from './spawn.js';
+import { visibleBirds, currentSlot, currentRegion, currentMonth } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin } from './admin.js';
@@ -582,7 +582,8 @@ function eduHTML(sp, c) {
 // Kde ve výšce druh hledat (jen pásma s nenulovou váhou)
 function altHint(sp) {
   const a = Object.entries(parseMap(sp.alt)).filter(([, w]) => w > 0).map(([z]) => zoneName(z));
-  return a.length ? ' – ' + a.map(esc).join(', ') : '';
+  const m = formatMonths(sp.months);
+  return (a.length ? ' – ' + a.map(esc).join(', ') : '') + (m ? '; jen ' + esc(m) : '');
 }
 async function openDetail(id) {
   const sp = SP[id], c = state.caught[id], ok = c && c.count;
@@ -590,6 +591,7 @@ async function openDetail(id) {
   if (ok) {
     h += `<div class="sub">${esc(sp.lat)}</div>${chips(sp)}${statsHTML(c.best.stats)}
     <div class="kv"><span>Úlovků:</span> ${c.count} · <span>nejlepší fotka:</span> ${c.best.q} %${c.verified ? ' · <span>ověřen v terénu</span>' : ''}</div>
+    ${formatMonths(sp.months) ? `<div class="kv"><span>U nás:</span> ${esc(formatMonths(sp.months))}</div>` : ''}
     <div class="kv"><span>Potrava:</span> ${Object.keys(parseMap(sp.food)).map(f => esc(String(FN[f] || f).toLowerCase())).join(', ')}</div>
     <div class="fact">${esc(sp.fact)}</div>${eduHTML(sp, c)}`;
     const ph = [];
@@ -708,7 +710,7 @@ function checkPin() {
     clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => { state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last }; await store.clear('photos'); await store.set('state', state); hudDist(); toast('Postup smazán.'); },
     respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Zvířata obnovena.'); },
-    info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, alt: elevationAt(pos.lat, pos.lon), region: currentRegion(cfg).id, osmError: osmStatus.error })
+    info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, alt: elevationAt(pos.lat, pos.lon), region: currentRegion(cfg).id, month: currentMonth(cfg) + (Number(cfg.general.monthOverride) ? ' (simulovaný)' : ''), osmError: osmStatus.error })
   });
 }
 

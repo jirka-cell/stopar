@@ -13,7 +13,8 @@ export const DEFAULTS = {
     adminPin: '1234',
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
-    showBiotopes: false     // ladicí vrstva s biotopy z OSM
+    showBiotopes: false,    // ladicí vrstva s biotopy z OSM
+    monthOverride: 0        // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
   },
   spawn: {
     density: 5,             // očekávaný počet ptáků v okruhu
@@ -159,7 +160,8 @@ export const SCHEMA = [
     ['adminPin', 'PIN do adminu', 'text'],
     ['simulation', 'Simulace chůze ťukáním do mapy (bez GPS)', 'bool'],
     ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
-    ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool']
+    ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
+    ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }]
   ] },
   { sec: 'spawn', title: 'Objevování zvířat', fields: [
     ['density', 'Počet zvířat v okruhu (průměr)', 'number', { min: 0, max: 100, step: 1 }],
@@ -394,3 +396,21 @@ export function mergeDefaults(cfg) {
 // Čitelné názvy výškových pásem (id z regionu; neznámé id se ukáže tak, jak je)
 export const ZONE_NAMES = { nizina: 'nížina', pahorkatina: 'pahorkatina', vrchovina: 'vrchovina', hory: 'hory', nad_lesem: 'nad hranicí lesa' };
 export const zoneName = id => ZONE_NAMES[id] || String(id || '').replace(/_/g, ' ');
+
+// Měsíce výskytu čitelně: "3-10" → "březen–říjen"; celý rok → ''
+export const MONTH_NAMES = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec'];
+export function formatMonths(s) {
+  const set = parseMonths(s);
+  if (set.size === 12) return '';
+  const on = m => set.has(((m - 1 + 12) % 12) + 1);
+  // začít od měsíce, před kterým je mezera, aby se úsek přes Nový rok nerozdělil
+  let start = 1; while (on(start - 1) && start < 13) start++;
+  const parts = [];
+  for (let i = 0; i < 12; i++) {
+    const m = ((start - 1 + i) % 12) + 1;
+    if (!on(m) || on(m - 1) && i > 0) continue;
+    let e = m; while (on(e + 1) && ((e % 12) + 1) !== m) e = (e % 12) + 1;
+    parts.push(e === m ? MONTH_NAMES[m - 1] : MONTH_NAMES[m - 1] + '–' + MONTH_NAMES[e - 1]);
+  }
+  return parts.join(', ');
+}

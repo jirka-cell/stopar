@@ -1,7 +1,7 @@
 // Automatické kontroly logiky, na které stojí hra. Spuštění: node --test tests/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers, parseMonths, parseZones, zoneFor, EDU_FIELDS } from '../js/config.js';
+import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers, parseMonths, parseZones, zoneFor, EDU_FIELDS, formatMonths } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
 import { parseOverpass, osmSetConfig, ensureArea, errorAt, status } from '../js/osm.js';
 import { makeStyle, styleIdFor, circle, STYLES } from '../js/mapstyle.js';
@@ -227,4 +227,22 @@ test('rozmisťování podle výškových pásem a regionů', () => {
   assert.equal(wait.birds.length, 0); assert.ok(wait.pending > 0, 'výška se načítá → zvířata počkají');
   assert.ok(run(() => NaN).birds.some(b => b.sp === 'horak'), 'bez výšky se pásma ignorují');
   assert.deepEqual(run(() => 1000), run(() => 1000), 'stále deterministické');
+});
+
+test('sezónnost: druh jen ve svých měsících, simulovaný měsíc z adminu, čitelný výpis', async () => {
+  const { currentMonth } = await import('../js/spawn.js');
+  const cfg = clone(DEFAULTS);
+  cfg.species = [
+    { ...clone(DEFAULTS.species[2]), id: 'letni', bio: 'les:1', alt: '', months: '4-9' },
+    { ...clone(DEFAULTS.species[2]), id: 'zimni', bio: 'les:1', alt: '', months: '11-2' }
+  ];
+  const at = m => { cfg.general.monthOverride = m; return visibleBirds(cfg, 50.2306, 12.8711, false, {}, NOW, lesVsude).birds.map(b => b.sp); };
+  assert.ok(at(6).length && at(6).every(s => s === 'letni'), 'v červnu jen letní druh');
+  assert.ok(at(1).length && at(1).every(s => s === 'zimni'), 'v lednu jen zimní druh (úsek přes Nový rok)');
+  assert.equal(at(3).length, 0, 'v březnu ani jeden');
+  cfg.general.monthOverride = 0;
+  assert.equal(currentMonth(cfg, Date.UTC(2026, 6, 15, 12)), 7, 'bez simulace skutečný měsíc');
+  assert.equal(formatMonths('3-10'), 'březen–říjen');
+  assert.equal(formatMonths('11-2'), 'listopad–únor');
+  assert.equal(formatMonths(''), '');
 });

@@ -1,10 +1,16 @@
 // Deterministické objevování zvířat: stejné místo + stejný čas = stejná zvířata pro všechny hráče
 import { hash01, dist, mPerDegLat, mPerDegLon } from './geo.js';
 import { biotopeAt } from './osm.js';
-import { parseMap, parseZones, zoneFor } from './config.js';
+import { parseMap, parseZones, zoneFor, parseMonths } from './config.js';
 
 export function currentSlot(cfg, now = Date.now()) {
   return Math.floor(now / (cfg.spawn.slotMinutes * 60000));
+}
+
+// Měsíc pro sezónnost (1–12); admin může měsíc simulovat kvůli testování
+export function currentMonth(cfg, now = Date.now()) {
+  const m = Number(cfg.general.monthOverride);
+  return m >= 1 && m <= 12 ? m : new Date(now).getMonth() + 1;
 }
 
 // Region, ve kterém se hraje (výšková pásma, filtr druhů)
@@ -26,7 +32,8 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
   const rw = Object.fromEntries(cfg.rarities.map(o => [String(o.id), Number(o.weight)]));
   const region = currentRegion(cfg), zones = parseZones(region.zones);
   const inRegion = s => !String(s.regions || '').trim() || String(s.regions).split(',').map(x => x.trim()).includes(region.id);
-  const sps = cfg.species.filter(s => s.active && inRegion(s));
+  const month = currentMonth(cfg, now);
+  const sps = cfg.species.filter(s => s.active && inRegion(s) && parseMonths(s.months).has(month)); // tažní a zimující jen ve své sezóně
   const spBio = sps.map(s => parseMap(s.bio));
   const spAlt = sps.map(s => parseMap(s.alt));
   const out = [];
