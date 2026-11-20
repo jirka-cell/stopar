@@ -1,0 +1,12 @@
+# Pracovní soubory, které se nemají zveřejnit na GitHub Pages
+graphify-out/
+.graphifyignore
+.claude/
+
+# Interní předávka (jméno autora, obchodní plány) – repozitář pro Pages musí být veřejný
+stopar-predani.md
+
+# Systém
+Thumbs.db
+desktop.ini
+.DS_Store
