@@ -346,3 +346,11 @@ test('data druhů jsou konzistentní: potrava, biotopy, pásma, vzácnost, skupi
   }
   assert.ok(DEFAULTS.species.length >= 100);
 });
+
+test('každý druh má anglický popis vzhledu pro prompty obrázků', async () => {
+  const { VZHLED_EN } = await import('../tools/vzhled-en.mjs');
+  for (const s of DEFAULTS.species) {
+    assert.ok(VZHLED_EN[s.id], `${s.id}: chybí anglický popis v tools/vzhled-en.mjs`);
+    assert.ok(VZHLED_EN[s.id][1].length > 30, `${s.id}: popis je moc krátký`);
+  }
+});

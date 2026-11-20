@@ -2,7 +2,7 @@
 
 Obrázky pro 100 druhů, psa průvodce a ikony pro třídění. Cíl: jednotný styl, který je roztomilý pro děti, ale **každý druh jde poznat** podle skutečných znaků. Aplikace je vzdělávací – roztomilost nesmí přebít správnost.
 
-Prompty pro všech 100 druhů jsou v [prompty.csv](prompty.csv) (vznikají z dat aplikace příkazem `node tools/prompty.mjs`).
+Hotové anglické prompty pro všech 100 druhů: [prompty.txt](prompty.txt) (ke kopírování po jednom) a [prompty.csv](prompty.csv) (tabulka). Vznikají z dat aplikace a z anglických popisů vzhledu v `tools/vzhled-en.mjs` příkazem `node tools/prompty.mjs`.
 
 ---
 
@@ -58,20 +58,21 @@ Siluety neulovených druhů a „zamčené“ varianty udělá aplikace sama, kr
 
 ---
 
-## 4. Hlavní prompt (angličtina funguje ve všech nástrojích nejlépe)
+## 4. Prompty
+
+Každý prompt má stejnou kostru (styl + rámování), mění se jen „Subject“ – anglický název, latinské jméno a úplný popis vzhledu:
 
 ```
-Cute Japanese-style nature illustration of {LATIN NAME} ({GROUP}), Central European wildlife.
-Soft kawaii proportions (slightly larger head and eyes) but anatomically recognizable:
-keep the real colors, markings and body shape so the species can be identified.
-Key features: {FEATURES}.
-Clean thin outlines, flat colors with gentle cel shading, warm natural palette.
-Full body, side 3/4 view facing left, standing on an invisible ground line, centered,
-filling about 80% of the frame height. Transparent background, no shadow, no text,
-no frame, no other objects. Not resembling any existing game or cartoon character.
+Cute Japanese-style nature illustration. Soft kawaii proportions (slightly larger head and eyes)
+but anatomically recognizable: keep the real colors, markings and body shape so the species
+can be identified. Clean thin outlines, flat colors with gentle cel shading, warm natural palette.
+Subject: {ENGLISH NAME} ({LATIN NAME}), Central European wildlife: {APPEARANCE}.
+Full body, side 3/4 view facing left, standing on an invisible ground line, centered, filling
+about 80% of the frame height. Transparent background, no shadow, no text, no frame, no other
+objects. Not resembling any existing game or cartoon character. Square 1024x1024.
 ```
 
-Hotové prompty pro každý druh jsou v `prompty.csv` (sloupec `prompt`). Znaky jsou česky – GPT Image češtině rozumí; pro Recraft je případně nech hromadně přeložit do angličtiny.
+V Recraftu můžeš styl uložit jako „Style“ a do promptu pak dávat jen část od `Subject:`. Kdyby nějaký druh nevycházel, uprav jeho popis v `tools/vzhled-en.mjs` a spusť `node tools/prompty.mjs` znovu (nebo mi napiš).
 
 ---
 
