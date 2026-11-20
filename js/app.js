@@ -1,4 +1,4 @@
-import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers } from './config.js';
+import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
 import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
@@ -9,6 +9,11 @@ import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './map
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Texty pro různé skupiny živočichů
+const isBird = sp => sp.group === 'Ptáci';
+const fled = sp => isBird(sp) ? 'odletěl' : 'utekl';
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const shortUrl = u => { try { return decodeURIComponent(u.replace(/^https:\/\/(www\.)?/, '')).slice(0, 60); } catch (e) { return u.slice(0, 60); } };
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 // Atribuce mapy je HTML z nastavení: propustí jen text a odkazy http(s)
 function safeAttribution(html) {
@@ -483,10 +488,10 @@ function pickFood(f) {
   const C = cfg.catch, food = parseMap(enc.sp.food), m = food[f] || 0;
   const ch = m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong;
   enc.tries++;
-  if (Math.random() < ch) { enc.step = 'photo'; enc.msg = m >= 1 ? 'Přiletěl a zobe. Cvakni, až je značka v zelené.' : 'Opatrně se přiblížil. Rychle fotku!'; renderEnc(); return; }
-  if ((m === 0 && Math.random() < C.fleeWrong) || enc.tries >= C.maxFoodTries) { gone(); enc.step = 'fled'; enc.msg = m === 0 ? (FN[f] || f) + ' ptáka nezajímá. Odletěl.' : 'Vyplašil se a odletěl.'; renderEnc(); return; }
+  if (Math.random() < ch) { enc.step = 'photo'; enc.msg = m >= 1 ? (isBird(enc.sp) ? 'Přiletěl a zobe.' : 'Přišel blíž a žere.') + ' Cvakni, až je značka v zelené.' : 'Opatrně se přiblížil. Rychle fotku!'; renderEnc(); return; }
+  if ((m === 0 && Math.random() < C.fleeWrong) || enc.tries >= C.maxFoodTries) { gone(); enc.step = 'fled'; enc.msg = m === 0 ? (FN[f] || f) + ' ho nezajímá. ' + cap(fled(enc.sp)) + '.' : 'Vyplašil se a ' + fled(enc.sp) + '.'; renderEnc(); return; }
   const main = Object.keys(food).sort((a, b) => food[b] - food[a])[0];
-  enc.msg = (m === 0 ? (FN[f] || f) + ' ptáka nezajímá.' : 'Váhá…') + (enc.tries >= C.hintAfter && main ? ' Tip: zkus ' + String(FN[main] || main).toLowerCase() + '.' : ' Zkus jinou potravu.');
+  enc.msg = (m === 0 ? (FN[f] || f) + ' ho nezajímá.' : 'Váhá…') + (enc.tries >= C.hintAfter && main ? ' Tip: zkus ' + String(FN[main] || main).toLowerCase() + '.' : ' Zkus jinou potravu.');
   renderEnc();
 }
 function shoot() {
@@ -494,7 +499,7 @@ function shoot() {
   const q = d <= h ? Math.round(100 - (d / h) * 40) : Math.max(0, Math.round(55 - (d - h) * 200));
   enc.shots++;
   if (q >= C.minQuality) { doCatch(q); return; }
-  if (enc.shots >= C.shots) { gone(); enc.step = 'fled'; enc.msg = 'Samé rozmazané fotky. Pták odletěl.'; renderEnc(); return; }
+  if (enc.shots >= C.shots) { gone(); enc.step = 'fled'; enc.msg = 'Samé rozmazané fotky. ' + cap(fled(enc.sp)) + '.'; renderEnc(); return; }
   enc.msg = 'Rozmazané (' + q + ' %). Zkus znovu.'; renderEnc();
 }
 function doCatch(q) {
@@ -546,6 +551,30 @@ function renderAtlas() {
       return `<div class="acard${ok ? '' : ' miss'}" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${ok ? esc(s.name) : '???'}</div><div class="rr">${esc(RAR[s.rarity]?.name || '')}${ok ? ' · ×' + c.count : ''}${c && c.verified ? ' · ověřen' : ''}</div></div>`;
     }).join('')}</div>`).join('');
 }
+// Vzdělávací údaje v atlasu, odemykané podle počtu úlovků a skutečné fotky
+const EDU_SECTIONS = [
+  ['id', 'Zařazení a poznávání'], ['care', 'Ochrana a zajímavosti'], ['life', 'Rozmnožování a život'], ['signs', 'Hlas a pobytová znamení']
+];
+function eduHTML(sp, c) {
+  const e = sp.edu || {}, A = cfg.atlas, n = c.count || 0;
+  const lock = {
+    id: n >= A.basicAt ? '' : `po ${A.basicAt}. úlovku`,
+    care: n >= A.basicAt ? '' : `po ${A.basicAt}. úlovku`,
+    life: n >= A.lifeAt ? '' : `po ${A.lifeAt}. úlovku (máš ${n})`,
+    signs: A.signsNeedPhoto ? (c.verified ? '' : 'se skutečnou fotkou z terénu') : (n >= A.lifeAt ? '' : `po ${A.lifeAt}. úlovku (máš ${n})`)
+  };
+  const row = ([k, label]) => {
+    const v = String(e[k] || '').trim(); if (!v) return '';
+    if (k === 'facts') return `<ul class="facts">${v.split('\n').filter(Boolean).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+    if (k === 'sources') return `<div class="kv src"><span>Zdroje:</span> ${v.split('\n').filter(Boolean).map(u => /^https:\/\//.test(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(shortUrl(u))}</a>` : esc(u)).join(', ')}</div>`;
+    return `<div class="kv"><span>${esc(label.replace(/ \(.*\)$/, ''))}:</span> ${esc(v)}</div>`;
+  };
+  return EDU_SECTIONS.map(([sec, title]) => {
+    const fields = EDU_FIELDS.filter(f => f[3] === sec), body = fields.map(row).join('');
+    if (!body) return '';
+    return `<details class="edu"${lock[sec] ? '' : ' open'}><summary>${esc(title)}${lock[sec] ? ' <span class="lock">zamčeno</span>' : ''}</summary>${lock[sec] ? `<p class="msg small">Odemkne se ${esc(lock[sec])}.</p>` : body}</details>`;
+  }).join('') + (sp.review ? '<p class="msg small">Údaje čekají na odbornou kontrolu.</p>' : '');
+}
 async function openDetail(id) {
   const sp = SP[id], c = state.caught[id], ok = c && c.count;
   let h = `<div class="encimg${ok ? '' : ' sil'}">${birdImg(sp)}</div><h2>${ok ? esc(sp.name) : '???'}</h2>`;
@@ -553,7 +582,7 @@ async function openDetail(id) {
     h += `<div class="sub">${esc(sp.lat)}</div>${chips(sp)}${statsHTML(c.best.stats)}
     <div class="kv"><span>Úlovků:</span> ${c.count} · <span>nejlepší fotka:</span> ${c.best.q} %${c.verified ? ' · <span>ověřen v terénu</span>' : ''}</div>
     <div class="kv"><span>Potrava:</span> ${Object.keys(parseMap(sp.food)).map(f => esc(String(FN[f] || f).toLowerCase())).join(', ')}</div>
-    <div class="fact">${esc(sp.fact)}</div>`;
+    <div class="fact">${esc(sp.fact)}</div>${eduHTML(sp, c)}`;
     const ph = [];
     for (const pid of (c.photos || [])) { try { const p = await store.get(pid, 'photos'); if (p) ph.push(p); } catch (e) {} }
     if (ph.length) h += `<div class="kv"><span>Tvoje fotky z terénu:</span></div><div class="thumbs">${ph.map(p => safeImage(p.img) ? `<img src="${esc(p.img)}" alt="">` : '').join('')}</div>`;
@@ -669,7 +698,7 @@ function checkPin() {
     exportAll: () => exportData(true),
     clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => { state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last }; await store.clear('photos'); await store.set('state', state); hudDist(); toast('Postup smazán.'); },
-    respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Ptáci obnoveni.'); },
+    respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Zvířata obnovena.'); },
     info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, osmError: osmStatus.error })
   });
 }

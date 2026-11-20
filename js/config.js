@@ -1,7 +1,10 @@
 // Výchozí konfigurace. Vše je editovatelné v adminu a ukládá se do IndexedDB.
 // Mapy (biotopy, potrava) se zapisují jako text "klic:vaha, klic:vaha", aby šly snadno upravit ve formuláři.
 
-export const CONFIG_VERSION = 2;
+import { SPECIES, EDU_FIELDS, EMPTY_EDU, GROUPS } from './species.js';
+export { EDU_FIELDS, GROUPS };
+
+export const CONFIG_VERSION = 3;
 
 export const DEFAULTS = {
   version: CONFIG_VERSION,
@@ -73,7 +76,15 @@ export const DEFAULTS = {
   mapPresets: [
     { name: 'Úsporný', style: 'auto', layers: { places: true, paths: true, buildings: 'off' } },
     { name: 'Výlet', style: 'auto', layers: { places: true, paths: true, peaks: true, protected: true, waterNames: true, contours: true, hillshade: true, trHiking: true, buildings: 'flat' } },
-    { name: 'Město', style: 'data', layers: { roadNames: true, places: true, paths: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiNames: true, buildings: 'flat' } }
+    { name: 'Město', style: 'data', layers: { roadNames: true, places: true, paths: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiNames: true, buildings: 'flat' } },
+    { name: 'Les a hory', style: 'auto', layers: { places: true, paths: true, hillshade: true, contours: true, peaks: true, protected: true, trHiking: true, buildings: 'flat' } },
+    { name: 'Hledání zvířat', style: 'bio', layers: { places: true, paths: true, biotopes: true, waterNames: true, parkNames: true, buildings: 'flat' } },
+    { name: 'U vody', style: 'auto', layers: { places: true, paths: true, waterNames: true, biotopes: true, protected: true, buildings: 'flat' } },
+    { name: 'Na kole', style: 'auto', layers: { roadNames: true, places: true, paths: true, trCycling: true, trMtb: true, buildings: 'flat' } },
+    { name: 'Naučná procházka', style: 'papir', layers: { places: true, paths: true, trHiking: true, protected: true, parkNames: true, poiTourism: true, poiNames: true, peaks: true, buildings: 'flat' } },
+    { name: 'Zima', style: 'auto', layers: { places: true, paths: true, trSlopes: true, hillshade: true, contours: true, peaks: true, buildings: 'flat' } },
+    { name: 'Papírová mapa', style: 'papir', layers: { places: true, paths: true, contours: true, hillshade: true, peaks: true, waterNames: true, trHiking: true, buildings: 'flat' } },
+    { name: 'Maximum', style: 'data', layers: { roadNames: true, waterNames: true, parkNames: true, places: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiParking: true, poiNames: true, paths: true, rail: true, peaks: true, protected: true, landDetail: true, hillshade: true, contours: true, trHiking: true, trCycling: true, buildings: '3d' } }
   ],
   osm: {
     overpassUrl: 'https://overpass-api.de/api/interpreter',
@@ -127,48 +138,16 @@ export const DEFAULTS = {
     { id: 'hlodavec', name: 'Hlodavec' },
     { id: 'rostliny', name: 'Vodní rostliny' }
   ],
-  species: [
-    { id: 'datel', name: 'Datel černý', lat: 'Dryocopus martius', group: 'Ptáci', active: true, rarity: '2', night: false,
-      bio: 'les:3', food: 'larvy:1, hmyz:0.5', stats: '55, 70, 40, 65', image: '',
-      fact: 'Největší evropský datel. Jeho opuštěné dutiny obsazují sovy, holubi doupňáci i netopýři.',
-      look: { body: '#1f1f22', wing: '#151517', belly: '#2a2a2e', cap: '', capY: 64, beak: 'long', beakColor: '#efe2c2', feet: '#7d7d7d', ring: '', crest: 'spikes', crestColor: '#e53935', mark: '' } },
-    { id: 'holub', name: 'Holub hřivnáč', lat: 'Columba palumbus', group: 'Ptáci', active: true, rarity: '1', night: false,
-      bio: 'mesto:3, park:2, louka:1', food: 'zrni:1, bobule:0.5', stats: '70, 40, 35, 75', image: '',
-      fact: 'Náš největší holub. Pozná se podle bílé skvrny na krku a bílého pruhu na křídle.',
-      look: { body: '#9aa3b4', wing: '#858ea0', belly: '#d6a9b1', cap: '', capY: 64, beak: 'small', beakColor: '#f0a53a', feet: '#e07a7a', ring: '', crest: '', crestColor: '', mark: 'neck' } },
-    { id: 'kos', name: 'Kos černý', lat: 'Turdus merula', group: 'Ptáci', active: true, rarity: '1', night: false,
-      bio: 'park:3, mesto:2, les:2', food: 'zizaly:1, bobule:1, hmyz:0.5', stats: '50, 35, 55, 50', image: '',
-      fact: 'Samec je černý se žlutým zobákem, samice hnědá. Zpívá už za šera.',
-      look: { body: '#232325', wing: '#18181a', belly: '#2d2d30', cap: '', capY: 64, beak: 'small', beakColor: '#f39c12', feet: '#4a4a4a', ring: '#f39c12', crest: '', crestColor: '', mark: '' } },
-    { id: 'konadra', name: 'Sýkora koňadra', lat: 'Parus major', group: 'Ptáci', active: true, rarity: '1', night: false,
-      bio: 'park:3, les:2, mesto:1', food: 'zrni:1, hmyz:1', stats: '60, 25, 50, 45', image: '',
-      fact: 'Nejběžnější sýkora. Samec má černý pruh na břiše širší než samice.',
-      look: { body: '#93b25e', wing: '#6d8fae', belly: '#f6d846', cap: '#1d1d1f', capY: 88, beak: 'small', beakColor: '#2b2b2b', feet: '#7a8a99', ring: '', crest: '', crestColor: '', mark: 'tit' } },
-    { id: 'vrabec', name: 'Vrabec domácí', lat: 'Passer domesticus', group: 'Ptáci', active: true, rarity: '1', night: false,
-      bio: 'mesto:4, louka:1', food: 'zrni:1, hmyz:0.5', stats: '55, 20, 60, 45', image: '',
-      fact: 'Žije jen u lidí. Samec má šedou čepičku a černou náprsenku.',
-      look: { body: '#a57b50', wing: '#7a5530', belly: '#d3cabb', cap: '#8d8d8d', capY: 66, beak: 'small', beakColor: '#4a4a4a', feet: '#c99a6a', ring: '', crest: '', crestColor: '', mark: 'bib' } },
-    { id: 'kachna', name: 'Kachna divoká', lat: 'Anas platyrhynchos', group: 'Ptáci', active: true, rarity: '1', night: false,
-      bio: 'voda:4, park:0.5', food: 'rostliny:1, zrni:0.5', stats: '65, 40, 45, 80', image: '',
-      fact: 'Nejběžnější kachna. Pečivem ji nekrm – škodí jí.',
-      look: { body: '#b9b2a6', wing: '#8a7f70', belly: '#7b4a33', cap: '#2f7a46', capY: 98, beak: 'flat', beakColor: '#e8c22a', feet: '#f08a24', ring: '', crest: '', crestColor: '', mark: 'collar' } },
-    { id: 'volavka', name: 'Volavka popelavá', lat: 'Ardea cinerea', group: 'Ptáci', active: true, rarity: '2', night: false,
-      bio: 'voda:3, louka:1', food: 'ryba:1, hlodavec:0.5', stats: '45, 60, 50, 70', image: '',
-      fact: 'Na kořist čeká bez hnutí v mělké vodě. Hnízdí v koloniích na stromech.',
-      look: { body: '#b8bdc4', wing: '#8e949c', belly: '#ececec', cap: '', capY: 64, beak: 'long', beakColor: '#e0b23a', feet: '#c9a24a', ring: '', crest: 'plume', crestColor: '#222222', mark: 'brow' } },
-    { id: 'kane', name: 'Káně lesní', lat: 'Buteo buteo', group: 'Ptáci', active: true, rarity: '1', night: false,
-      bio: 'louka:3, les:1', food: 'hlodavec:1, zizaly:0.5', stats: '70, 80, 45, 75', image: '',
-      fact: 'Nejběžnější dravec. Často sedí na sloupech u silnic a vyhlíží hraboše.',
-      look: { body: '#7b5535', wing: '#5c3e24', belly: '#e9dbbd', cap: '', capY: 64, beak: 'hook', beakColor: '#f2c94c', feet: '#f2c94c', ring: '', crest: '', crestColor: '', mark: 'spots' } },
-    { id: 'pustik', name: 'Puštík obecný', lat: 'Strix aluco', group: 'Ptáci', active: true, rarity: '2', night: true,
-      bio: 'les:3, park:1', food: 'hlodavec:1', stats: '50, 70, 90, 55', image: '',
-      fact: 'Nejhojnější sova. Ozývá se známým houkáním a loví hlavně v noci.',
-      look: { body: '#8a6a48', wing: '#6b4f34', belly: '#c9a77c', cap: '', capY: 64, beak: 'hook', beakColor: '#efe0a8', feet: '#cdb48a', ring: '', crest: '', crestColor: '', mark: 'owl' } },
-    { id: 'lednacek', name: 'Ledňáček říční', lat: 'Alcedo atthis', group: 'Ptáci', active: true, rarity: '3', night: false,
-      bio: 'voda:2', food: 'ryba:1', stats: '90, 30, 40, 40', image: '',
-      fact: 'Loví ryby střemhlavým skokem do vody. Hnízdí v norách v kolmých březích.',
-      look: { body: '#1e8ec4', wing: '#16729f', belly: '#f08a24', cap: '#2aa7e0', capY: 70, beak: 'long', beakColor: '#1d1d1f', feet: '#e2523a', ring: '', crest: '', crestColor: '', mark: 'kingfisher' } }
-  ]
+  species: SPECIES,
+  speciesKnown: SPECIES.map(s => s.id), // id výchozích druhů známá při uložení (smazané výchozí se nevrátí, nové se doplní)
+  regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
+    { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
+  ],
+  atlas: {                 // kdy se v atlasu odemknou vzdělávací údaje
+    basicAt: 1,            // zařazení, poznávání, ochrana, zajímavosti – po kolikátém úlovku
+    lifeAt: 3,             // rozmnožování a život – po kolikátém úlovku
+    signsNeedPhoto: true   // hlas a pobytová znamení až se skutečnou fotkou (jinak spolu s „život“)
+  },
 };
 
 // Popis polí pro admin (generický formulář). [klíč, popisek, typ, volby]
@@ -180,14 +159,14 @@ export const SCHEMA = [
     ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
     ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool']
   ] },
-  { sec: 'spawn', title: 'Objevování ptáků', fields: [
-    ['density', 'Počet ptáků v okruhu (průměr)', 'number', { min: 0, max: 100, step: 1 }],
+  { sec: 'spawn', title: 'Objevování zvířat', fields: [
+    ['density', 'Počet zvířat v okruhu (průměr)', 'number', { min: 0, max: 100, step: 1 }],
     ['radius', 'Okruh zobrazení (m)', 'number', { min: 50, max: 3000, step: 10 }],
     ['minDistance', 'Min. vzdálenost od hráče (m)', 'number', { min: 0, max: 500, step: 5 }],
     ['cellSize', 'Velikost buňky spawnu (m)', 'number', { min: 20, max: 1000, step: 10 }],
     ['slotMinutes', 'Přeházení ptáků po (min)', 'number', { min: 1, max: 1440, step: 1 }],
     ['jitter', 'Náhodný posun v buňce (0–1)', 'number', { min: 0, max: 1, step: 0.05 }],
-    ['nightFactorDay', 'Váha denních ptáků v noci', 'number', { min: 0, max: 1, step: 0.05 }],
+    ['nightFactorDay', 'Váha denních zvířat v noci', 'number', { min: 0, max: 1, step: 0.05 }],
     ['seed', 'Seed rozmístění', 'number', { step: 1 }],
     ['refLat', 'Referenční šířka mřížky (°, změna = jiné rozmístění)', 'number', { min: -80, max: 80, step: 1 }]
   ] },
@@ -252,6 +231,11 @@ export const SCHEMA = [
     ['sunAltitude', 'Noc pod výškou slunce (°)', 'number', { min: -18, max: 5, step: 0.5 }],
     ['nightFrom', 'Noc od (h)', 'number', { min: 0, max: 23, step: 1 }],
     ['nightTo', 'Noc do (h)', 'number', { min: 0, max: 23, step: 1 }]
+  ] },
+  { sec: 'atlas', title: 'Atlas – odemykání údajů', fields: [
+    ['basicAt', 'Zařazení, poznávání, ochrana – po úlovku č.', 'number', { min: 1, max: 50, step: 1 }],
+    ['lifeAt', 'Rozmnožování a život – po úlovku č.', 'number', { min: 1, max: 50, step: 1 }],
+    ['signsNeedPhoto', 'Hlas a pobytová znamení až se skutečnou fotkou', 'bool']
   ] }
 ];
 
@@ -259,11 +243,18 @@ export const SCHEMA = [
 export const LISTS = [
   { sec: 'species', title: 'Druhy', label: o => o.name || o.id, fields: [
     ['id', 'ID (bez diakritiky)', 'text'], ['name', 'Název', 'text'], ['lat', 'Latinsky', 'text'],
-    ['group', 'Skupina', 'text'], ['active', 'Aktivní', 'bool'], ['rarity', 'Vzácnost (id)', 'text'],
-    ['night', 'Jen v noci', 'bool'], ['bio', 'Biotopy (id:váha, …)', 'text'], ['food', 'Potrava (id:síla 1/0.5, …)', 'text'],
-    ['stats', 'Základní statistiky (čísla oddělená čárkou)', 'text'], ['fact', 'Zajímavost', 'textarea'],
-    ['image', 'Vlastní obrázek', 'image']
-  ], look: true },
+    ['group', 'Skupina', 'select', { options: GROUPS.map(g => [g, g]) }], ['active', 'Aktivní', 'bool'], ['rarity', 'Vzácnost (id)', 'text'],
+    ['night', 'Jen v noci', 'bool'], ['bio', 'Biotopy (id:váha, …)', 'text'],
+    ['alt', 'Výšková pásma (id:váha, prázdné = všude)', 'text'], ['months', 'Měsíce výskytu (např. 3-10, prázdné = celý rok)', 'text'],
+    ['regions', 'Regiony (id oddělená čárkou, prázdné = všude)', 'text'],
+    ['food', 'Herní potrava (id:síla 1/0.5, …)', 'text'],
+    ['stats', 'Základní statistiky (čísla oddělená čárkou)', 'text'], ['fact', 'Krátká zajímavost (při setkání)', 'textarea'],
+    ['image', 'Vlastní obrázek', 'image'], ['imageAuthor', 'Autor obrázku', 'text'], ['imageLicense', 'Licence obrázku', 'text'],
+    ['review', 'Údaje čekají na odbornou kontrolu', 'bool']
+  ], look: true, edu: true },
+  { sec: 'regions', title: 'Regiony a výšková pásma', label: o => o.name || o.id, fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['zones', 'Pásma (id:od výšky v m, …)', 'text']
+  ] },
   { sec: 'biotopes', title: 'Biotopy', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['color', 'Barva', 'color'],
     ['priority', 'Priorita (nižší vyhrává)', 'number', { step: 1 }],
@@ -299,6 +290,29 @@ export function parseNums(s) {
 }
 export function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
+// Výšková pásma regionu: "nizina:0, hory:900" → [['nizina',0],['hory',900]] seřazené podle výšky
+export function parseZones(s) {
+  return Object.entries(parseMap(s)).filter(([, v]) => Number.isFinite(v)).sort((a, b) => a[1] - b[1]);
+}
+// Pásmo pro nadmořskou výšku (null, když výšku neznáme)
+export function zoneFor(alt, zones) {
+  if (alt == null || !Number.isFinite(alt) || !zones.length) return null;
+  let z = zones[0][0];
+  for (const [id, from] of zones) if (alt >= from) z = id;
+  return z;
+}
+// Měsíce výskytu: "3-10", "11-2" (přes Nový rok), "4,5,9" → množina 1–12; prázdné = celý rok
+export function parseMonths(s) {
+  const out = new Set();
+  for (const part of String(s || '').split(',').map(x => x.trim()).filter(Boolean)) {
+    const [a, b] = part.split('-').map(x => Number(x.trim()));
+    if (!(a >= 1 && a <= 12)) continue;
+    if (!(b >= 1 && b <= 12)) { out.add(a); continue; }
+    for (let m = a, i = 0; i < 12; m = m % 12 + 1, i++) { out.add(m); if (m === b) break; }
+  }
+  return out.size ? out : new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+}
+
 // Obrázek z importu/zálohy smí být jen vložený rastrový obrázek (jinak by šlo podstrčit HTML/skript)
 export function safeImage(s) {
   return typeof s === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : '';
@@ -333,14 +347,30 @@ export function mergeDefaults(cfg) {
     else if (typeof out[k] === 'object') { if (typeof cfg[k] === 'object') Object.assign(out[k], cfg[k]); }
     else out[k] = cfg[k];
   }
+  // Druhy: uložené úpravy + výchozí druhy, které v uloženém nastavení ještě nebyly (přišly s aktualizací).
+  // Výchozí druh, který uživatel znal a smazal (je ve speciesKnown, ale chybí), se nevrátí.
   const defSp = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
   const baseLook = DEFAULTS.species[1].look;
-  out.species = out.species.map(s => {
+  const saved = Array.isArray(cfg.species) ? out.species : [];
+  const savedIds = new Set(saved.map(s => s.id));
+  const known = new Set(Array.isArray(cfg.speciesKnown) ? cfg.speciesKnown : (Array.isArray(cfg.species) ? [...savedIds] : []));
+  const added = DEFAULTS.species.filter(d => !savedIds.has(d.id) && !known.has(d.id));
+  out.species = [...saved, ...clone(added)].map(s => {
     const d = defSp[s.id];
-    const m = Object.assign(d ? clone(d) : {}, s, { look: Object.assign(clone(d ? d.look : baseLook), s.look && typeof s.look === 'object' ? s.look : {}) });
+    const obj = v => v && typeof v === 'object' ? v : {};
+    const m = Object.assign(d ? clone(d) : {}, s, {
+      look: Object.assign(clone(d ? d.look : baseLook), obj(s.look)),
+      edu: Object.assign(clone(d ? d.edu : EMPTY_EDU), obj(s.edu))
+    });
     m.image = safeImage(m.image);
     return m;
   });
+  out.speciesKnown = DEFAULTS.species.map(s => s.id);
+  // Verze 2 → 3: doplnit nové výchozí předvolby vzhledu (vlastní předvolby zůstanou)
+  if (!(Number(cfg.version) >= 3) && Array.isArray(cfg.mapPresets)) {
+    const names = new Set(out.mapPresets.map(p => p && p.name));
+    out.mapPresets.push(...clone(DEFAULTS.mapPresets.filter(p => !names.has(p.name))));
+  }
   // Verze 1 → 2: přechod z Leafletu na MapLibre (zoom o 1 menší pro stejné měřítko, nová atribuce, bez obrázkových dlaždic)
   if (!(Number(cfg.version) >= 2) && cfg.map && typeof cfg.map === 'object') {
     for (const k of ['minZoom', 'maxZoom', 'startZoom']) if (cfg.map[k] != null) out.map[k] = Math.max(0, Number(cfg.map[k]) - 1);

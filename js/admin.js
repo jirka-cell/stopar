@@ -1,5 +1,5 @@
 // Admin: generický editor všech parametrů. Ukládá se průběžně.
-import { SCHEMA, LISTS, LOOK_FIELDS, DEFAULTS, mergeDefaults, clone } from './config.js';
+import { SCHEMA, LISTS, LOOK_FIELDS, EDU_FIELDS, DEFAULTS, mergeDefaults, clone } from './config.js';
 import { birdURL } from './birds.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,7 +47,7 @@ function render() {
   let h = `<div class="adm"><div class="ahead"><h2>Admin</h2><button class="btn sm" data-act="close">Zavřít</button></div>
   <p class="small" id="admInfo"></p>
   <div class="tools">
-    <button class="btn sm" data-act="respawn">Obnovit ptáky</button>
+    <button class="btn sm" data-act="respawn">Obnovit zvířata</button>
     <button class="btn sm" data-act="clearOsm">Smazat cache biotopů</button>
     <button class="btn sm" data-act="cfgExport">Export nastavení</button>
     <label class="btn sm" style="text-align:center">Import nastavení<input type="file" accept=".json,application/json" data-cfgimport hidden></label>
@@ -64,6 +64,7 @@ function render() {
       if (L.look) body += `<div class="prev" id="prev_${i}"><img src="${birdURL(o)}" alt=""></div>`;
       body += L.fields.map(f => field(p + '.' + f[0], f[1], f[2], f[3])).join('');
       if (L.look) body += det('look_' + L.sec + '_' + i, 'Kreslený vzhled', `<div class="lookgrid">${LOOK_FIELDS.map(f => field(p + '.look.' + f[0], f[1], f[2], f[3])).join('')}</div>`);
+      if (L.edu) body += det('edu_' + L.sec + '_' + i, 'Vzdělávací údaje', EDU_FIELDS.map(f => field(p + '.edu.' + f[0], f[1], f[2])).join(''));
       body += `<div class="rowbtns"><button class="btn sm" data-act="up" data-list="${L.sec}" data-i="${i}">Nahoru</button><button class="btn sm" data-act="dup" data-list="${L.sec}" data-i="${i}">Duplikovat</button><button class="btn sm danger" data-act="del" data-list="${L.sec}" data-i="${i}" data-confirm="Opravdu smazat?">Smazat</button></div>`;
       return det('i_' + L.sec + '_' + i, `<span data-lbl="${L.sec}.${i}">${esc(L.label(o))}</span>${o.active === false ? ' <span class="small">(neaktivní)</span>' : ''}`, body);
     }).join('');
@@ -78,7 +79,7 @@ function renderInfo() {
   const el = root && root.querySelector('#admInfo');
   if (!el || !api.info) return;
   const i = api.info();
-  el.textContent = `Poloha: ${i.pos.lat != null ? i.pos.lat.toFixed(5) + ', ' + i.pos.lon.toFixed(5) : '–'} (${i.pos.src}) · ptáků: ${i.birds} · OSM prvků: ${i.features} · slot: ${i.slot} · ${i.night ? 'noc' : 'den'}${i.osmError ? ' · chyba OSM: ' + i.osmError : ''}`;
+  el.textContent = `Poloha: ${i.pos.lat != null ? i.pos.lat.toFixed(5) + ', ' + i.pos.lon.toFixed(5) : '–'} (${i.pos.src}) · zvířat: ${i.birds} · OSM prvků: ${i.features} · slot: ${i.slot} · ${i.night ? 'noc' : 'den'}${i.osmError ? ' · chyba OSM: ' + i.osmError : ''}`;
 }
 
 function readVal(t) {
@@ -131,7 +132,7 @@ function onClick(e) {
 }
 
 function blank(list) {
-  if (list === 'species') { const s = clone(DEFAULTS.species[1]); return Object.assign(s, { id: 'novy' + Date.now().toString(36), name: 'Nový druh', lat: '', fact: '', image: '', active: false }); }
+  if (list === 'species') { const s = clone(DEFAULTS.species[1]); return Object.assign(s, { id: 'novy' + Date.now().toString(36), name: 'Nový druh', lat: '', fact: '', image: '', imageAuthor: '', imageLicense: '', active: false, review: true, alt: '', months: '', regions: '', edu: Object.fromEntries(EDU_FIELDS.map(f => [f[0], ''])) }); }
   const L = LISTS.find(l => l.sec === list);
   const o = {};
   L.fields.forEach(([k, , t]) => { o[k] = t === 'number' ? 0 : t === 'bool' ? false : t === 'color' ? '#888888' : ''; });

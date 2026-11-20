@@ -1,7 +1,7 @@
 // Automatické kontroly logiky, na které stojí hra. Spuštění: node --test tests/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers } from '../js/config.js';
+import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers, parseMonths, parseZones, zoneFor, EDU_FIELDS } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
 import { parseOverpass, osmSetConfig, ensureArea, errorAt, status } from '../js/osm.js';
 import { makeStyle, styleIdFor, circle, STYLES } from '../js/mapstyle.js';
@@ -111,7 +111,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 2);
+  assert.equal(m.version, 3);
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
   assert.equal(m.map.attribution, DEFAULTS.map.attribution);
   assert.equal(m.map.tileCacheMax, DEFAULTS.map.tileCacheMax);
@@ -142,7 +142,7 @@ test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryt�
 });
 
 test('předvolby vzhledu: neznámé vrstvy a nesmysly se zahodí, chybějící vrstvy jsou vypnuté', () => {
-  const m = mergeDefaults({ version: 2, mapPresets: [{ name: ' Les ', style: 'papir', layers: { contours: 1, buildings: 'x', hack: true } }, { name: '' }, 'nesmysl'], layers: { contours: 'ano', buildings: '3d', zlo: 1 } });
+  const m = mergeDefaults({ version: 3, mapPresets: [{ name: ' Les ', style: 'papir', layers: { contours: 1, buildings: 'x', hack: true } }, { name: '' }, 'nesmysl'], layers: { contours: 'ano', buildings: '3d', zlo: 1 } });
   assert.equal(m.mapPresets.length, 1);
   assert.deepEqual(m.mapPresets[0], { name: 'Les', style: 'papir', layers: { contours: true } });
   assert.equal(m.layers.contours, true);
@@ -152,5 +152,50 @@ test('předvolby vzhledu: neznámé vrstvy a nesmysly se zahodí, chybějící v
   assert.equal(l.contours, true);
   assert.equal(l.roadNames, false);
   assert.equal(l.buildings, 'flat');
-  assert.equal(mergeDefaults(null).mapPresets.length, 3, 'výchozí předvolby');
+  assert.equal(mergeDefaults(null).mapPresets.length, DEFAULTS.mapPresets.length, 'výchozí předvolby');
+});
+
+test('měsíce výskytu a výšková pásma', () => {
+  assert.deepEqual([...parseMonths('3-5')], [3, 4, 5]);
+  assert.deepEqual([...parseMonths('11-2')].sort((a, b) => a - b), [1, 2, 11, 12], 'přes Nový rok');
+  assert.deepEqual([...parseMonths('4, 9')].sort((a, b) => a - b), [4, 9]);
+  assert.equal(parseMonths('').size, 12, 'prázdné = celý rok');
+  assert.equal(parseMonths('nesmysl').size, 12);
+  const z = parseZones(DEFAULTS.regions[0].zones);
+  assert.equal(zoneFor(150, z), 'nizina');
+  assert.equal(zoneFor(450, z), 'pahorkatina');
+  assert.equal(zoneFor(1000, z), 'hory');
+  assert.equal(zoneFor(1602, z), 'nad_lesem');
+  assert.equal(zoneFor(null, z), null);
+});
+
+test('druhy: nové výchozí se doplní, smazané výchozí se nevrátí, vlastní úpravy zůstanou', () => {
+  // staré nastavení bez speciesKnown: 9 druhů (ledňáček chybí) → bere se, že ledňáčka nikdy neznalo? Ne: bez speciesKnown se za známé berou jen uložené
+  const v2 = clone(DEFAULTS); delete v2.speciesKnown; v2.version = 2;
+  v2.species = v2.species.filter(s => s.id !== 'lednacek');
+  v2.species[0].name = 'Datel (upravený)';
+  v2.species.forEach(s => { delete s.edu; });
+  const m = mergeDefaults(v2);
+  assert.ok(m.species.some(s => s.id === 'lednacek'), 'druh, který v uloženém nastavení chyběl, se doplní');
+  assert.equal(m.species[0].name, 'Datel (upravený)');
+  assert.equal(m.species[0].edu.family, DEFAULTS.species[0].edu.family, 'vzdělávací údaje se doplní');
+  // nová verze: uživatel smazal holuba → zůstane smazaný
+  const v3 = clone(m); v3.species = v3.species.filter(s => s.id !== 'holub');
+  const m2 = mergeDefaults(v3);
+  assert.ok(!m2.species.some(s => s.id === 'holub'));
+  // druh přidaný v budoucí aktualizaci (není ve speciesKnown) se doplní
+  const v4 = clone(m2); v4.speciesKnown = v4.speciesKnown.filter(id => id !== 'kos'); v4.species = v4.species.filter(s => s.id !== 'kos');
+  assert.ok(mergeDefaults(v4).species.some(s => s.id === 'kos'));
+  // každý výchozí druh má všechna vzdělávací pole
+  for (const s of DEFAULTS.species) for (const [k] of EDU_FIELDS) assert.ok(k in s.edu, `${s.id} nemá pole ${k}`);
+});
+
+test('verze 2 → 3: doplní nové výchozí předvolby vzhledu, vlastní zůstanou', () => {
+  const m = mergeDefaults({ version: 2, mapPresets: [{ name: 'Moje', style: 'hra', layers: { contours: true } }, { name: 'Úsporný', style: 'auto', layers: {} }] });
+  const names = m.mapPresets.map(p => p.name);
+  assert.ok(names.includes('Moje'));
+  assert.ok(names.includes('Les a hory') && names.includes('Maximum'));
+  assert.equal(names.filter(n => n === 'Úsporný').length, 1);
+  const again = mergeDefaults({ ...m, mapPresets: m.mapPresets.filter(p => p.name !== 'Zima') });
+  assert.ok(!again.mapPresets.some(p => p.name === 'Zima'), 'smazaná předvolba se ve verzi 3 nevrátí');
 });
