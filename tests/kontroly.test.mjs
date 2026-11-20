@@ -344,5 +344,5 @@ test('data druhů jsou konzistentní: potrava, biotopy, pásma, vzácnost, skupi
     if (s.months) assert.ok(parseMonths(s.months).size < 12, `${s.id}: měsíce`);
     assert.ok(s.fact && s.edu.sources, `${s.id}: chybí zajímavost nebo zdroj`);
   }
-  assert.ok(DEFAULTS.species.length >= 60);
+  assert.ok(DEFAULTS.species.length >= 85);
 });

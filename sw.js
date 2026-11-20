@@ -1,12 +1,12 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v1.7.0';
+const VERSION = 'stopar-v1.8.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
 const META = 'stopar-meta';        // drobná nastavení SW, která musí přežít jeho uspání prohlížečem
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/elevation.js',
+  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/elevation.js',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];
