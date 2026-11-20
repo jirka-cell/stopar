@@ -3,6 +3,7 @@
 
 import { SPECIES, EDU_FIELDS, EMPTY_EDU, GROUPS } from './species.js';
 import { BATCH1 } from './species-batch1.js';
+import { BATCH2 } from './species-batch2.js';
 export { EDU_FIELDS, GROUPS };
 
 export const CONFIG_VERSION = 4;
@@ -158,9 +159,10 @@ export const DEFAULTS = {
     { id: 'orisky', name: 'Žaludy a oříšky' },
     { id: 'nektar', name: 'Nektar a květy' },
     { id: 'slimaci', name: 'Slimáci a plži' },
-    { id: 'drobotina', name: 'Vodní drobotina' }
+    { id: 'drobotina', name: 'Vodní drobotina' },
+    { id: 'zaby', name: 'Žáby a pulci' }
   ],
-  species: [...SPECIES, ...BATCH1],
+  species: [...SPECIES, ...BATCH1, ...BATCH2],
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
     { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
   ],
