@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, mergeDefaults, safeImage, clone } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
-import { parseOverpass, osmSetConfig, ensureArea, status } from '../js/osm.js';
+import { parseOverpass, osmSetConfig, ensureArea, errorAt, status } from '../js/osm.js';
 
 const NOW = Date.UTC(2026, 10, 20, 10, 0);
 const lesVsude = () => 'les';
@@ -94,9 +94,15 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
     assert.ok(chunks > 1);
     assert.equal(calls, 1, 'po první chybě se má čekat, ne posílat další dotazy');
     assert.match(status.error, /429/);
+    assert.match(errorAt(50.2306, 12.8711), /429/, 'bez dat pod hráčem se chyba ukáže');
     now += 6000; ok = true;
     ensureArea(50.2306, 12.8711, 600); await drain();
     assert.equal(status.error, '', 'po úspěšném načtení má chyba zmizet');
     assert.equal(calls, 1 + chunks);
+    // výpadek jen okolního čtverce: data pod hráčem jsou, chyba se hráči neukáže
+    ok = false; now += 6000;
+    ensureArea(50.2306, 12.8711, 1500); await drain();
+    assert.match(status.error, /429/);
+    assert.equal(errorAt(50.2306, 12.8711), '');
   } finally { globalThis.fetch = realFetch; Date.now = realNow; }
 });

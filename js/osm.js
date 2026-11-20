@@ -174,6 +174,11 @@ export function ensureArea(lat, lon, radius) {
 
 export const status = { error: '' };
 
+// Chyba, kterou má smysl ukázat hráči: jen když chybí data přímo pod ním (výpadek okolních čtverců hru neomezuje)
+export function errorAt(lat, lon) {
+  return CFG && !chunks.has(chunkKey(lat, lon)) ? status.error : '';
+}
+
 // Biotop v bodě; null = data ještě nejsou načtená
 export function biotopeAt(lat, lon) {
   const key = chunkKey(lat, lon);

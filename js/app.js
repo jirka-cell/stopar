@@ -1,7 +1,7 @@
 import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
-import { osmSetConfig, ensureArea, biotopeAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
+import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
 import { visibleBirds, currentSlot } from './spawn.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin } from './admin.js';
@@ -106,6 +106,7 @@ function saveState() {
 function initMap() {
   const start = state.last || { lat: cfg.map.startLat, lon: cfg.map.startLon };
   map = L.map('map', { zoomControl: false, minZoom: cfg.map.minZoom, maxZoom: cfg.map.maxZoom }).setView([start.lat, start.lon], cfg.map.startZoom);
+  map.attributionControl.setPrefix(false); // podpis Leafletu licence nevyžaduje; atribuce OSM zůstává
   tiles = L.tileLayer(cfg.map.tileUrl, { maxZoom: cfg.map.maxZoom, maxNativeZoom: 19, attribution: safeAttribution(cfg.map.attribution), crossOrigin: true }).addTo(map);
   bioLayer = L.layerGroup().addTo(map);
   rangeCirc = L.circle([start.lat, start.lon], { radius: cfg.spawn.radius, color: '#2f7d4f', weight: 1, opacity: .25, fillOpacity: .03, interactive: false }).addTo(map);
@@ -227,7 +228,8 @@ function hudBio() {
   const hb = $('hbio');
   let t = 'Biotop: ' + (b === null ? 'načítám…' : (BIO[b] ? BIO[b].name : b));
   if (isNight()) t += ' · noc';
-  if (osmStatus.error) { t += ' · OSM chyba'; hb.classList.add('bad'); hb.title = osmStatus.error; } else hb.classList.remove('bad');
+  const err = errorAt(pos.lat, pos.lon);
+  if (err) { t += ' · OSM chyba'; hb.classList.add('bad'); hb.title = err; } else { hb.classList.remove('bad'); hb.title = ''; }
   hb.textContent = t;
 }
 // V simulaci se ukazují simulované km; do skutečné ušlé vzdálenosti se nepočítají

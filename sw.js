@@ -1,5 +1,5 @@
 // Service worker: offline aplikace + cache mapových dlaždic
-const VERSION = 'stopar-v1.0.1';
+const VERSION = 'stopar-v1.0.2';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles';
 const META = 'stopar-meta'; // drobná nastavení SW, která musí přežít jeho uspání prohlížečem
