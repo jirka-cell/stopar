@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, mergeDefaults, safeImage, clone } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
 import { parseOverpass, osmSetConfig, ensureArea, errorAt, status } from '../js/osm.js';
+import { makeStyle, styleIdFor, circle, STYLES } from '../js/mapstyle.js';
 
 const NOW = Date.UTC(2026, 10, 20, 10, 0);
 const lesVsude = () => 'les';
@@ -59,7 +60,7 @@ test('mergeDefaults doplní nová pole druhů a zahodí nebezpečné hodnoty', (
   delete saved.species[0].fact;
   saved.species[0].image = 'javascript:alert(1)';
   saved.species.push({ id: 'vlastni', name: 'Vlastní', look: { body: '#000' } });
-  saved.map.tileUrl = 'http://zly.example/{z}/{x}/{y}.png';
+  saved.map.vectorUrl = 'http://zly.example/planet';
   saved.osm.overpassUrl = 'https://x" onerror="y';
   const m = mergeDefaults(saved);
   assert.equal(m.species[0].look.feet, DEFAULTS.species[0].look.feet);
@@ -68,7 +69,7 @@ test('mergeDefaults doplní nová pole druhů a zahodí nebezpečné hodnoty', (
   const v = m.species.find(s => s.id === 'vlastni');
   assert.equal(v.fact, undefined, 'vlastní druh nesmí převzít texty jiného druhu');
   assert.equal(v.look.body, '#000');
-  assert.equal(m.map.tileUrl, DEFAULTS.map.tileUrl);
+  assert.equal(m.map.vectorUrl, DEFAULTS.map.vectorUrl);
   assert.equal(m.osm.overpassUrl, DEFAULTS.osm.overpassUrl);
   assert.equal(mergeDefaults({ species: 'nesmysl' }).species.length, DEFAULTS.species.length);
 });
@@ -105,4 +106,37 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
     assert.match(status.error, /429/);
     assert.equal(errorAt(50.2306, 12.8711), '');
   } finally { globalThis.fetch = realFetch; Date.now = realNow; }
+});
+
+test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
+  const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
+  const m = mergeDefaults(old);
+  assert.equal(m.version, 2);
+  assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
+  assert.equal(m.map.attribution, DEFAULTS.map.attribution);
+  assert.equal(m.map.tileCacheMax, DEFAULTS.map.tileCacheMax);
+  assert.equal('tileUrl' in m.map, false);
+  assert.equal(mergeDefaults(m).map.startZoom, 16, 'nová verze se už neposouvá');
+});
+
+test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryté', () => {
+  assert.equal(styleIdFor('auto', false), 'hra');
+  assert.equal(styleIdFor('auto', true), 'noc');
+  assert.equal(styleIdFor('papir', true), 'papir');
+  assert.equal(styleIdFor('neexistuje', false), 'hra');
+  const ctx = { vectorUrl: DEFAULTS.map.vectorUrl, glyphsUrl: DEFAULTS.map.glyphsUrl, demUrl: 'dem://x', contourUrl: 'contour://x', trailsUrl: DEFAULTS.map.trailsUrl, biotopes: DEFAULTS.biotopes, game: { catch: circle(12.87, 50.23, 100) } };
+  for (const id of Object.keys(STYLES)) {
+    const s = makeStyle(id, DEFAULTS.layers, ctx);
+    const ids = s.layers.map(l => l.id);
+    assert.equal(new Set(ids).size, ids.length, `duplicitní vrstva ve stylu ${id}`);
+    for (const l of s.layers) if (l.source) assert.ok(s.sources[l.source], `vrstva ${l.id} nemá zdroj ${l.source}`);
+  }
+  const off = makeStyle('hra', { ...DEFAULTS.layers, contours: false, trHiking: false }, ctx);
+  assert.equal(off.layers.find(l => l.id === 'contour').layout.visibility, 'none');
+  assert.ok(!off.sources['tr-hiking']);
+  const on = makeStyle('hra', { ...DEFAULTS.layers, contours: true, trHiking: true, buildings: '3d' }, ctx);
+  assert.equal(on.layers.find(l => l.id === 'contour').layout.visibility, 'visible');
+  assert.match(on.sources['tr-hiking'].tiles[0], /\/hiking\//);
+  assert.ok(on.layers.some(l => l.type === 'fill-extrusion'));
+  assert.equal(on.sources.catch.data.geometry.type, 'Polygon');
 });

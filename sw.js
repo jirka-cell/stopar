@@ -1,15 +1,16 @@
-// Service worker: offline aplikace + cache mapových dlaždic
-const VERSION = 'stopar-v1.0.2';
+// Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
+const VERSION = 'stopar-v1.1.0';
 const SHELL = VERSION + '-shell';
-const TILES = 'stopar-tiles';
-const META = 'stopar-meta'; // drobná nastavení SW, která musí přežít jeho uspání prohlížečem
+const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
+const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
+const META = 'stopar-meta';        // drobná nastavení SW, která musí přežít jeho uspání prohlížečem
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js',
-  'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
+  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js',
+  'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];
-let tileMax = 1500, tileMaxSet = false;
+let tileMax = 3000, tileMaxSet = false;
 const tileMaxReady = caches.open(META).then(c => c.match('tile-max')).then(r => r ? r.text() : null)
   .then(t => { if (t != null && !tileMaxSet) tileMax = Number(t) || 0; }).catch(() => {});
 
@@ -18,7 +19,8 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== SHELL && k !== TILES && k !== META).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  const keep = [SHELL, TILES, STATIC, META];
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => !keep.includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('message', e => {
@@ -30,25 +32,46 @@ self.addEventListener('message', e => {
   }
 });
 
-const isTile = url => /\/\d+\/\d+\/\d+(@2x)?\.(png|jpg|jpeg|webp)(\?.*)?$/i.test(url.pathname);
+// Dlaždice: …/z/x/y.png|jpg|webp|pbf (vektorová mapa, terén, trasy)
+const isTile = url => /\/\d+\/\d+\/\d+(@2x)?\.(png|jpg|jpeg|webp|pbf)(\?.*)?$/i.test(url.pathname);
+const isGlyph = url => /\/fonts\/.+\/\d+-\d+\.pbf$/.test(url.pathname);
+const isTileJson = url => url.hostname === 'tiles.openfreemap.org' && /^\/planet\/?$/.test(url.pathname);
 
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Mapové dlaždice: nejdřív cache, jinak síť a uložit (jen dlaždice, které uživatel viděl)
-  if (url.origin !== location.origin && isTile(url)) {
-    e.respondWith(caches.open(TILES).then(async c => {
+  // Ukázky v design/ nejsou součást aplikace: vždy čerstvé ze sítě, nic se neukládá
+  if (url.origin === location.origin && url.pathname.includes('/design/')) return;
+
+  // Dlaždice a písma: nejdřív cache, jinak síť a uložit (jen to, co uživatel viděl)
+  if (url.origin !== location.origin && (isTile(url) || isGlyph(url))) {
+    const name = isGlyph(url) ? STATIC : TILES;
+    e.respondWith(caches.open(name).then(async c => {
       await tileMaxReady;
       const hit = await c.match(req);
       if (hit) return hit;
       try {
         const res = await fetch(req);
-        if (res.ok && tileMax > 0) { c.put(req, res.clone()).then(() => trim(c)); }
+        if (res.ok && (name === STATIC || tileMax > 0)) { c.put(req, res.clone()).then(() => name === TILES && trim(c)); }
         return res;
       } catch (err) {
-        return hit || Response.error();
+        return Response.error();
+      }
+    }));
+    return;
+  }
+
+  // Popis vektorové mapy: online čerstvý (obsahuje verzi dlaždic), offline z cache
+  if (isTileJson(url)) {
+    e.respondWith(caches.open(STATIC).then(async c => {
+      try {
+        const res = await fetch(req);
+        if (res.ok) c.put(req, res.clone());
+        return res;
+      } catch (err) {
+        return (await c.match(req)) || Response.error();
       }
     }));
     return;

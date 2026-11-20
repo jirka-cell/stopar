@@ -15,7 +15,9 @@ Statická webová aplikace bez buildu. Běží na libovolném HTTPS hostingu (GP
 - `js/birds.js`: kreslený vzhled ptáků
 - `js/admin.js`: editor všech parametrů
 - `js/store.js`, `js/geo.js`: úložiště a geometrie
-- `vendor/leaflet/`: mapová knihovna Leaflet 1.9.4 (BSD-2)
+- `js/mapstyle.js`: vzhled vektorové mapy (styly a volitelné vrstvy)
+- `vendor/maplibre/`: mapová knihovna MapLibre GL JS 4.7.1 (BSD-3)
+- `vendor/maplibre-contour/`: vrstevnice z výškových dlaždic (BSD-3)
 
 ## Nasazení na GitHub Pages
 
@@ -63,8 +65,9 @@ Po každé změně souborů zvyš `VERSION` v `sw.js` (např. `stopar-v1.0.1`). 
 
 ## Mapové podklady a OSM
 
-- Dlaždice: tile.openstreetmap.org. Pravidla OSMF dovolují menší provoz s viditelnou atribucí, ale ne hromadné stahování. Aplikace ukládá jen dlaždice, které uživatel viděl (max. počet nastavíš v adminu).
-- Pro veřejné nebo komerční spuštění přepnout URL dlaždic na jiného poskytovatele (např. MapTiler, Stadia, Thunderforest – s API klíčem) v Admin → Mapa.
+- Mapa: vektorové dlaždice OpenFreeMap (zdarma, bez klíče, bez záruky provozu), vykresluje MapLibre. Styl (automaticky den/noc nebo jeden z pěti) a vrstvy se nastavují v Admin → Mapa a Admin → Vrstvy mapy. Aplikace ukládá jen dlaždice, které uživatel viděl (max. počet v adminu).
+- Terén (stínování, vrstevnice): výškové dlaždice Terrarium (AWS Open Data). Trasy: obrázkové dlaždice Waymarked Trails (jen pro rodinnou verzi, do vydání vlastní vrstva z Overpass).
+- Pro veřejné nebo komerční spuštění mít zálohu (např. MapTiler s klíčem) – URL vektorové mapy jde změnit v Admin → Mapa.
 - Biotopy: Overpass API (overpass-api.de), stahuje se po čtvercích ~1,1 × 0,7 km a ukládá na 30 dní. Při větším počtu uživatelů přejít na vlastní Overpass nebo předpočítaná data.
 - Data © přispěvatelé OpenStreetMap, licence ODbL. Atribuce musí zůstat viditelná.
 

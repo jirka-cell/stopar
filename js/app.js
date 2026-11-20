@@ -5,6 +5,7 @@ import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, load
 import { visibleBirds, currentSlot } from './spawn.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin } from './admin.js';
+import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS } from './mapstyle.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -44,7 +45,8 @@ let state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: null };
 let SP = {}, FN = {}, BIO = {}, RAR = {};
 const pos = { lat: null, lon: null, acc: null, src: 'none' };
 let lastGood = null;
-let map, tiles, meMk, accCirc, catchCirc, rangeCirc, birdLayer, bioLayer;
+let map = null, meMk = null, styleKey = '', demSource = null, contourUrl = null, pitch3d = false;
+const NONE = circle(null);
 let follow = true, birds = [], markers = new Map(), enc = null, simTarget = null, watchId = null, installEvt = null;
 
 /* ---------- init ---------- */
@@ -78,14 +80,13 @@ function applyConfig(first) {
   $('legend').innerHTML = cfg.biotopes.map(b => `<span><i style="background:${esc(b.color)}"></i>${esc(b.name)}</span>`).join('');
   $('legend').classList.toggle('on', !!cfg.general.showBiotopes);
   if (!first && map) {
-    tiles.setUrl(cfg.map.tileUrl);
     map.setMinZoom(cfg.map.minZoom); map.setMaxZoom(cfg.map.maxZoom);
-    catchCirc.setRadius(cfg.catch.radius); rangeCirc.setRadius(cfg.spawn.radius);
-    if (cfg.general.showBiotopes) drawBiotopes(); else bioLayer.clearLayers();
-    markers.forEach(m => birdLayer.removeLayer(m)); markers.clear();
+    applyMapStyle(true);
+    clearMarkers();
     startPosition();
     refreshBirds();
   }
+  updateCompassBtn();
   swConfig();
 }
 
@@ -103,33 +104,130 @@ function saveState() {
 }
 
 /* ---------- mapa ---------- */
+// Herní kruhy kolem hráče jako GeoJSON
+function gameData() {
+  return {
+    range: circle(pos.lon, pos.lat, cfg.spawn.radius),
+    catch: circle(pos.lon, pos.lat, cfg.catch.radius),
+    acc: pos.src === 'gps' && pos.acc ? circle(pos.lon, pos.lat, pos.acc) : NONE,
+    bio: cfg.general.showBiotopes ? biotopeGeo() : NONE
+  };
+}
+function mapCtx() {
+  return {
+    vectorUrl: cfg.map.vectorUrl, glyphsUrl: cfg.map.glyphsUrl, trailsUrl: cfg.map.trailsUrl,
+    demUrl: demSource ? demSource.sharedDemProtocolUrl : cfg.map.demUrl, contourUrl,
+    attribution: safeAttribution(cfg.map.attribution), biotopes: cfg.biotopes, game: gameData()
+  };
+}
+// Přepne styl jen při změně (den/noc, nastavení vrstev); force = po uložení adminu
+function applyMapStyle(force) {
+  if (!map) return;
+  const id = styleIdFor(cfg.map.style, isNight());
+  const key = id + JSON.stringify([cfg.layers, cfg.map.vectorUrl, cfg.map.glyphsUrl, cfg.map.trailsUrl, cfg.biotopes.map(b => b.color)]);
+  if (key === styleKey && !force) return;
+  if (!force && !map.isStyleLoaded()) return; // den/noc přepne při dalším ticku
+  styleKey = key;
+  map.setStyle(makeStyle(id, cfg.layers, mapCtx()));
+  gamePending = bioPending = true;
+  const want3d = cfg.layers.buildings === '3d';
+  if (want3d !== pitch3d) { pitch3d = want3d; map.easeTo({ pitch: want3d ? 45 : 0, duration: 500 }); }
+}
+// Kruhy a ladicí biotopy se zapíšou, až je styl připravený (poloha může přijít dřív než styl)
+let gamePending = false, bioPending = false;
+function updateGame() { gamePending = true; flushMap(); }
+function flushMap() {
+  if (!map) return;
+  try {
+    if (gamePending) {
+      const g = gameData(), src = ['range', 'catch', 'acc'].map(k => [k, map.getSource(k)]);
+      if (src.every(([, s]) => s)) { src.forEach(([k, s]) => s.setData(g[k])); gamePending = false; }
+    }
+    if (bioPending) { const s = map.getSource('biodebug'); if (s) { s.setData(cfg.general.showBiotopes ? biotopeGeo() : NONE); bioPending = false; } }
+  } catch (e) { /* styl se ještě načítá, zkusí se při dalším styledata/idle */ }
+}
+
 function initMap() {
   const start = state.last || { lat: cfg.map.startLat, lon: cfg.map.startLon };
-  map = L.map('map', { zoomControl: false, minZoom: cfg.map.minZoom, maxZoom: cfg.map.maxZoom }).setView([start.lat, start.lon], cfg.map.startZoom);
-  map.attributionControl.setPrefix(false); // podpis Leafletu licence nevyžaduje; atribuce OSM zůstává
-  tiles = L.tileLayer(cfg.map.tileUrl, { maxZoom: cfg.map.maxZoom, maxNativeZoom: 19, attribution: safeAttribution(cfg.map.attribution), crossOrigin: true }).addTo(map);
-  bioLayer = L.layerGroup().addTo(map);
-  rangeCirc = L.circle([start.lat, start.lon], { radius: cfg.spawn.radius, color: '#2f7d4f', weight: 1, opacity: .25, fillOpacity: .03, interactive: false }).addTo(map);
-  catchCirc = L.circle([start.lat, start.lon], { radius: cfg.catch.radius, color: '#2f7d4f', weight: 2, dashArray: '6 6', fillOpacity: .06, interactive: false }).addTo(map);
-  accCirc = L.circle([start.lat, start.lon], { radius: 0, color: '#3a7bd5', weight: 1, opacity: .4, fillOpacity: .08, interactive: false }).addTo(map);
-  birdLayer = L.layerGroup().addTo(map);
-  meMk = L.marker([start.lat, start.lon], { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }), interactive: false, keyboard: false }).addTo(map);
+  if (!window.maplibregl) { banner('Mapu se nepodařilo načíst. Zkontroluj připojení a otevři aplikaci znovu.'); return; }
+  // Vrstevnice se počítají v telefonu z výškových dlaždic (na pozadí, ve workeru)
+  if (window.mlcontour) {
+    try {
+      demSource = new mlcontour.DemSource({ url: cfg.map.demUrl, encoding: 'terrarium', maxzoom: 13, worker: true });
+      demSource.setupMaplibre(maplibregl);
+      contourUrl = demSource.contourProtocolUrl({ thresholds: CONTOUR_THRESHOLDS, elevationKey: 'ele', levelKey: 'level', contourLayer: 'contours' });
+    } catch (e) { demSource = null; contourUrl = null; }
+  }
+  const id = styleIdFor(cfg.map.style, isNight());
+  try {
+    map = new maplibregl.Map({
+      container: 'map', style: makeStyle(id, cfg.layers, mapCtx()), center: [start.lon, start.lat], zoom: cfg.map.startZoom,
+      minZoom: cfg.map.minZoom, maxZoom: cfg.map.maxZoom, attributionControl: false, pitch: cfg.layers.buildings === '3d' ? 45 : 0
+    });
+  } catch (e) { map = null; banner('Mapa se nedá zobrazit: prohlížeč nepodporuje WebGL. Zkus aktualizovat Chrome nebo Safari.'); return; }
+  styleKey = id + JSON.stringify([cfg.layers, cfg.map.vectorUrl, cfg.map.glyphsUrl, cfg.map.trailsUrl, cfg.biotopes.map(b => b.color)]);
+  pitch3d = cfg.layers.buildings === '3d';
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+  map.addControl(new maplibregl.NavigationControl({ showZoom: false, visualizePitch: true }), 'top-right');
+  // Ťuknutí na severku vypne režim kompasu a vrátí mapu na sever
+  setTimeout(() => { const c = document.querySelector('.maplibregl-ctrl-compass'); if (c) c.addEventListener('click', () => { if (compassOn) toggleCompass(); }); }, 0);
+  const me = document.createElement('div'); me.className = 'me'; me.innerHTML = '<i class="dir"></i>';
+  meMk = new maplibregl.Marker({ element: me }).setLngLat([start.lon, start.lat]).addTo(map);
   map.on('dragstart', () => { follow = false; });
   map.on('click', e => {
     if (cfg.general.simulation) {
-      if (pos.lat == null) setPos(e.latlng.lat, e.latlng.lng, 5, 'sim');
-      else simTarget = { lat: e.latlng.lat, lon: e.latlng.lng };
+      if (pos.lat == null) setPos(e.lngLat.lat, e.lngLat.lng, 5, 'sim');
+      else simTarget = { lat: e.lngLat.lat, lon: e.lngLat.lng };
     }
   });
+  map.on('styledata', flushMap);
+  map.on('idle', flushMap);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
 
 function setPos(lat, lon, acc, src) {
   pos.lat = lat; pos.lon = lon; pos.acc = acc; pos.src = src;
-  const ll = [lat, lon];
-  meMk.setLatLng(ll); catchCirc.setLatLng(ll); rangeCirc.setLatLng(ll);
-  accCirc.setLatLng(ll).setRadius(acc && src === 'gps' ? acc : 0);
-  if (follow) map.panTo(ll, { animate: true, duration: .4 });
+  if (!map) return;
+  meMk.setLngLat([lon, lat]);
+  updateGame();
+  if (follow) map.easeTo({ center: [lon, lat], duration: 400 });
+}
+
+/* ---------- kompas ---------- */
+let compassOn = false, lastRot = 0, headingSeen = false, headingTimer = 0;
+function updateCompassBtn() {
+  const b = $('compassBtn'); if (!b) return;
+  b.hidden = !cfg.map.compass;
+  b.classList.toggle('on', compassOn);
+  document.body.classList.toggle('compass', compassOn);
+  if (!cfg.map.compass && compassOn) toggleCompass();
+}
+function onOrient(e) {
+  let h = null;
+  if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading; // iPhone
+  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;                  // Android
+  if (h == null || !map) return;
+  headingSeen = true;
+  h = (h + ((screen.orientation && screen.orientation.angle) || 0) + 360) % 360;
+  const now = performance.now(); if (now - lastRot < 120) return; lastRot = now;
+  map.rotateTo(h, { duration: 150 });
+}
+async function toggleCompass() {
+  if (compassOn) {
+    compassOn = false; clearTimeout(headingTimer);
+    window.removeEventListener('deviceorientationabsolute', onOrient); window.removeEventListener('deviceorientation', onOrient);
+    if (map) map.rotateTo(0, { duration: 300 });
+    updateCompassBtn(); return;
+  }
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { if (await DeviceOrientationEvent.requestPermission() !== 'granted') { toast('Bez povolení orientace telefonu kompas nefunguje.'); return; } }
+    catch (e) { toast('Kompas se nepodařilo zapnout.'); return; }
+  }
+  compassOn = true; headingSeen = false; follow = true;
+  window.addEventListener('ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation', onOrient);
+  headingTimer = setTimeout(() => { if (compassOn && !headingSeen) { toast('Telefon nehlásí směr, kompas nejde použít.'); toggleCompass(); } }, 3000);
+  if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], duration: 300 });
+  updateCompassBtn();
 }
 
 /* ---------- poloha ---------- */
@@ -156,7 +254,7 @@ function onGPS(p) {
   }
   const first = pos.src !== 'gps';
   setPos(lat, lon, acc, 'gps');
-  if (first) { follow = true; map.setView([lat, lon], Math.max(map.getZoom(), cfg.map.startZoom)); tick(); }
+  if (first) { follow = true; if (map) map.jumpTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom) }); tick(); }
   hudGPS();
 }
 function onGPSErr(e) {
@@ -192,6 +290,7 @@ function isNight() {
 
 /* ---------- smyčka ---------- */
 function tick() {
+  applyMapStyle(false); // přepnutí den/noc
   if (pos.lat == null) { hudGPS(); return; }
   ensureArea(pos.lat, pos.lon, cfg.spawn.radius + cfg.spawn.cellSize);
   refreshBirds();
@@ -203,25 +302,25 @@ function refreshBirds() {
   const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone);
   birds = r.birds;
   const ids = new Set(birds.map(b => b.id));
-  markers.forEach((m, id) => { if (!ids.has(id)) { birdLayer.removeLayer(m); markers.delete(id); } });
+  markers.forEach((_, id) => { if (!ids.has(id)) removeMarker(id); });
   for (const b of birds) {
     const sp = SP[b.sp];
     if (!sp) continue;
     const near = dist(pos.lat, pos.lon, b.lat, b.lon) <= cfg.catch.radius;
-    let m = markers.get(b.id);
+    const m = markers.get(b.id);
     if (!m) {
-      m = L.marker([b.lat, b.lon], { icon: birdIcon(sp, near), keyboard: false });
-      m.on('click', ev => { L.DomEvent.stopPropagation(ev); tapBird(b.id); });
-      m._near = near;
-      birdLayer.addLayer(m); markers.set(b.id, m);
-    } else if (m._near !== near) { m.setIcon(birdIcon(sp, near)); m._near = near; }
+      const el = document.createElement('div');
+      el.className = 'bmk' + (near ? '' : ' far');
+      el.innerHTML = `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`;
+      el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
+      markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
+    } else m.el.classList.toggle('far', !near);
   }
   const hb = $('hbio');
   if (r.pending && !birds.length) hb.dataset.loading = '1'; else delete hb.dataset.loading;
 }
-function birdIcon(sp, near) {
-  return L.divIcon({ className: '', html: `<div class="bmk${near ? '' : ' far'}"><img src="${birdURL(sp)}" alt=""></div>`, iconSize: [46, 40], iconAnchor: [23, 36] });
-}
+function removeMarker(id) { const m = markers.get(id); if (m) { m.mk.remove(); markers.delete(id); } }
+function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
 
 function hudBio() {
   const b = biotopeAt(pos.lat, pos.lon);
@@ -261,13 +360,14 @@ function show(v) {
   document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === v));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   if (v === 'atlasv') renderAtlas();
-  if (v === 'mapv') setTimeout(() => map.invalidateSize(), 50);
+  if (v === 'mapv' && map) setTimeout(() => map.resize(), 50);
 }
 
 let logoTaps = 0, logoT = 0;
 function bindUI() {
   document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
-  $('centerBtn').onclick = () => { follow = true; if (pos.lat != null) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), cfg.map.startZoom)); };
+  $('centerBtn').onclick = () => { follow = true; if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); };
+  $('compassBtn').onclick = toggleCompass;
   $('menuBtn').onclick = openMenu;
   $('logo').addEventListener('click', () => {
     clearTimeout(logoT); logoTaps++;
@@ -335,7 +435,7 @@ function photoAnim() {
   fb.style.transform = 'translateY(' + (Math.sin(t * 5) * 3).toFixed(1) + 'px)';
   requestAnimationFrame(photoAnim);
 }
-function gone() { state.gone[enc.b.id] = Date.now(); const m = markers.get(enc.b.id); if (m) { birdLayer.removeLayer(m); markers.delete(enc.b.id); } saveState(); }
+function gone() { state.gone[enc.b.id] = Date.now(); removeMarker(enc.b.id); saveState(); }
 function pickFood(f) {
   const C = cfg.catch, food = parseMap(enc.sp.food), m = food[f] || 0;
   const ch = m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong;
@@ -522,22 +622,26 @@ function checkPin() {
     save: c => saveConfig(c),
     close: () => { document.querySelector('nav').style.display = ''; show('mapv'); },
     exportAll: () => exportData(true),
-    clearOsm: async () => { await clearOsmCache(); bioLayer.clearLayers(); tick(); toast('Cache biotopů smazána.'); },
+    clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => { state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last }; await store.clear('photos'); await store.set('state', state); hudDist(); toast('Postup smazán.'); },
-    respawn: () => { state.gone = {}; markers.forEach(m => birdLayer.removeLayer(m)); markers.clear(); refreshBirds(); toast('Ptáci obnoveni.'); },
+    respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Ptáci obnoveni.'); },
     info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, osmError: osmStatus.error })
   });
 }
 
-function drawBiotopes() {
-  bioLayer.clearLayers();
+// Ladicí vrstva: biotopy tak, jak je hra skutečně načetla z Overpass ([lat,lon] → GeoJSON [lon,lat])
+function biotopeGeo() {
   const col = Object.fromEntries(cfg.biotopes.map(b => [b.id, b.color]));
+  const flip = ring => ring.map(([la, lo]) => [lo, la]);
+  const features = [];
   for (const f of loadedFeatures()) {
-    const c = col[f.b] || '#888';
-    if (f.line) L.polyline(f.outer[0], { color: c, weight: 4, opacity: .8, interactive: false }).addTo(bioLayer);
-    else L.polygon([...f.outer, ...f.inner], { color: c, weight: 1, fillOpacity: .35, interactive: false }).addTo(bioLayer);
+    const color = col[f.b] || '#888888';
+    if (f.line) features.push({ type: 'Feature', properties: { color }, geometry: { type: 'LineString', coordinates: flip(f.outer[0]) } });
+    else for (const o of f.outer) features.push({ type: 'Feature', properties: { color }, geometry: { type: 'Polygon', coordinates: [flip(o), ...f.inner.map(flip)] } });
   }
+  return { type: 'FeatureCollection', features };
 }
+function drawBiotopes() { bioPending = true; flushMap(); }
 
 /* ---------- service worker ---------- */
 function registerSW() {

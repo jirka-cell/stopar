@@ -16,15 +16,22 @@ main{flex:1;position:relative;overflow:hidden}
 .banner{position:absolute;left:10px;right:10px;top:46px;z-index:600;background:#fff7e8;border:1px solid #f0d9a8;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.4}
 .banner button{margin-top:8px}
 .fab{position:absolute;right:12px;bottom:calc(14px + var(--sab));z-index:500;font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:#fff;border-radius:20px;padding:9px 14px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.legend{position:absolute;left:10px;bottom:calc(22px + var(--sab));z-index:500;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:11px;display:none;grid-template-columns:auto auto;gap:3px 10px}
+.legend{position:absolute;left:10px;bottom:calc(40px + var(--sab));z-index:500;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:11px;display:none;grid-template-columns:auto auto;gap:3px 10px}
 .legend.on{display:grid}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.me{width:20px;height:20px;border-radius:50%;background:var(--acc);border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
+.fab2{bottom:calc(58px + var(--sab))}
+.fab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.me{width:20px;height:20px;border-radius:50%;background:var(--acc);border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2);position:relative}
+.me .dir{display:none;position:absolute;left:50%;top:-13px;margin-left:-6px;border:6px solid transparent;border-bottom:9px solid var(--acc)}
+body.compass .me .dir{display:block}
+.maplibregl-ctrl-top-right{top:38px}
+.maplibregl-ctrl-bottom-left{bottom:var(--sab)}
+.maplibregl-marker{cursor:pointer}
 .bmk{width:46px;height:40px;position:relative}
 .bmk img{width:46px;height:40px;animation:bob 1.6s ease-in-out infinite;filter:drop-shadow(0 2px 1px rgba(0,0,0,.25))}
 .bmk.far img{opacity:.75}
 @keyframes bob{50%{transform:translateY(-3px)}}
-.leaflet-container{font:inherit}
+.maplibregl-map{font:inherit}
 #toast{position:absolute;left:50%;bottom:calc(66px + var(--sab));transform:translateX(-50%);background:#24301f;color:#fff;font-size:13px;padding:8px 14px;border-radius:16px;max-width:88%;text-align:center;opacity:0;transition:opacity .25s;pointer-events:none;z-index:900}
 #toast.on{opacity:.95}
 nav{display:flex;border-top:1px solid var(--line);background:var(--card);padding-bottom:var(--sab);z-index:2}

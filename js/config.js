@@ -1,7 +1,7 @@
 // Výchozí konfigurace. Vše je editovatelné v adminu a ukládá se do IndexedDB.
 // Mapy (biotopy, potrava) se zapisují jako text "klic:vaha, klic:vaha", aby šly snadno upravit ve formuláři.
 
-export const CONFIG_VERSION = 1;
+export const CONFIG_VERSION = 2;
 
 export const DEFAULTS = {
   version: CONFIG_VERSION,
@@ -46,14 +46,27 @@ export const DEFAULTS = {
     highAccuracy: true
   },
   map: {
-    tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© přispěvatelé <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    minZoom: 13,
+    style: 'auto',          // auto = herní den/noc podle slunce, jinak hra | noc | data | papir | bio
+    compass: true,          // tlačítko režimu kompasu (mapa se otáčí podle telefonu)
+    vectorUrl: 'https://tiles.openfreemap.org/planet',
+    glyphsUrl: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+    demUrl: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+    trailsUrl: 'https://tile.waymarkedtrails.org/{type}/{z}/{x}/{y}.png',
+    attribution: '© přispěvatelé <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a>',
+    minZoom: 12,            // zoom MapLibre (o 1 menší než dřív v Leafletu pro stejné měřítko)
     maxZoom: 19,
-    startZoom: 17,
+    startZoom: 16,
     startLat: 50.2306,
     startLon: 12.8711,
-    tileCacheMax: 1500      // max. počet dlaždic v offline cache
+    tileCacheMax: 3000      // max. počet dlaždic (mapa, terén, trasy) v offline cache
+  },
+  layers: {                 // volitelné vrstvy mapy
+    roadNames: true, waterNames: false, parkNames: false, places: true,
+    poiShop: false, poiFood: false, poiTransport: false, poiEdu: false, poiHealth: false, poiTourism: false, poiParking: false, poiNames: false,
+    paths: true, rail: false, peaks: false, protected: false, landDetail: false,
+    hillshade: false, contours: false, biotopes: false,
+    buildings: 'flat',      // off | flat | 3d
+    trHiking: false, trCycling: false, trMtb: false, trSkating: false, trRiding: false, trSlopes: false
   },
   osm: {
     overpassUrl: 'https://overpass-api.de/api/interpreter',
@@ -194,14 +207,29 @@ export const SCHEMA = [
     ['highAccuracy', 'Vysoká přesnost GPS', 'bool']
   ] },
   { sec: 'map', title: 'Mapa', fields: [
-    ['tileUrl', 'URL dlaždic', 'text'],
-    ['attribution', 'Atribuce (HTML)', 'text'],
+    ['style', 'Styl mapy', 'select', { options: [['auto', 'Automaticky (herní den / noc)'], ['hra', 'Herní den'], ['noc', 'Herní noc'], ['data', 'Bohatá data'], ['papir', 'Papír a akvarel'], ['bio', 'Biotopy']] }],
+    ['compass', 'Tlačítko režimu kompasu', 'bool'],
+    ['vectorUrl', 'Vektorová mapa (TileJSON URL)', 'text'],
+    ['glyphsUrl', 'Písma popisků (URL)', 'text'],
+    ['demUrl', 'Výškové dlaždice Terrarium (URL)', 'text'],
+    ['trailsUrl', 'Trasy – obrázkové dlaždice ({type} = druh trasy)', 'text'],
+    ['attribution', 'Atribuce (HTML, jen odkazy)', 'text'],
     ['minZoom', 'Min. zoom', 'number', { min: 1, max: 20, step: 1 }],
     ['maxZoom', 'Max. zoom', 'number', { min: 1, max: 22, step: 1 }],
     ['startZoom', 'Výchozí zoom', 'number', { min: 1, max: 22, step: 1 }],
     ['startLat', 'Výchozí šířka', 'number', { step: 0.0001 }],
     ['startLon', 'Výchozí délka', 'number', { step: 0.0001 }],
     ['tileCacheMax', 'Max. dlaždic v offline cache', 'number', { min: 0, max: 20000, step: 100 }]
+  ] },
+  { sec: 'layers', title: 'Vrstvy mapy', fields: [
+    ['buildings', 'Budovy', 'select', { options: [['off', 'Bez budov'], ['flat', 'Ploché'], ['3d', '3D']] }],
+    ['roadNames', 'Názvy ulic', 'bool'], ['waterNames', 'Názvy vod', 'bool'], ['parkNames', 'Názvy parků', 'bool'], ['places', 'Čtvrti a obce', 'bool'],
+    ['poiShop', 'Místa: obchody', 'bool'], ['poiFood', 'Místa: jídlo a pití', 'bool'], ['poiTransport', 'Místa: doprava', 'bool'], ['poiEdu', 'Místa: školy', 'bool'],
+    ['poiHealth', 'Místa: zdraví', 'bool'], ['poiTourism', 'Místa: turistika', 'bool'], ['poiParking', 'Místa: parkování', 'bool'], ['poiNames', 'Názvy míst', 'bool'],
+    ['paths', 'Pěšiny', 'bool'], ['rail', 'Železnice', 'bool'], ['peaks', 'Vrcholy', 'bool'], ['protected', 'Chráněná území', 'bool'], ['landDetail', 'Skály, písek', 'bool'],
+    ['hillshade', 'Stínování terénu', 'bool'], ['contours', 'Vrstevnice', 'bool'], ['biotopes', 'Barvy biotopů', 'bool'],
+    ['trHiking', 'Trasy: turistické (KČT)', 'bool'], ['trCycling', 'Trasy: cyklo', 'bool'], ['trMtb', 'Trasy: MTB', 'bool'],
+    ['trSkating', 'Trasy: in-line', 'bool'], ['trRiding', 'Trasy: jezdecké', 'bool'], ['trSlopes', 'Trasy: sjezdovky', 'bool']
   ] },
   { sec: 'osm', title: 'OSM / biotopy', fields: [
     ['overpassUrl', 'Overpass API URL', 'text'],
@@ -288,7 +316,14 @@ export function mergeDefaults(cfg) {
     m.image = safeImage(m.image);
     return m;
   });
-  out.map.tileUrl = safeUrl(out.map.tileUrl, DEFAULTS.map.tileUrl);
+  // Verze 1 → 2: přechod z Leafletu na MapLibre (zoom o 1 menší pro stejné měřítko, nová atribuce, bez obrázkových dlaždic)
+  if (!(Number(cfg.version) >= 2) && cfg.map && typeof cfg.map === 'object') {
+    for (const k of ['minZoom', 'maxZoom', 'startZoom']) if (cfg.map[k] != null) out.map[k] = Math.max(0, Number(cfg.map[k]) - 1);
+    out.map.attribution = DEFAULTS.map.attribution;
+    if (Number(cfg.map.tileCacheMax) === 1500) out.map.tileCacheMax = DEFAULTS.map.tileCacheMax;
+  }
+  delete out.map.tileUrl;
+  for (const k of ['vectorUrl', 'glyphsUrl', 'demUrl', 'trailsUrl']) out.map[k] = safeUrl(out.map[k], DEFAULTS.map[k]);
   out.osm.overpassUrl = safeUrl(out.osm.overpassUrl, DEFAULTS.osm.overpassUrl);
   out.version = CONFIG_VERSION;
   return out;
