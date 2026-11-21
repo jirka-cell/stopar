@@ -199,3 +199,6 @@ body.muted #map{filter:grayscale(1) brightness(1.05) opacity(.6)}
 body.muted .bmk,body.muted .tgmk{display:none}
 .measure{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:400}
 .measure-lbl{position:absolute;transform:translateX(-50%);background:#24301f;color:#fff;font-weight:700;font-size:15px;padding:5px 10px;border-radius:12px;pointer-events:none;z-index:401}
+.bmk.myth img{animation:bob 1.2s ease-in-out infinite,glow 1.6s ease-in-out infinite alternate}
+@keyframes glow{from{filter:drop-shadow(0 0 4px #fff59d)}to{filter:drop-shadow(0 0 12px #b388ff)}}
+.acard.myth{border-color:#b388ff}

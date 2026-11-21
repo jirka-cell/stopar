@@ -723,3 +723,26 @@ test('ztlumení při chůzi: rychlost z poloh i z GPS, zapnutí a vypnutí s ods
   assert.equal(muteState(false, 1.2, 1), true); assert.equal(muteState(false, 0.9, 1), false);
   assert.equal(muteState(true, 0.7, 1), true, 'vypne se až pod polovinou'); assert.equal(muteState(true, 0.4, 1), false);
 });
+
+test('bájní tvorové: 2 okna ročně (zima, léto), stejná pro všechny, tvor jen u svého biotopu a v sezóně', async () => {
+  const { mythWindows, activeWindow, daysToWindow, mythFor, hasMythArt } = await import('../js/myths.js');
+  const w = mythWindows(DEFAULTS, 2027);
+  assert.equal(w.length, 2);
+  assert.deepEqual(w, mythWindows(clone(DEFAULTS), 2027), 'deterministické');
+  const d0 = new Date(w[0].from), d1 = new Date(w[1].from);
+  assert.ok(d0.getMonth() <= 1 && d1.getMonth() >= 5 && d1.getMonth() <= 7, 'zima a léto');
+  assert.equal(Math.round((w[0].to - w[0].from) / 86400000), DEFAULTS.world.mythDays);
+  assert.ok(activeWindow(DEFAULTS, w[1].from + 3600000));
+  assert.equal(activeWindow(DEFAULTS, w[1].to + 86400000), null);
+  assert.equal(daysToWindow(DEFAULTS, w[1].from - 2 * 86400000 + 1000), 2);
+  const win = w[1], now = win.from + 3600000; // léto
+  assert.equal(mythFor(DEFAULTS, { window: win, now, bio: 'louka', zone: 'nizina', night: false }, 0.001), 'vila');
+  assert.equal(mythFor(DEFAULTS, { window: win, now, bio: 'louka', zone: 'nizina', night: false }, 0.5), '', 'vzácné');
+  assert.equal(mythFor(DEFAULTS, { window: null, now, bio: 'louka', zone: 'nizina', night: false }, 0.001), '', 'mimo bájné dny nic');
+  assert.notEqual(mythFor(DEFAULTS, { window: win, now, bio: 'les', zone: 'hory', night: false }, 0.001), 'snezny', 'sněžný muž v létě ne');
+  const winterNow = w[0].from + 3600000;
+  assert.equal(mythFor(DEFAULTS, { window: w[0], now: winterNow, bio: 'louka', zone: 'nad_lesem', night: false }, 0.001), 'snezny');
+  assert.equal(mythFor(DEFAULTS, { window: w[0], now: winterNow, bio: 'les', zone: 'nizina', night: false }, 0.001), '', 'hejkal jen v noci');
+  assert.equal(DEFAULTS.myths.length, 10);
+  for (const t of DEFAULTS.myths) assert.ok(hasMythArt(t.id), t.id);
+});

@@ -16,6 +16,7 @@ import { isTrack, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journa
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { Dog } from './dog.js';
+import { mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML } from './myths.js';
 import { nextSpeed, muteState, attachGestures, whatsHereHTML } from './mapui.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
@@ -40,7 +41,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {} });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {} });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -55,7 +56,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records) });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths) });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -636,6 +637,8 @@ let eventsDay = '';
 function announceEvents() {
   const d = new Date().toDateString(); if (d === eventsDay) return; eventsDay = d;
   for (const e of activeEvents(cfg)) toast('Probíhá: ' + e.name + '. ' + e.text);
+  if (activeWindow(cfg)) toast('🔮 Bájné dny! U lesů, vod, skal a luk se můžou objevit tajemní tvorové.');
+  else { const k = daysToWindow(cfg); if (k != null && k <= 3) toast('Aegon větří něco zvláštního… Za ' + k + (k === 1 ? ' den' : ' dny') + ' začnou bájné dny.'); }
 }
 const tgMarkers = new Map();
 function refreshTargets() {
@@ -665,9 +668,10 @@ function refreshBirds() {
   if (pos.lat == null || !map) return;
   // rozmístění smí záviset jen na tom, co je stejné pro všechny (počasí až se serverem, skrýš je osobní bonus při chytání)
   const now = new Date(), ctx = { now, weather: cfg.world.weather && cfg.world.weatherSpawn ? weatherCond(weather) : '', twilight: isTwilight() };
-  const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now);
+  const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now), myWin = cfg.world.mythTest ? { season: 'test', from: 0, to: Infinity } : activeWindow(cfg, now.getTime());
   const quietSet = new Set(String(cfg.world.quietBiotopes || '').split(',').map(x => x.trim()));
   const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone, now.getTime(), biotopeAt, elevationAt, {
+    myth: (bio, zone, h) => mythFor(cfg, { window: myWin, now: now.getTime(), bio, zone, night: isNight() }, h),
     allow: (la, lo) => insideBound(parentCfg, la, lo) && spawnAllowed(la, lo), twilight: ctx.twilight, variant: (sp, h) => variantFor(cfg, sp, h), track: (sp, h) => isTrack(cfg, sp, h),
     mult: (sp, bio, la, lo) => quiet && quietSet.has(bio) && protectedAt(la, lo) ? 0 : base.get(sp.id) ?? 1
   });
@@ -675,6 +679,7 @@ function refreshBirds() {
   const ids = new Set(birds.map(b => b.id));
   markers.forEach((_, id) => { if (!ids.has(id)) removeMarker(id); });
   for (const b of birds) {
+    if (b.myth) { mythMarker(b); continue; }
     const sp = SP[b.sp];
     if (!sp) continue;
     const near = dist(pos.lat, pos.lon, b.lat, b.lon) <= catchRadius();
@@ -722,6 +727,46 @@ async function shareScore(a) {
   const text = `Stopař – ${a.dataset.g}: ${a.dataset.s} bodů. Kód: ${a.dataset.code}`;
   try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(text); toast('Zkopírováno.'); } catch (e) { prompt('Zkopíruj:', text); }
+}
+/* ---------- bájní tvorové ---------- */
+const MY = id => cfg.myths.find(t => t.id === id);
+function mythMarker(b) {
+  if (markers.has(b.id) || !MY(b.myth)) return;
+  const el = document.createElement('div'); el.className = 'bmk myth';
+  el.innerHTML = `<img src="${mythURL(MY(b.myth))}" alt="Bájný tvor">`;
+  el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
+  markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
+  if (cfg.family.vibrate && !buzzed.has(b.id)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate([100, 60, 100, 60, 300]); } catch (e) {} }
+}
+// Jediný pokus, pár sekund, jen ostrá fotka
+function mythEncounter(b) {
+  const t = MY(b.myth); if (!t) return;
+  enc = { b, myth: t, sp: { name: t.name }, step: 'photo', shots: 0, zone: .2, speed: 4.5, msg: 'Jediný pokus! Cvakni přesně uprostřed.' };
+  openM(`<h2>🔮 ${esc(t.name)}</h2><div class="frame"><div id="fb" style="width:100%;height:100%"><img src="${mythURL(t)}" alt=""></div><div class="cross"></div></div>
+  <div class="bar"><div class="zone" style="left:40%;width:20%"></div><div class="mark" id="mk"></div></div><p class="msg">${esc(enc.msg)} <b id="mythT">${cfg.world.mythSeconds}</b> s</p>
+  <button class="btn primary full" data-act="shoot">Cvak!</button>`);
+  locked = true; enc.t0 = performance.now(); photoAnim();
+  const my = enc;
+  mythTimer = setInterval(() => {
+    const left = Math.max(0, cfg.world.mythSeconds - (performance.now() - my.t0) / 1000);
+    if ($('mythT')) $('mythT').textContent = left.toFixed(1).replace('.', ',');
+    if (left <= 0 && enc === my) mythResult(0);
+  }, 100);
+}
+let mythTimer = 0;
+function mythResult(q) {
+  clearInterval(mythTimer); locked = false;
+  const t = enc.myth, ok = q >= cfg.world.mythMinQuality;
+  state.gone[enc.b.id] = Date.now(); removeMarker(enc.b.id);
+  if (ok) {
+    const isNew = !state.myths[t.id]; state.myths[t.id] = state.myths[t.id] || Date.now();
+    gainXP(cfg.world.xpMyth); progressEvent({ kind: 'myth' }); if (dog) dog.react('jump', 4000);
+    openM(`<div class="encimg master"><img src="${mythURL(t)}" alt=""></div><p class="newsp">${isNew ? 'Nový bájný tvor v tajné sekci!' : 'Zase ty!'}</p><h2>${esc(t.name)}</h2><p class="msg">Ostrost ${q} %.</p><div class="fact">${esc(t.fact)}</div><button class="btn primary full" data-act="close">Pokračovat</button>`);
+  } else {
+    if (dog) dog.react('sad', 3000);
+    openM(`<div class="encimg" style="opacity:.35"><img src="${mythURL(t)}" alt=""></div><h2>${esc(t.name)}</h2><p class="msg">${q ? 'Fotka byla moc rozmazaná (' + q + ' %).' : 'Nestihl jsi to.'} Zmizel v mlze… Snad příště.</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
+  }
+  enc = null; saveState();
 }
 const buzzed = new Set();
 function removeMarker(id) { const m = markers.get(id); if (m) { m.mk.remove(); markers.delete(id); } }
@@ -803,6 +848,7 @@ function bindUI() {
     if (logoTaps >= 5) { logoTaps = 0; askAdmin(); }
   });
   $('atlasv').addEventListener('click', e => {
+    const mc = e.target.closest('[data-myth]'); if (mc) { const t = MY(mc.dataset.myth); if (t) openM(`<div class="encimg master"><img src="${mythURL(t)}" alt=""></div><h2>${esc(t.name)}</h2><div class="fact">${esc(t.fact)}</div><button class="btn full" data-act="close">Zavřít</button>`); return; }
     const f = e.target.closest('[data-flt]'); if (f) { toggleFilter(f.dataset.flt, f.dataset.v); return; }
     const c = e.target.closest('[data-sp]'); if (c) openDetail(c.dataset.sp);
   });
@@ -823,8 +869,9 @@ function tapBird(id) {
   const d = dist(pos.lat, pos.lon, b.lat, b.lon);
   if (muted) { toast('Zastav se – zvířata se ukážou, až budeš stát.'); return; }
   if (kidMode() && (pos.speed || 0) > cfg.map.stillSpeed) { toast('Nejdřív zastav, pak chytej.'); return; }
-  if (speciesLocked(SP[b.sp])) { toast('Neznámé zvíře. Poznáš ho od úrovně ' + levelNeeded(cfg.game.rarityLevel, String(SP[b.sp].rarity)) + '.'); return; }
+  if (!b.myth && speciesLocked(SP[b.sp])) { toast('Neznámé zvíře. Poznáš ho od úrovně ' + levelNeeded(cfg.game.rarityLevel, String(SP[b.sp].rarity)) + '.'); return; }
   if (d > catchRadius()) { toast('Je to ' + Math.round(d) + ' m. Dojdi blíž (do ' + catchRadius() + ' m).'); if (cfg.general.simulation) simTarget = { lat: b.lat, lon: b.lon }; return; }
+  if (b.myth) { mythEncounter(b); return; }
   if (b.track && !tracked.has(b.id)) { enc = { b, sp: SP[b.sp], step: 'track', z: trackQuiz(SP[b.sp], cfg.species) }; openM(trackHTML(enc.z, SP)); return; }
   enc = { b, sp: SP[b.sp], step: 'food', tries: 0, shots: 0, msg: 'Čím ho nalákáš?' };
   renderEnc();
@@ -984,6 +1031,7 @@ function pickFood(f) {
 function shoot() {
   const C = cfg.catch, d = Math.abs(enc.p - .5), h = enc.zone / 2;
   const q = d <= h ? Math.round(100 - (d / h) * 40) : Math.max(0, Math.round(55 - (d - h) * 200));
+  if (enc.myth) { mythResult(q); return; }
   enc.shots++;
   if (q >= C.minQuality) { doCatch(q); return; }
   if (enc.shots >= C.shots) { gone(); if (dog) dog.react('sad', 3000); enc.step = 'fled'; enc.msg = 'Samé rozmazané fotky. ' + cap(fled(enc.sp)) + '.'; renderEnc(); return; }
@@ -1119,7 +1167,7 @@ function renderAtlas() {
     groups.map(g => `${groups.length > 1 ? `<div class="grp">${esc(g)}</div>` : ''}<div class="grid">${act.filter(s => (s.group || 'Ostatní') === g).map(s => {
       const c = state.caught[s.id], ok = c && c.count;
       return `<div class="acard${ok ? '' : ' miss'}" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${ok ? esc(s.name) : '???'}</div><div class="rr">${esc(RAR[s.rarity]?.name || '')}${ok ? ' · ×' + c.count : ''}${c && c.verified ? ' · ověřen' : ''}</div></div>`;
-    }).join('')}</div>`).join('');
+    }).join('')}</div>`).join('') + mythsHTML(cfg, state);
 }
 // Vzdělávací údaje v atlasu, odemykané podle počtu úlovků a skutečné fotky
 const EDU_SECTIONS = [

@@ -58,6 +58,8 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
     if (alt === null) { pending++; continue; }
     if (opts.allow && !opts.allow(blat, blon)) continue;
     const zone = Number.isNaN(alt) ? null : zoneFor(alt, zones);
+    const myth = opts.myth ? opts.myth(bio, zone, hash01(S.seed, cx, cy, slot, 11)) : '';
+    if (myth) { out.push({ id, sp: '', myth, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d, variant: '', track: false }); continue; }
     let tot = 0;
     const cand = [];
     sps.forEach((s, i) => {
@@ -88,7 +90,7 @@ export function spawnCode(cfg) {
   const data = [
     SPAWN_ALGO, cfg.spawn, pick(cfg.daynight, ['mode', 'sunAltitude', 'nightFrom', 'nightTo']),
     pick(cfg.osm, ['chunkDeg', 'lineBuffer', 'defaultBiotope', 'villagePlaces', 'townPlaces', 'villageRadius', 'protectedPaths', 'pathBuffer']),
-    pick(cfg.world, ['weatherSpawn', 'twilightFrom', 'twilightTo', 'twilightBoost', 'quietMonths', 'quietBiotopes', 'variantChance', 'albinGroups', 'melanGroups', 'melanSpecies']), cfg.events,
+    pick(cfg.world, ['weatherSpawn', 'twilightFrom', 'twilightTo', 'twilightBoost', 'quietMonths', 'quietBiotopes', 'variantChance', 'albinGroups', 'melanGroups', 'melanSpecies']), cfg.events, cfg.myths, pick(cfg.world, ['mythDays', 'mythChance']),
     cfg.species.map(s => pick(s, ['id', 'active', 'rarity', 'night', 'bio', 'alt', 'months', 'regions'])),
     cfg.field && cfg.field.trackChance, cfg.rarities, cfg.regions, cfg.biotopes.map(b => pick(b, ['id', 'priority', 'tags', 'villageFrom']))
   ];

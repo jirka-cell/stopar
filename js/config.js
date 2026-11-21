@@ -245,8 +245,25 @@ export const DEFAULTS = {
     weatherSpawn: false,    // počasí mění, která zvířata se objeví – zapnout až se serverem (jinak můžou mít telefony různá zvířata)
     quietMonths: '4-7', quietBiotopes: 'mokrad, skaly', // klidová pásma: v chráněném území v době hnízdění nic v rákosí a na skalách
     variantChance: 0.003, albinGroups: 'Ptáci, Savci, Obojživelníci, Plazi, Ryby', melanGroups: 'Savci, Plazi', melanSpecies: 'zmije:0.08, veverka:0.05',
-    stampRadius: 40, xpStamp: 15
+    stampRadius: 40, xpStamp: 15,
+    mythDays: 3,            // bájné dny: 2× ročně (zima, léto) na tolik dní
+    mythChance: 0.02,       // jak často je během bájných dnů místo zvířete bájný tvor (u jeho biotopu)
+    mythMinQuality: 90, mythSeconds: 2, xpMyth: 200, // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
+    mythTest: false         // test: bájné dny hned (jen pro vyzkoušení, rozmístění se pak liší od ostatních)
   },
+  // Tajná sekce – bájní tvorové: bio = biotopy nebo výšková pásma, months = měsíce, night = jen v noci
+  myths: [
+    { id: 'snezny', name: 'Sněžný muž', bio: 'hory, nad_lesem', months: '12-2', night: false, active: true, fact: 'Chlupatý obr z hor. Viděli ho jen ti nejtrpělivější – a nikdo mu nevěří.' },
+    { id: 'vila', name: 'Víla', bio: 'louka, park', months: '6-8', night: false, active: true, fact: 'Tančí na rozkvetlých loukách za letních dnů. Kdo ji vyfotí, má prý štěstí celý rok.' },
+    { id: 'hejkal', name: 'Hejkal', bio: 'les', months: '', night: true, active: true, fact: 'Lesní skřítek, který v noci houká a straší pocestné. Ve skutečnosti je to možná jen výr.' },
+    { id: 'vodnik', name: 'Vodník', bio: 'voda', months: '', night: false, active: true, fact: 'Zelený pán rybníků v kabátku, s mokrým šosem. Schovává dušičky v hrníčcích.' },
+    { id: 'bludicka', name: 'Bludička', bio: 'mokrad', months: '', night: true, active: true, fact: 'Světýlko nad močálem, které láká lidi z cesty. Vědci za ním vidí hořící bahenní plyn.' },
+    { id: 'polednice', name: 'Polednice', bio: 'pole', months: '6-8', night: false, active: true, fact: 'Bílá paní z letních polí kolem poledne. Proslavila ji balada Karla Jaromíra Erbena.' },
+    { id: 'permonik', name: 'Permoník', bio: 'skaly', months: '', night: false, active: true, fact: 'Malý horník s lucernou, strážce pokladů ve skalách a dolech.' },
+    { id: 'rusalka', name: 'Rusalka', bio: 'voda, mokrad', months: '4-9', night: true, active: true, fact: 'Vodní víla z jezer a tůní. Zpívá při měsíci – známe ji z Dvořákovy opery.' },
+    { id: 'bazilisek', name: 'Bazilišek', bio: 'mesto, vesnice', months: '', night: false, active: true, fact: 'Pověstný tvor z pražských sklepů – napůl kohout, napůl had. Pohled do zrcadla ho zahubí.' },
+    { id: 'drak', name: 'Drak', bio: 'skaly, hory', months: '', night: false, active: true, fact: 'Strážce hradů a skal z mnoha pověstí. Tenhle je naštěstí přátelský.' }
+  ],
   // Sezónní události: od–do jako MM-DD, boost = druh nebo skupina:násobek
   events: [
     { id: 'hodinka', name: 'Ptačí hodinka', from: '01-05', to: '01-12', boost: 'Ptáci:1.5', text: 'Velké sčítání ptáků na krmítkách (Česká společnost ornitologická).' },
@@ -445,6 +462,9 @@ export const SCHEMA = [
     ['quietMonths', 'Klidová pásma: měsíce', 'text'], ['quietBiotopes', 'Klidová pásma: biotopy (v chráněném území)', 'text'],
     ['variantChance', 'Barevné varianty: šance (0–1)', 'number', { min: 0, max: 1, step: 0.001 }],
     ['albinGroups', 'Albíni: skupiny', 'text'], ['melanGroups', 'Tmavá forma: skupiny', 'text'], ['melanSpecies', 'Tmavá forma: druhy se šancí (druh:šance)', 'text'],
+    ['mythDays', 'Bájné dny: počet dní (2× ročně)', 'number', { min: 1, max: 14, step: 1 }], ['mythChance', 'Bájní tvorové: šance místo zvířete', 'number', { min: 0, max: 1, step: 0.005 }],
+    ['mythMinQuality', 'Bájní tvorové: min. ostrost (%)', 'number', { min: 50, max: 100, step: 1 }], ['mythSeconds', 'Bájní tvorové: čas na fotku (s)', 'number', { min: 1, max: 10, step: 0.5 }],
+    ['xpMyth', 'Bájní tvorové: XP', 'number', { min: 0, step: 10 }], ['mythTest', 'Test: bájné dny hned', 'bool'],
     ['stampRadius', 'Razítko: vzdálenost od cíle (m)', 'number', { min: 10, max: 300, step: 5 }], ['xpStamp', 'Razítko: XP', 'number', { min: 0, step: 1 }]
   ] },
   { sec: 'atlas', title: 'Atlas – odemykání údajů', fields: [
@@ -523,6 +543,10 @@ export const LISTS = [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['price', 'Cena (šišky)', 'number', { min: 0, step: 1 }],
     ['effect', 'Účinek', 'select', { options: [['feed', 'krmení (XP jedince)'], ['lure', 'návnada'], ['lens', 'objektiv'], ['radius', 'dalekohled']] }],
     ['value', 'Hodnota (XP u krmení)', 'number', { min: 0, step: 1 }], ['desc', 'Popis', 'text']
+  ] },
+  { sec: 'myths', title: 'Bájní tvorové (tajná sekce)', label: o => o.name || o.id, fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['active', 'Aktivní', 'bool'], ['bio', 'Biotopy nebo výšková pásma (id, …)', 'text'],
+    ['months', 'Měsíce (prázdné = celý rok)', 'text'], ['night', 'Jen v noci', 'bool'], ['fact', 'Pověst / zajímavost', 'textarea']
   ] },
   { sec: 'events', title: 'Sezónní události', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['from', 'Od (MM-DD)', 'text'], ['to', 'Do (MM-DD)', 'text'],
@@ -605,7 +629,7 @@ export function presetLayers(p) {
 }
 
 // Seznamy s id: ukládají se jen změny proti výchozím položkám, nové výchozí položky z aktualizací se doplní
-export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests', 'shop', 'events', 'calendar'];
+export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests', 'shop', 'events', 'calendar', 'myths'];
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
