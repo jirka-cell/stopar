@@ -433,3 +433,45 @@ test('Overpass: odpověď 200 s „runtime error“ se neuloží a zkusí se dal
     assert.notEqual(biotopeAt(49.1, 16.6), null, 'data z druhého serveru jsou načtená');
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('sbírka: starý nejlepší kus se převede na jedince, plná sbírka nahradí slabšího nebo zvíře pustí', async () => {
+  const { migrateAnimals, addAnimal, animalFrom, power, cleanAnimal } = await import('../js/collection.js');
+  const st = migrateAnimals({ caught: { kos: { count: 3, best: { q: 90, stats: [10, 20, 30, 40], date: 5, bio: 'park' } }, vrabec: { count: 0, best: null } } });
+  assert.equal(st.animals.length, 1);
+  assert.equal(st.animals[0].sp, 'kos'); assert.equal(power(st.animals[0]), 100);
+  assert.equal(migrateAnimals(st).animals.length, 1, 'převod jen jednou');
+  const s = { animals: [] };
+  for (const p of [10, 20]) assert.ok(addAnimal(s, animalFrom('kos', [p], 50, 'les'), 2).kept);
+  assert.ok(addAnimal(s, animalFrom('kos', [5], 50, 'les'), 2).released, 'slabší než všechny = pustit');
+  const r = addAnimal(s, animalFrom('kos', [30], 50, 'les'), 2);
+  assert.equal(power(r.replaced), 10, 'nahradí nejslabšího');
+  assert.deepEqual(s.animals.map(power).sort((a, b) => a - b), [20, 30]);
+  assert.ok(addAnimal(s, animalFrom('sojka', [1], 50, 'les'), 2).kept, 'strop platí pro každý druh zvlášť');
+  assert.equal(cleanAnimal({ sp: 'kos', stats: ['x', 5], nick: '<b>Pepa</b>!' }).nick, 'bPepab');
+  assert.equal(cleanAnimal({ nosp: 1 }), null);
+});
+
+test('přezdívky: filtr zachytí sprostá slova i s diakritikou a čísly, běžná jména projdou', async () => {
+  const { badWord, cleanNick } = await import('../js/collection.js');
+  for (const w of ['Kurva', 'k.u.r.v.a', 'Píča', 'h0vno', 'FUCK', 'zmrde']) assert.ok(badWord(cleanNick(w) || w), w);
+  for (const w of ['Pepík', 'Žofka', 'Kos Karel', 'Rychlík 2']) assert.equal(badWord(w), false, w);
+});
+
+test('ubikace: každá skupina má ubikaci, neznámá skupina skončí v poslední', async () => {
+  const { enclosureOf } = await import('../js/collection.js');
+  const { GROUPS } = await import('../js/species.js');
+  for (const g of GROUPS) assert.ok(enclosureOf(DEFAULTS, g).id, g);
+  assert.equal(enclosureOf(DEFAULTS, 'Ptáci').id, 'voliera');
+  assert.equal(enclosureOf(DEFAULTS, 'Neznámá').id, DEFAULTS.enclosures.at(-1).id);
+  const m = mergeDefaults(compactConfig(DEFAULTS));
+  assert.deepEqual(m.enclosures, DEFAULTS.enclosures, 'ubikace přežijí uložení a načtení');
+});
+
+test('každý druh mimo ptáky má vlastní kresbu bez chyb', async () => {
+  const { animalSVG, hasArt } = await import('../js/art.js');
+  for (const s of DEFAULTS.species.filter(s => s.group !== 'Ptáci')) {
+    assert.ok(hasArt(s.id), `${s.id}: chybí kresba v js/art.js`);
+    const v = animalSVG(s);
+    assert.ok(v.startsWith('<svg') && v.endsWith('</svg>') && !/undefined|NaN/.test(v), s.id);
+  }
+});

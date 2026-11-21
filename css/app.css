@@ -37,7 +37,7 @@ body.compass .me .dir{display:block}
 nav{display:flex;border-top:1px solid var(--line);background:var(--card);padding-bottom:var(--sab);z-index:2}
 nav button{flex:1;font:inherit;font-size:14px;padding:12px 0;border:0;background:none;color:var(--mut)}
 nav button.on{color:var(--acc);font-weight:700}
-#atlasv,#adminv{overflow-y:auto;padding:12px}
+#atlasv,#adminv,#sbirkav{overflow-y:auto;padding:12px}
 .ahead{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
 .ahead b{font-size:16px}
 .prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:14px}
@@ -123,3 +123,10 @@ details.edu .lock{font-weight:400;font-size:11px;color:var(--mut);margin-left:6p
 details.edu .kv{margin:6px 0}
 ul.facts{margin:6px 0;padding-left:18px;font-size:13px;line-height:1.45}
 .kv.src a{color:var(--acc)}
+.iconbar{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.ico{font:inherit;min-width:44px;height:44px;padding:0 8px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:20px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;color:var(--ink)}
+.ico small{font-size:11px;color:var(--mut)}
+.ico.on{background:var(--acc2);border-color:var(--acc)}
+.ahead select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:#fff}
+.var-albin img{filter:grayscale(1) brightness(1.6) contrast(.8)}
+.var-melan img{filter:brightness(.45) saturate(.6)}

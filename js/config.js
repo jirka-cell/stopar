@@ -181,6 +181,19 @@ export const DEFAULTS = {
     lifeAt: 3,             // rozmnožování a život – po kolikátém úlovku
     signsNeedPhoto: true   // hlas a pobytová znamení až se skutečnou fotkou (jinak spolu s „život“)
   },
+  // Ubikace ve sbírce: do které patří skupiny živočichů (poslední = ostatní)
+  enclosures: [
+    { id: 'voliera', name: 'Voliéra', icon: '🐦', groups: 'Ptáci' },
+    { id: 'vybeh', name: 'Výběh', icon: '🐾', groups: 'Savci' },
+    { id: 'rybnik', name: 'Rybník', icon: '🐟', groups: 'Ryby' },
+    { id: 'terarium', name: 'Terárium', icon: '🦎', groups: 'Plazi, Obojživelníci' },
+    { id: 'insektarium', name: 'Insektárium', icon: '🦋', groups: 'Hmyz, Pavoukovci, Měkkýši, Ostatní' }
+  ],
+  game: {
+    maxBase: 5,             // kolik jedinců druhu smí mít hráč na 1. úrovni
+    maxPerLevel: 1,         // + kolik za každou další úroveň
+    maxCap: 30              // strop jedinců jednoho druhu
+  },
 };
 
 // Popis polí pro admin (generický formulář). [klíč, popisek, typ, volby]
@@ -278,6 +291,11 @@ export const SCHEMA = [
     ['basicAt', 'Zařazení, poznávání, ochrana – po úlovku č.', 'number', { min: 1, max: 50, step: 1 }],
     ['lifeAt', 'Rozmnožování a život – po úlovku č.', 'number', { min: 1, max: 50, step: 1 }],
     ['signsNeedPhoto', 'Hlas a pobytová znamení až se skutečnou fotkou', 'bool']
+  ] },
+  { sec: 'game', title: 'Herní vrstva', fields: [
+    ['maxBase', 'Jedinců druhu na 1. úrovni', 'number', { min: 1, max: 100, step: 1 }],
+    ['maxPerLevel', 'Jedinců druhu navíc za úroveň', 'number', { min: 0, max: 10, step: 1 }],
+    ['maxCap', 'Strop jedinců druhu', 'number', { min: 1, max: 200, step: 1 }]
   ] }
 ];
 
@@ -306,7 +324,10 @@ export const LISTS = [
   { sec: 'foods', title: 'Potrava', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
   { sec: 'rarities', title: 'Vzácnosti', label: o => o.id + ' – ' + o.name, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text'], ['weight', 'Váha spawnu', 'number', { min: 0, step: 0.01 }]] },
   { sec: 'rarityGame', title: 'Foto minihra podle vzácnosti', label: o => 'Vzácnost ' + o.id, fields: [['id', 'ID vzácnosti', 'text'], ['zone', 'Šířka zelené zóny (0–1)', 'number', { min: 0.02, max: 1, step: 0.01 }], ['speed', 'Rychlost značky', 'number', { min: 0.1, max: 20, step: 0.1 }]] },
-  { sec: 'stats', title: 'Statistiky', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] }
+  { sec: 'stats', title: 'Statistiky', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
+  { sec: 'enclosures', title: 'Ubikace ve sbírce', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['groups', 'Skupiny (oddělené čárkou)', 'text']
+  ] }
 ];
 
 export const LOOK_FIELDS = [
@@ -380,7 +401,7 @@ export function presetLayers(p) {
 }
 
 // Seznamy s id: ukládají se jen změny proti výchozím položkám, nové výchozí položky z aktualizací se doplní
-export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions'];
+export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures'];
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 

@@ -9,6 +9,7 @@ import { openAdmin, download } from './admin.js';
 import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
 import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
+import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
 // Texty pro různé skupiny živočichů
@@ -30,7 +31,7 @@ function safeAttribution(html) {
 }
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
-  const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null };
+  const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
   if (!s || typeof s !== 'object') return out;
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
@@ -44,13 +45,15 @@ function cleanState(s) {
     };
     if (out.caught[id].count && !out.caught[id].best) out.caught[id].count = 0;
   }
+  // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
+  out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
   return out;
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
 
 let cfg = clone(DEFAULTS);
-let state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: null };
+let state = cleanState({});
 let SP = {}, FN = {}, BIO = {}, RAR = {};
 const pos = { lat: null, lon: null, acc: null, src: 'none' };
 let lastGood = null;
@@ -145,7 +148,7 @@ async function pinGate() {
 }
 async function resetProgress() {
   if (!await pinGate()) return;
-  state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last };
+  state = Object.assign(cleanState({}), { last: state.last });
   await store.clear('photos'); await store.set('state', state);
   closeM(); hudDist(); toast('Postup smazán.');
 }
@@ -531,6 +534,7 @@ function show(v) {
   document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === v));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   if (v === 'atlasv') renderAtlas();
+  if (v === 'sbirkav') renderCollection();
   if (v === 'mapv' && map) setTimeout(() => map.resize(), 50);
 }
 
@@ -550,7 +554,15 @@ function bindUI() {
     logoT = setTimeout(() => { logoTaps = 0; }, 1500);
     if (logoTaps >= 5) { logoTaps = 0; askAdmin(); }
   });
-  $('atlasv').addEventListener('click', e => { const c = e.target.closest('[data-sp]'); if (c) openDetail(c.dataset.sp); });
+  $('atlasv').addEventListener('click', e => {
+    const f = e.target.closest('[data-flt]'); if (f) { toggleFilter(f.dataset.flt, f.dataset.v); return; }
+    const c = e.target.closest('[data-sp]'); if (c) openDetail(c.dataset.sp);
+  });
+  $('sbirkav').addEventListener('click', e => {
+    const t = e.target.closest('[data-enc]'); if (t) { colView.enc = t.dataset.enc; renderCollection(); return; }
+    const c = e.target.closest('[data-animal]'); if (c) openAnimal(c.dataset.animal);
+  });
+  $('sbirkav').addEventListener('change', e => { if (e.target.matches('[data-sort]')) { colView.sort = e.target.value; renderCollection(); } });
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
   window.addEventListener('hashchange', () => { if (location.hash === '#admin') askAdmin(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); else tick(); });
@@ -594,11 +606,20 @@ function renderEnc() {
     const c = state.caught[sp.id];
     openM(`<div class="encimg">${birdImg(sp)}</div>${enc.isNew ? '<p class="newsp">Nový druh v atlasu!</p>' : ''}<h2>${esc(sp.name)}</h2><div class="sub">${esc(sp.lat)}</div>
     <p class="msg">Ostrost fotky ${enc.q} %. Úlovek č. ${c.count}.</p>${statsHTML(enc.stats)}
-    ${enc.better ? '' : '<p class="msg small">Tvůj nejlepší kus má lepší statistiky, zůstává v atlasu.</p>'}
+    <p class="msg small">${addedMsg(sp)}</p>
     <button class="btn primary full" data-act="close">Pokračovat</button><button class="btn full" data-act="atlas">Do atlasu</button>`);
   } else if (enc.step === 'fled') {
     openM(`<div class="encimg" style="opacity:.4">${birdImg(sp)}</div><h2>${esc(sp.name)}</h2><p class="msg">${esc(enc.msg)}</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
   }
+}
+// Kolik jedinců druhu smí hráč mít (roste s úrovní hráče, strop v adminu)
+function maxPerSpecies() { const G = cfg.game; return Math.max(1, Math.min(G.maxCap, G.maxBase + G.maxPerLevel * (playerLevel() - 1))); }
+function playerLevel() { return 1; }
+function addedMsg(sp) {
+  const e = enclosureOf(cfg, sp.group), a = enc.added || {};
+  if (a.released) return `Máš už ${maxPerSpecies()} silnějších kusů, tenhle jsi pustil zpátky do přírody.`;
+  if (a.replaced) return `Nahradil slabší kus v ubikaci ${e.icon} ${e.name}.`;
+  return `Nový jedinec v ubikaci ${e.icon} ${e.name}.`;
 }
 function photoAnim() {
   if (!enc || enc.step !== 'photo') return;
@@ -640,6 +661,7 @@ function doCatch(q) {
   enc.better = !c.best || sum(st) > sum(c.best.stats);
   if (enc.better) c.best = { q, stats: st, date: Date.now(), lat: enc.b.lat, lon: enc.b.lon, bio: enc.b.bio };
   enc.q = q; enc.stats = st;
+  enc.added = addAnimal(state, animalFrom(sp.id, st, q, enc.b.bio), maxPerSpecies());
   gone(); enc.step = 'done'; renderEnc();
 }
 
@@ -671,6 +693,7 @@ function onModalClick(e) {
   else if (act === 'clDev') { checklist.device = a.dataset.v; saveChecklist(); openChecklist(); }
   else if (act === 'clMark') { (checklist.items[a.dataset.id] ||= {}).m = a.dataset.v; saveChecklist(); openChecklist(); }
   else if (act === 'clSend') sendChecklist();
+  else if (act === 'nick') saveNick(a.dataset.uid);
   else if (act.startsWith('look')) onLookClick(act, a);
 }
 function onModalChange(e) {
@@ -682,11 +705,31 @@ function onModalChange(e) {
 }
 
 /* ---------- atlas ---------- */
+// Filtry atlasu (ikony, víc jich jde zapnout naráz; v jedné řadě = „nebo“, mezi řadami = „a“)
+const flt = { g: new Set(), r: new Set(), x: new Set() };
+function toggleFilter(k, v) { const set = flt[k]; set.has(v) ? set.delete(v) : set.add(v); renderAtlas(); }
+function passFilter(s) {
+  const c = state.caught[s.id], ok = !!(c && c.count);
+  if (flt.g.size && !flt.g.has(s.group || 'Ostatní')) return false;
+  if (flt.r.size && !flt.r.has(String(s.rarity))) return false;
+  if (flt.x.has('caught') && !ok) return false;
+  if (flt.x.has('missing') && ok) return false;
+  if (flt.x.has('night') && !s.night) return false;
+  if (flt.x.has('verified') && !(c && c.verified)) return false;
+  return true;
+}
+function filterBar(all) {
+  const groups = [...new Set(all.map(s => s.group || 'Ostatní'))];
+  const btn = (k, v, icon, label) => `<button class="ico${flt[k].has(v) ? ' on' : ''}" data-flt="${k}" data-v="${esc(v)}" aria-pressed="${flt[k].has(v)}" aria-label="${esc(label)}" title="${esc(label)}"><span aria-hidden="true">${icon}</span></button>`;
+  return `<div class="iconbar">${groups.map(g => btn('g', g, groupIcon(g), g)).join('')}</div>
+  <div class="iconbar">${cfg.rarities.map((r, i) => btn('r', String(r.id), '★'.repeat(i + 1), r.name)).join('')}${btn('x', 'caught', '✔', 'Chycené')}${btn('x', 'missing', '?', 'Nechycené')}${btn('x', 'night', '🌙', 'Noční')}${btn('x', 'verified', '📷', 'Ověřené fotkou')}</div>`;
+}
 function renderAtlas() {
-  const act = cfg.species.filter(s => s.active);
+  const all = cfg.species.filter(s => s.active), act = all.filter(passFilter);
   const n = act.filter(s => state.caught[s.id]?.count).length;
   const groups = [...new Set(act.map(s => s.group || 'Ostatní'))];
-  $('atlasv').innerHTML = `<div class="ahead"><b>Atlas</b><span>${n} / ${act.length}</span></div><div class="prog"><div style="width:${act.length ? n / act.length * 100 : 0}%"></div></div>` +
+  const nAll = all.filter(s => state.caught[s.id]?.count).length;
+  $('atlasv').innerHTML = `<div class="ahead"><b>Atlas</b><span>${nAll} / ${all.length}</span></div><div class="prog"><div style="width:${all.length ? nAll / all.length * 100 : 0}%"></div></div>${filterBar(all)}${act.length ? '' : '<p class="msg">Filtru nic neodpovídá.</p>'}` +
     groups.map(g => `${groups.length > 1 ? `<div class="grp">${esc(g)}</div>` : ''}<div class="grid">${act.filter(s => (s.group || 'Ostatní') === g).map(s => {
       const c = state.caught[s.id], ok = c && c.count;
       return `<div class="acard${ok ? '' : ' miss'}" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${ok ? esc(s.name) : '???'}</div><div class="rr">${esc(RAR[s.rarity]?.name || '')}${ok ? ' · ×' + c.count : ''}${c && c.verified ? ' · ověřen' : ''}</div></div>`;
@@ -765,11 +808,33 @@ async function addRealPhoto(id, file) {
     const pid = await store.addPhoto({ sp: id, img, date: Date.now(), lat: pos.lat, lon: pos.lon });
     let c = state.caught[id];
     if (!c) { c = { count: 0, best: null, verified: false, photos: [] }; state.caught[id] = c; }
-    if (!c.count) { c.count = 1; c.best = { q: 100, stats: spStats(sp), date: Date.now() }; }
+    if (!c.count) { c.count = 1; c.best = { q: 100, stats: spStats(sp), date: Date.now() }; addAnimal(state, animalFrom(id, c.best.stats, 100, ''), maxPerSpecies()); }
     if (!c.verified) { c.verified = true; c.best.stats = c.best.stats.map(v => Math.min(cfg.catch.maxStat, v + cfg.catch.realPhotoBonus)); }
     c.photos = [pid, ...(c.photos || [])];
     saveState(); renderAtlas(); openDetail(id); toast(sp.name + ': fotka uložena.');
   } catch (e) { toast('Fotku se nepodařilo uložit.'); }
+}
+
+/* ---------- sbírka ---------- */
+const colView = { enc: '', sort: 'new' };
+function renderCollection() { $('sbirkav').innerHTML = collectionHTML(cfg, state, SP, colView); }
+function openAnimal(uid) {
+  const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
+  const e = enclosureOf(cfg, sp.group);
+  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
+  ${statsHTML(a.stats)}<div class="kv"><span>Síla:</span> ${power(a)} · <span>chycen:</span> ${new Date(a.date).toLocaleDateString('cs-CZ')}${a.bio ? ' · <span>biotop:</span> ' + esc(BIO[a.bio]?.name || a.bio) : ''}${a.variant ? ' · <span>vzácná forma:</span> ' + esc(variantName(a.variant)) : ''}</div>
+  <div class="kv"><span>Ubikace:</span> ${esc(e.icon)} ${esc(e.name)}</div>
+  <div class="presetnew"><input type="text" id="nick" maxlength="20" placeholder="Přezdívka" aria-label="Přezdívka" value="${esc(a.nick || '')}"><button class="btn" data-act="nick" data-uid="${esc(uid)}">Uložit</button></div>
+  <p class="msg small" id="nickErr"></p>
+  <div id="animalActs" data-uid="${esc(uid)}"></div>
+  <button class="btn full" data-act="close">Zavřít</button>`);
+}
+function saveNick(uid) {
+  const a = state.animals.find(x => x.uid === uid); if (!a) return;
+  const n = cleanNick($('nick').value);
+  if (n && badWord(n)) { $('nickErr').textContent = 'Tohle jméno nejde, vymysli jiné.'; return; }
+  if (n) a.nick = n; else delete a.nick;
+  saveState(); renderCollection(); openAnimal(uid); toast(n ? 'Přezdívka uložena.' : 'Přezdívka smazána.');
 }
 
 /* ---------- menu, záloha, instalace ---------- */
