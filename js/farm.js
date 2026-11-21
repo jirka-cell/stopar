@@ -3,6 +3,7 @@
 // Pole, sad a záhon dávají krmivo, pamlsky a návnady do batohu. Kapacitu zvířat určují příbytky a spižírna.
 // Nic se nekazí a nic se neztrácí, když hra týden neběží (jen se naplní sklad).
 import { esc } from './config.js';
+import { canPlace } from './farm3d.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 export const RES = { wood: ['🪵', 'Dřevo'], stone: ['🪨', 'Kámen'], seeds: ['🌱', 'Semínka'] };
@@ -26,18 +27,19 @@ export const encCap = (f, encId, maxCap = 60) => Math.min(maxCap, 5 * Math.max(1
 // Cena a doba stavby další úrovně
 export function cost(id, lv) {
   const n = lv + 1, enc = id.startsWith('enc_');
-  // cena roste mírně, aby se vždy vešla do skladu o úroveň výš (příbytek úr. 10 ≈ 470 dřeva)
-  return { wood: Math.round((enc ? 15 : 8) * n ** 1.5), stone: Math.round((enc ? 9 : 4) * n ** 1.5), cones: enc ? 10 * n : 0 };
+  // lineárně: každá další úroveň stojí o stejný kus víc (příbytek úr. n = 15n dřeva, 9n kamene, 10n šišek)
+  return { wood: (enc ? 15 : 8) * n, stone: (enc ? 9 : 4) * n, cones: enc ? 10 * n : 0 };
 }
-export const buildMinutes = lv => Math.round(5 * (lv + 1) * 1.35 ** lv); // úr. 10 ≈ 12 h
+export const buildMinutes = lv => 5 * (lv + 1); // lineárně: úr. n = 5n minut
 export const canAfford = (f, c, cones) => f.res.wood >= c.wood && f.res.stone >= c.stone && cones >= c.cones;
 
-// Nová farma: příbytky tak velké, aby se vešlo, co už hráč má (nikdo o zvířata nepřijde)
-export function newFarm(encIds, need = 5, now = Date.now()) {
-  const lv = { lumber: 1, quarry: 1, nursery: 1, field: 1, orchard: 0, worms: 0, store: 1, pantry: 0 };
-  for (const id of encIds) lv['enc_' + id] = Math.max(1, Math.ceil(need / 5));
-  return { t: now, res: { wood: 20, stone: 10, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0 };
+// Nová farma je prázdná (jen statek), krajina z náhodného seedu; staví se postupně u cest
+export function newFarm(encIds, need = 5, now = Date.now(), seed = 1 + Math.floor(Math.random() * 99999)) {
+  const lv = Object.fromEntries(BUILDINGS.map(b => [b.id, 0]));
+  for (const id of encIds) lv['enc_' + id] = 0;
+  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {} };
 }
+export const isEmpty = f => Object.values(f.lv).every(v => !v) && !f.build;
 export function cleanFarm(f, encIds) {
   if (!f || typeof f !== 'object' || !f.lv) return null;
   const out = newFarm(encIds, 5, num(f.t, Date.now()));
@@ -48,6 +50,10 @@ export function cleanFarm(f, encIds) {
   out.frac = Object.fromEntries(Object.entries(f.frac || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.min(1, num(v)))]));
   out.pos = Object.fromEntries(Object.entries(f.pos && typeof f.pos === 'object' ? f.pos : {}).filter(([k, v]) => k in out.lv && Array.isArray(v) && v.length === 2 && v.every(Number.isInteger)).map(([k, v]) => [k, [v[0], v[1]]]));
   out.moved = Math.max(0, num(f.moved));
+  out.seed = Math.max(1, Math.round(num(f.seed, 1 + (Math.round(num(f.t)) % 99991))));
+  out.guests = Object.fromEntries(Object.entries(f.guests || {}).map(([k, v]) => [String(k).slice(0, 30), (Array.isArray(v) ? v : []).map(String).slice(0, 8)]));
+  out.guestDay = String(f.guestDay || '').slice(0, 10);
+  out.deeds = Object.fromEntries(Object.entries(f.deeds || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, num(v))]));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
   return out;
 }
@@ -93,7 +99,7 @@ export function startBuild(f, id, cones, now = Date.now()) {
 // Automatická stavba: když nic nestaví, vylepší nejnižší úroveň, na kterou jsou suroviny (šišky nebere – příbytky staví hráč)
 export function autoPick(f, ids) {
   if (!f.auto || f.build) return null;
-  const opts = ids.filter(id => !id.startsWith('enc_') && (f.lv[id] || 0) < MAXLV && canAfford(f, cost(id, f.lv[id] || 0), 0)).sort((a, b) => (f.lv[a] || 0) - (f.lv[b] || 0));
+  const opts = ids.filter(id => !id.startsWith('enc_') && (f.lv[id] || 0) >= 1 && f.pos[id] && (f.lv[id] || 0) < MAXLV && canAfford(f, cost(id, f.lv[id] || 0), 0)).sort((a, b) => (f.lv[a] || 0) - (f.lv[b] || 0));
   return opts[0] || null;
 }
 
@@ -124,13 +130,22 @@ export function rates(f) {
   return out;
 }
 
-// Přesun budovy na políčko; obsazené políčko = výměna míst. moveDays: 0 = kdykoli, jinak jednou za tolik dní
-export function moveBuilding(f, id, q, r, pos, moveDays = 0, now = Date.now()) {
+// Přesun budovy na políčko u cesty; obsazené políčko = výměna míst. moveDays: 0 = kdykoli, jinak jednou za tolik dní
+export function moveBuilding(f, id, q, r, T, moveDays = 0, now = Date.now()) {
   if (moveDays > 0 && f.moved && now - f.moved < moveDays * 86400000) return { err: 'Další přesun za ' + Math.ceil((f.moved + moveDays * 86400000 - now) / 86400000) + ' dní.' };
-  const d = (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2;
-  if (d < 2 || d > 5) return { err: 'Sem stavět nejde (u statku jsou cesty, dál už je les).' };
-  const other = Object.keys(pos).find(k => k !== id && pos[k][0] === q && pos[k][1] === r);
-  if (other) f.pos[other] = pos[id].slice();
+  const other = Object.keys(f.pos).find(k => k !== id && f.pos[k][0] === q && f.pos[k][1] === r);
+  const taken = new Set(Object.entries(f.pos).filter(([k]) => k !== id && k !== other).map(([, p]) => p.join()));
+  if (!other && !canPlace(T, q, r, taken)) return { err: 'Sem stavět nejde – budova potřebuje volné políčko u cesty (ne na vodě).' };
+  if (other) f.pos[other] = f.pos[id].slice();
   f.pos[id] = [q, r]; f.moved = now;
   return { swapped: other || '' };
+}
+// Nová budova: místo u cesty + zahájení stavby úrovně 1
+export function placeBuilding(f, id, q, r, T, cones, now = Date.now()) {
+  if ((f.lv[id] || 0) > 0 || f.pos[id]) return { err: 'Už stojí.' };
+  const taken = new Set(Object.values(f.pos).map(p => p.join()));
+  if (!canPlace(T, q, r, taken)) return { err: 'Sem stavět nejde – vyber zvýrazněné políčko u cesty.' };
+  const res = startBuild(f, id, cones, now); if (res.err) return res;
+  f.pos[id] = [q, r];
+  return res;
 }

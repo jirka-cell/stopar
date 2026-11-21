@@ -20,8 +20,8 @@ import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scor
 import { Dog, dogURL } from './dog.js';
 import { ic, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
-import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding } from './farm.js';
-import { mountFarm, layout as farmLayout } from './farm3d.js';
+import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty } from './farm.js';
+import { mountFarm, genTerrain, validTiles, autoPlace } from './farm3d.js';
 import { createMeter, ingest, tickMeter, addDay, cleanDay, chipHTML, dataHTML } from './datamon.js';
 import { PUZZLES, SIZES, boardHTML, squareImage, playPuzzle, playPexeso, pexesoDeck, gameReward, cleanGames, playRows, playRings, playWho } from './minigames.js';
 import { foodIcon, tripCardBlob, weekCode, readWeekCode, weekNumber, familyHTML } from './extras.js';
@@ -54,7 +54,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] }, games: cleanGames(null), farm: null });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] }, games: cleanGames(null), farm: null, nick: '' });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -69,7 +69,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: (Array.isArray(s.routes) ? s.routes : []).map(cleanRoute).filter(Boolean).slice(-30), walk: cleanWalk(s.walk), fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] }, games: cleanGames(s.games), farm: s.farm ? cleanFarm(s.farm, (DEFAULTS.enclosures || []).map(e => e.id)) : null });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: (Array.isArray(s.routes) ? s.routes : []).map(cleanRoute).filter(Boolean).slice(-30), walk: cleanWalk(s.walk), fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] }, games: cleanGames(s.games), farm: s.farm ? cleanFarm(s.farm, (DEFAULTS.enclosures || []).map(e => e.id)) : null, nick: cleanNick(s.nick) });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -112,7 +112,7 @@ function start() {
   setInterval(() => farmTick(false), 30000); setTimeout(() => farmTick(true), 3000);
   tick();
   if (location.hash === '#admin') askAdmin();
-  applyKidMode(); checkEventLink(); initDog();
+  applyKidMode(); checkEventLink(); initDog(); nickLabel(); setTimeout(() => { if (!modal.classList.contains('on')) askNick(false); }, 4000);
 }
 /* ---------- pes Aegon ---------- */
 let dog = null, lastMove = Date.now(), dogPrev = null;
@@ -265,6 +265,9 @@ async function consentOk() {
   const err = m => { $('cErr').textContent = m; };
   if (age == null) return err('Zadej rok narození.');
   if (!$('cOk').checked) return err('Potvrď souhlas s podmínkami a zásadami.');
+  const nick = cleanNick($('cNick') ? $('cNick').value : '');
+  if (nick && badWord(nick)) return err('Tuhle přezdívku zvol jinou.');
+  if (nick) state.nick = nick;
   const parent = age < MIN_AGE;
   if (parent && !$('cParentOk').checked) return err('Souhlas musí potvrdit rodič nebo zákonný zástupce.');
   const pin = parent ? $('cPin').value : '';
@@ -727,13 +730,18 @@ function nearestCatchable() {
   return c ? c.b : null;
 }
 function actState() {
+  const kid = kidMode() && !document.body.classList.contains('parent');
+  if (!kid && curView === 'farmv') return farmSel && !farmSel.startsWith('home') ? { k: 'up', ic: 'farm', lbl: 'Vylepšit', run: () => runFarmUp() } : { k: 'build', ic: 'farm', lbl: 'Stavět', run: () => openFarmCatalog() };
+  if (!kid && curView === 'atlasv') return { k: 'key', ic: 'key', lbl: 'Určit', run: () => runAct('key') };
+  if (!kid && curView === 'jav') return { k: 'races', ic: 'contests', lbl: 'Závody', run: () => runAct('contests') };
   const b = nearestCatchable();
   if (b && !muted) return { k: 'catch', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); tapBird(b.id); } };
   if (kidMode() && !document.body.classList.contains('parent')) return { k: 'find', ic: 'center', lbl: 'Hledat', run: () => { show('mapv'); follow = true; document.body.classList.remove('away'); if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], duration: 400 }); toast('Projdi se a sleduj mapu – zvířata se ukážou kolem tebe. 🐾'); } };
   if (state.walk && !state.walk.done) return { k: 'route', ic: 'route', lbl: 'Trasa', run: () => { setUi(false); openWalkMgr(); } };
   return { k: 'plan', ic: 'plan', lbl: 'Plánovat', run: () => { setUi(false); openPlanner(); } };
 }
-let actNow = null;
+let actNow = null, curView = 'mapv';
+const runAct = act => { const b = document.createElement('button'); b.dataset.act = act; onModalClick({ target: b, preventDefault() {} }); };
 function updateAct() {
   const a = actState(), btn = $('actBtn'); if (!btn) return;
   if (!actNow || actNow.k !== a.k) { $('actIc').innerHTML = ic(a.ic); $('actLbl').textContent = a.lbl; btn.classList.toggle('catch', a.k === 'catch'); }
@@ -750,6 +758,9 @@ function bindAct() {
 // Podržení akčního tlačítka: rychlé akce
 function openQuick() {
   setUi(false);
+  if (curView === 'farmv') { const sd = $('fside'); if (sd) { farmSide = !farmSide; sd.hidden = !farmSide; if (farmSide) sd.innerHTML = farmSideHTML(); } return; }
+  if (curView === 'atlasv') { runAct('jNew'); return; }
+  if (curView === 'jav') { runAct('profile'); return; }
   const q = [['planner', 'planner', 'Naplánovat procházku'], ['trNew', 'treasure', 'Schovat poklad'], ['trip', 'trip', 'Karta dnešního výletu'], ['contests', 'games', 'Závody']];
   openM(`<h2>Rychlé akce</h2><div class="jatiles">${q.map(([a, i, n]) => `<button class="jtile g-ven" data-act="${a}">${ic(i)}${n}</button>`).join('')}</div><button class="btn full ghost" data-act="close">Zavřít</button>`);
 }
@@ -808,7 +819,7 @@ function renderJa() {
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const T = (g, a, i, n, extra = '') => `<button class="jtile g-${g}" data-act="${a}"${extra}>${ic(i)}${n}</button>`;
   $('jav').innerHTML = `<div class="ja">
-  <div class="jahead"><img src="${dogURL('joy')}" alt=""><div style="flex:1"><h2>Ty a Aegon</h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
+  <div class="jahead"><img src="${dogURL('joy')}" alt=""><div style="flex:1"><h2>${esc(state.nick || 'Ty')} a Aegon <button class="x" data-act="nickEdit" aria-label="Změnit přezdívku">✏️</button></h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
   <div class="jastats"><div><b>${sp}</b>druhů</div><div><b>${km(state.dist)}</b>km celkem</div><div><b>${Math.floor(state.cones)}</b>šišek</div></div>
   <div class="jagrp">Ven</div><div class="jatiles">${T('ven', 'planner', 'planner', 'Plánovač')}${T('ven', 'treasures', 'treasure', 'Poklady')}${T('ven', 'trip', 'trip', 'Karta výletu')}${T('ven', 'family', 'family', 'Rodinná výprava')}${state.walk && !state.walk.done ? T('ven', 'walkMgr', 'route', 'Moje trasa') : ''}</div>
   <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'profile', 'quests', 'Úkoly a odznaky')}${T('hraj', 'shop', 'shop', 'Obchod')}${T('hraj', 'contests', 'contests', 'Závody')}</div>
@@ -836,6 +847,12 @@ function nightHTML() {
   <button class="btn full ghost" data-act="close">Hotovo</button>`;
 }
 /* ---------- dětský vzhled: 3 velká tlačítka, zbytek za rodičovským PINem ---------- */
+function nickLabel() { const n = $('navMe'); if (n) n.textContent = state.nick || 'Já'; }
+// Kdo aplikaci měl před přezdívkami: jednou se zeptat
+function askNick(force) {
+  if (!force && (state.nick || prefs.nickAsked)) return;
+  openM(`<h2>Jak ti máme říkat?</h2><p class="msg small">Přezdívka se ukáže dole v liště a v profilu. Jen v tomto telefonu.</p><div class="fld"><input type="text" id="nickIn" maxlength="20" value="${esc(state.nick || '')}" placeholder="např. Liška" aria-label="Přezdívka"></div><p class="msg small" id="nickErr"></p><button class="btn primary full" data-act="nickSave">Uložit</button><button class="btn full ghost" data-act="nickLater">${force ? 'Zrušit' : 'Později'}</button>`);
+}
 function kidLayout() {
   const k = kidMode();
   const c = $('navCol'); if (c) c.textContent = k ? 'Moje zvířata' : 'Farma';
@@ -1060,7 +1077,7 @@ let curTask = null;
 function answerTask(i) {
   const t = curTask; if (!t) return; curTask = null;
   const ok = i === t.c, res = RES_FOR[t.kind] || 'seeds', names = { wood: '🪵 dřevo', stone: '🪨 kámen', seeds: '🌱 semínka' };
-  if (ok) { gainXP(5); if (cfg.farm.enabled) { const f = ensureFarm(); f.res[res] = (f.res[res] || 0) + 5; } saveState(); }
+  if (ok) { gainXP(5); gainKnow('task', 'za úkol místa'); if (cfg.farm.enabled) { const f = ensureFarm(); f.res[res] = (f.res[res] || 0) + 5; } saveState(); }
   openM(`<h2>${ok ? 'Správně! 🎉' : 'Tentokrát ne'}</h2><p class="msg">${esc(t.why)}</p>${ok ? `<p class="msg">+5 XP${cfg.farm.enabled ? ' · +5 ' + names[res] + ' na farmu' : ''}</p>` : '<p class="msg small">Správně je: ' + esc(t.a[t.c]) + '</p>'}<button class="btn primary full" data-act="close">Pokračovat</button>`);
 }
 function checkPlaces() {
@@ -1489,7 +1506,7 @@ function closeM() { modal.classList.remove('on'); enc = null; if (stopGame) { st
 modal.addEventListener('pointerdown', e => { if (e.target === modal && !locked && (!enc || enc.step !== 'photo')) closeM(); });
 
 function show(v) {
-  document.body.classList.toggle('on-map', v === 'mapv');
+  document.body.classList.toggle('on-map', v === 'mapv'); curView = v; actNow = null; setTimeout(updateAct, 0);
   if (v === 'mapv') document.body.classList.remove('parent');
   if (v === 'mapv') setUi(false);
   if (v === 'jav') renderJa();
@@ -1613,19 +1630,21 @@ function renderEnc() {
 }
 // Kolik jedinců druhu smí hráč mít (roste s úrovní hráče, strop v adminu)
 function levelCap() { const G = cfg.game; return Math.max(1, Math.min(G.maxCap, G.maxBase + G.maxPerLevel * (playerLevel() - 1))); }
-function maxPerSpecies(sp) { if (!cfg.farm.enabled || !sp) return levelCap(); return encCap(ensureFarm(), enclosureOf(cfg, sp.group).id, cfg.farm.maxCap); }
+function maxPerSpecies(sp) { if (cfg.farm.enabled && !cfg.farm.capacityCheck) return 999; if (!cfg.farm.enabled || !sp) return levelCap(); return encCap(ensureFarm(), enclosureOf(cfg, sp.group).id, cfg.farm.maxCap); }
 // Farma vznikne při prvním použití; příbytky tak velké, aby se vešlo vše, co už hráč má
 function ensureFarm() {
   if (!state.farm) {
     const most = Math.max(levelCap(), ...Object.values(state.animals.reduce((m, a) => (m[a.sp] = (m[a.sp] || 0) + 1, m), {})));
     state.farm = newFarm(cfg.enclosures.map(e => e.id), most);
   }
-  for (const e of cfg.enclosures) if (!state.farm.lv['enc_' + e.id]) state.farm.lv['enc_' + e.id] = 1;
+  for (const e of cfg.enclosures) if (!(('enc_' + e.id) in state.farm.lv)) state.farm.lv['enc_' + e.id] = 0;
   return state.farm;
 }
 function farmTick(quiet) {
   if (!cfg.farm.enabled) return;
   const f = ensureFarm(), got = farmAdvance(f, Date.now(), state.inv);
+  const gd = today(), n = Object.values(f.guests).reduce((a, g) => a + g.length, 0);
+  if (n && f.guestDay !== gd) { f.guestDay = gd; f.res.seeds += n * 2; if (!quiet) toast('🐾 Hosté na farmě přinesli ' + n * 2 + ' semínek.'); }
   const pick = autoPick(f, BUILDINGS.map(b => b.id)); if (pick) startBuild(f, pick, state.cones);
   if (got.built && !quiet) { const b = BUILDINGS.find(x => x.id === got.built), e = cfg.enclosures.find(x => 'enc_' + x.id === got.built); toast('🏡 Farma: hotovo – ' + (b ? b.name : e ? e.name : got.built) + ' úr. ' + f.lv[got.built]); }
   if (modal.classList.contains('on') && $('mbox').querySelector('.fres')) openFarm(true);
@@ -1634,12 +1653,53 @@ function farmTick(quiet) {
 /* ---------- 3D farma (hlavní záložka) ---------- */
 let farm3 = null, farmSel = '', farmSide = false, farmMove = '';
 // Přesouvání: v panelu budovy „Přesunout“ → ťuk na políčko (obsazené = výměna)
+let farmT = null, farmPlace = '';
+function farmTerrain() { const f = ensureFarm(); if (!farmT || farmT.seed !== f.seed) farmT = { seed: f.seed, T: genTerrain(f.seed) }; return farmT.T; }
+const farmTaken = (except = '') => new Set(Object.entries(ensureFarm().pos).filter(([k]) => k !== except).map(([, p]) => p.join()));
 function farmTile(q, r) {
+  const f = ensureFarm();
+  if (farmPlace) {
+    const id = farmPlace, res = placeBuilding(f, id, q, r, farmTerrain(), state.cones);
+    if (res.err) { toast(res.err); return; }
+    if (res.cones) { state.cones -= res.cones; hudCones(); }
+    farmPlace = ''; farmSel = id; saveState(); toast('🔨 Stavba začala.'); renderFarmView(); return;
+  }
   if (!farmMove) return;
-  const f = ensureFarm(), id = farmMove, pos = farmLayout(farmItems().map(i => i.id), f.pos);
-  const res = moveBuilding(f, id, q, r, pos, Number(cfg.farm.moveDays) || 0);
+  const id = farmMove, res = moveBuilding(f, id, q, r, farmTerrain(), Number(cfg.farm.moveDays) || 0);
   if (res.err) { toast(res.err); return; }
   farmMove = ''; saveState(); toast(res.swapped ? 'Budovy si vyměnily místo.' : 'Přesunuto.'); farmSel = id; renderFarmView();
+}
+// Katalog staveb: co ještě nestojí; u prázdné farmy jiná krajina, v testování prázdná farma znovu
+function openFarmCatalog() {
+  const f = ensureFarm(), s = $('fsheet'); if (!s) return;
+  farmSel = ''; farmMove = '';
+  const all = [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => !(f.lv[id] > 0) && !f.pos[id]);
+  s.innerHTML = `<div class="fsh-h"><b>🔨 Stavět</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
+  <p class="msg small">Vyber stavbu a ťukni na zvýrazněné políčko u cesty.${f.build ? ' Teď se staví – další až po dokončení.' : ''}</p>
+  ${all.length ? all.map(id => { const [icon, name, desc] = fbName(id), c = farmCost(id, 0); return `<div class="fcard"><div class="fico">${icon}</div><div class="finfo"><b>${esc(name)}</b><small>${esc(desc)}</small><button class="btn sm${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-fv="place" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>Postavit: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${buildMinutes(0)} min</button></div></div>`; }).join('') : '<p class="msg">Všechno už stojí – vylepšuj!</p>'}
+  <button class="btn full" data-fv="deeds">🌱 Skutečný čin pro přírodu</button>
+  ${isEmpty(f) ? '<button class="btn full ghost" data-fv="regen">🎲 Vygenerovat jinou krajinu</button>' : ''}
+  ${cfg.farm.testTools ? '<button class="btn full ghost" data-fv="reset" data-confirm="Smazat farmu a začít znovu?">🧪 Začít znovu – prázdná farma</button>' : ''}`;
+  s.hidden = false; actNow = null; updateAct();
+}
+function runFarmUp() { if (!farmSel) return; const b = document.createElement('button'); b.dataset.act = 'farmBuild'; b.dataset.id = farmSel; onModalClick({ target: b, preventDefault() {} }); }
+// Skutečné činy: budka, krmítko, hmyzí hotel, jezírko, keř – s fotkou; odměna úroveň navíc (jednou za deedDays)
+const DEEDS = [['budka', '🐦', 'Vyvěsil jsem ptačí budku', 'enc_voliera'], ['krmitko', '🏠', 'Postavil jsem krmítko (v zimě)', 'pantry'], ['hotel', '🐝', 'Postavil jsem hmyzí hotel', 'enc_insektarium'], ['jezirko', '💧', 'Udělal jsem jezírko nebo napajedlo', 'enc_rybnik'], ['ker', '🌳', 'Zasadil jsem keř nebo strom', 'orchard']];
+function deedsHTML() {
+  const f = ensureFarm(), days = Number(cfg.farm.deedDays) || 0;
+  return `<h2>🌱 Skutečný čin pro přírodu</h2><p class="msg small">Udělej něco opravdového a vyfoť to. Odměnou je úroveň navíc pro budovu na farmě (nebo suroviny, když ještě nestojí). Fotka zůstane jen v telefonu.</p>
+  ${DEEDS.map(([k, i, n, b]) => { const wait = days && f.deeds[k] ? Math.ceil((f.deeds[k] + days * 86400000 - Date.now()) / 86400000) : 0; const [bi, bn] = fbName(b);
+    return `<div class="fcard"><div class="fico">${i}</div><div class="finfo"><b>${esc(n)}</b><small>Odměna: ${bi} ${esc(bn)} +1 úroveň</small>${wait > 0 ? `<small>Znovu za ${wait} dní</small>` : `<label class="btn sm primary">📷 Vyfotit a potvrdit<input type="file" accept="image/*" capture="environment" data-deed="${k}" hidden></label>`}</div></div>`; }).join('')}
+  <button class="btn full ghost" data-act="close">Zavřít</button>`;
+}
+async function doDeed(k, file) {
+  const d = DEEDS.find(x => x[0] === k), f = ensureFarm(); if (!d) return;
+  try { const img = await resizeImage(file, 800); await store.addPhoto({ sp: '', img, date: Date.now(), lat: null, lon: null, deed: k }); } catch (e) { toast('Fotku se nepodařilo uložit.'); return; }
+  f.deeds[k] = Date.now();
+  const b = d[3];
+  if ((f.lv[b] || 0) > 0 && f.lv[b] < 10) { f.lv[b]++; toast('🌱 Díky! ' + fbName(b)[1] + ' má teď úroveň ' + f.lv[b] + '.'); }
+  else { f.res.wood += 20; f.res.stone += 10; toast('🌱 Díky! +20 🪵 a +10 🪨 na farmu.'); }
+  gainKnow('journal', 'za čin pro přírodu'); saveState(); closeM(); if ($('farmv').classList.contains('on')) refreshFarmView();
 }
 const encOcc = id => { const c = {}; state.animals.forEach(a => { const sp = SP[a.sp]; if (sp && enclosureOf(cfg, sp.group).id === id) c[a.sp] = (c[a.sp] || 0) + 1; }); return Math.max(0, ...Object.values(c)); };
 const fbName = id => { const b = BUILDINGS.find(x => x.id === id), e = cfg.enclosures.find(x => 'enc_' + x.id === id); return b ? [b.icon, b.name, b.desc] : e ? [e.icon, e.name, ENC_DESC] : ['🏠', id, '']; };
@@ -1648,7 +1708,7 @@ function farmItems() {
   const f = ensureFarm(), cap = storeCap(f), out = [];
   for (const e of cfg.enclosures) {
     const id = 'enc_' + e.id, occ = encOcc(e.id), c = encCap(f, e.id, cfg.farm.maxCap), r = occ / Math.max(1, c);
-    out.push({ id, name: e.name, icon: e.icon, level: f.lv[id] || 1, status: f.build && f.build.id === id ? 'build' : r >= 1 ? 'bad' : r >= 0.7 ? 'warn' : 'ok', text: occ + '/' + c });
+    out.push({ id, name: e.name, icon: e.icon, level: f.lv[id] || 0, status: f.build && f.build.id === id ? 'build' : r >= 1 ? 'bad' : r >= 0.7 ? 'warn' : 'ok', text: occ + '/' + c });
   }
   for (const b of BUILDINGS) {
     const lv = f.lv[b.id] || 0; let status = 'ok', text = '';
@@ -1659,7 +1719,7 @@ function farmItems() {
     if (f.build && f.build.id === b.id) status = 'build';
     out.push({ id: b.id, name: b.name, icon: b.icon, level: lv, status, text });
   }
-  return out;
+  return out.filter(i => (f.lv[i.id] || 0) > 0 || (f.build && f.build.id === i.id));
 }
 const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } };
 function farmTopHTML() {
@@ -1694,7 +1754,10 @@ function farmSheetHTML(id) {
     : lv >= 10 ? '<p class="msg small">Nejvyšší úroveň.</p>' : `<button class="btn full${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-act="farmBuild" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${lv ? 'Vylepšit na úr. ' + (lv + 1) : 'Postavit'}: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${buildMinutes(lv)} min</button>${f.build ? '<p class="msg small">Najednou se staví jen jedna budova.</p>' : ''}`;
   const md = Number(cfg.farm.moveDays) || 0, wait = md && f.moved ? Math.ceil((f.moved + md * 86400000 - Date.now()) / 86400000) : 0;
   const mv = farmMove === id ? '<button class="btn full primary" data-fv="moveCancel">Ťukni na políčko, kam budovu dát · Zrušit</button>' : `<button class="btn full ghost" data-fv="move"${wait > 0 ? ' disabled' : ''}>↔ Přesunout${wait > 0 ? ' (za ' + wait + ' dní)' : md ? ' (jednou za ' + md + ' dní)' : ''}</button>`;
-  return `<div class="fsh-h"><b>${icon} ${esc(name)} <small>úr. ${lv}</small></b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">${esc(desc)}</p>${up}${mv}${body}`;
+  const test = cfg.farm.testTools ? `<div class="ftest"><span>🧪 Test:</span><button class="btn sm" data-fv="lvDown">−1 úroveň</button><button class="btn sm" data-fv="lvUp">+1 úroveň</button></div>` : '';
+  const g = enc && (f.guests[enc.id] || []).filter(id => SP[id]);
+  const guests = g && g.length ? `<p class="msg small">Hosté (vypuštěná zvířata, která se vracejí): ${g.map(id => esc(SP[id].name)).join(', ')} · každý den přinesou semínka</p>` : '';
+  return `<div class="fsh-h"><b>${icon} ${esc(name)} <small>úr. ${lv}</small></b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">${esc(desc)}</p>${up}${mv}${test}${guests}${body}`;
 }
 async function renderFarmView() {
   const v = $('farmv');
@@ -1703,11 +1766,15 @@ async function renderFarmView() {
   if (!webgl()) { v.innerHTML = '<div class="ja">' + farmHTML(ensureFarm(), cfg, state.cones) + '</div>'; return; }
   v.innerHTML = `<div class="fv"><div class="f3d" id="f3d"></div><div id="ftopw">${farmTopHTML()}</div><div class="fside" id="fside"${farmSide ? '' : ' hidden'}>${farmSideHTML()}</div><div class="fsheet" id="fsheet" hidden></div></div>`;
   if (farm3) { farm3.destroy(); farm3 = null; }
-  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { pos: ensureFarm().pos, onTile: farmTile, moving: !!farmMove }); }
+  const f = ensureFarm(), T = farmTerrain();
+  autoPlace(T, f.pos, [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => (f.lv[id] || 0) > 0 || (f.build && f.build.id === id)));
+  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { terrain: T, pos: f.pos, onTile: farmTile, moving: !!(farmMove || farmPlace) }); }
   catch (e) { v.innerHTML = '<div class="ja">' + farmHTML(ensureFarm(), cfg, state.cones) + '</div>'; return; }
   if (farmSel) showFarmSheet();
+  if (farmPlace || farmMove) farm3.highlight(validTiles(T, farmTaken(farmMove)));
+  if (isEmpty(f) && !farmSel && !farmPlace) openFarmCatalog();
 }
-function showFarmSheet() { const s = $('fsheet'); if (!s) return; if (!farmSel) { s.hidden = true; return; } s.innerHTML = farmSheetHTML(farmSel); s.hidden = false; }
+function showFarmSheet() { const s = $('fsheet'); actNow = null; updateAct(); if (!s) return; if (!farmSel) { s.hidden = true; return; } s.innerHTML = farmSheetHTML(farmSel); s.hidden = false; }
 function refreshFarmView() {
   if (!farm3) return;
   farm3.update(farmItems());
@@ -1722,9 +1789,14 @@ function onFarmClick(e) {
     if (k === 'side') { farmSide = !farmSide; const sd = $('fside'); sd.hidden = !farmSide; if (farmSide) sd.innerHTML = farmSideHTML(); }
     else if (k === 'animals') { farmSel = !$('fsheet').hidden && farmSel.startsWith('enc_') ? '' : 'enc_' + cfg.enclosures[0].id; showFarmSheet(); }
     else if (k === 'atlas') show('atlasv');
-    else if (k === 'close') { farmSel = ''; farmMove = ''; if (farm3) farm3.setMoving(false); showFarmSheet(); }
-    else if (k === 'move') { farmMove = farmSel; if (farm3) farm3.setMoving(true); showFarmSheet(); toast('Ťukni na políčko, kam budovu přesunout.'); }
-    else if (k === 'moveCancel') { farmMove = ''; if (farm3) farm3.setMoving(false); showFarmSheet(); }
+    else if (k === 'close') { farmSel = ''; farmMove = ''; farmPlace = ''; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
+    else if (k === 'move') { farmMove = farmSel; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken(farmMove))); } showFarmSheet(); toast('Ťukni na políčko, kam budovu přesunout.'); }
+    else if (k === 'moveCancel') { farmMove = ''; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
+    else if (k === 'place') { farmPlace = fv.dataset.id; $('fsheet').hidden = true; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken())); } toast('Ťukni na zvýrazněné políčko u cesty.'); }
+    else if (k === 'regen') { const f = ensureFarm(); if (isEmpty(f)) { f.seed = 1 + Math.floor(Math.random() * 99999); f.pos = {}; saveState(); renderFarmView(); } }
+    else if (k === 'reset') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.textContent = 'Opravdu? Ťukni znovu'; return; } state.farm = newFarm(cfg.enclosures.map(e => e.id)); farmSel = ''; saveState(); toast('Farma je prázdná, začni stavět.'); renderFarmView(); }
+    else if (k === 'deeds') openM(deedsHTML());
+    else if (k === 'lvUp' || k === 'lvDown') { const f = ensureFarm(), id = farmSel; if (f.build && f.build.id === id) f.build = null; f.lv[id] = Math.max(0, Math.min(10, (f.lv[id] || 0) + (k === 'lvUp' ? 1 : -1))); if (!f.lv[id]) { delete f.pos[id]; farmSel = ''; } saveState(); renderFarmView(); }
     return;
   }
   const sel = e.target.closest('[data-fsel]'); if (sel) { farmSel = sel.dataset.fsel; showFarmSheet(); if (farm3) farm3.focus(farmSel); return; }
@@ -1767,6 +1839,8 @@ function progressEvent(ev) {
   }
   saveState();
 }
+// Vědomosti 📖: za učení (kvíz, stopa, úkol místa, deník, nový druh, určení klíčem); utrácí se za vývoj
+function gainKnow(kind, why) { const n = Number(parseMap(cfg.game.know || '')[kind]) || 0; if (!n) return; state.points += n; setTimeout(() => toast('+' + n + ' 📖 ' + (why || 'vědomostí')), 900); }
 function addCones(n) { if (n > 0) { state.cones += n; hudCones(); } }
 function hudCones() { const b = $('coneBtn'); if (b) b.innerHTML = coneIcon + ' ' + Math.floor(state.cones); refreshJa(); }
 // Záložka Já ukazuje šišky, úroveň a statistiky – při změně se překreslí (jen když je otevřená)
@@ -1803,7 +1877,7 @@ function quizAnswer(i) {
   const ok = i === z.correct, a = state.animals.find(x => x.uid === enc.uid);
   if (ok) {
     if (a) a.stats = a.stats.map(v => Math.min(cfg.catch.maxStat, v + Number(cfg.game.quizBonus || 0)));
-    state.counters.quiz++; gainXP(cfg.game.xpQuiz); progressEvent({ kind: 'quiz' });
+    state.counters.quiz++; gainXP(cfg.game.xpQuiz); progressEvent({ kind: 'quiz' }); gainKnow('quiz', 'za kvíz');
   }
   openM(`<h2>${ok ? 'Správně!' : 'Tentokrát ne'}</h2><p class="msg">${ok ? `Jedinec dostal +${cfg.game.quizBonus} ke všem vlastnostem.` : 'Správná odpověď: ' + esc(z.answers[z.correct])}</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
   saveState();
@@ -1814,7 +1888,7 @@ function trackAnswer(i) {
   const ok = i === enc.z.correct, b = enc.b;
   if (!ok) { gone(); toast('Kdepak, byla to stopa: ' + enc.sp.name + '. Zvíře zmizelo.'); closeM(); return; }
   tracked.add(b.id); removeMarker(b.id); refreshBirds();
-  state.counters.tracks = (state.counters.tracks || 0) + 1; gainXP(cfg.field.xpTrack); progressEvent({ kind: 'track' });
+  state.counters.tracks = (state.counters.tracks || 0) + 1; gainXP(cfg.field.xpTrack); progressEvent({ kind: 'track' }); gainKnow('track', 'za stopu');
   enc = { b, sp: SP[b.sp], step: 'food', tries: 0, shots: 0, msg: 'Správně! Vystopoval jsi ho. Čím ho nalákáš?' };
   renderEnc();
 }
@@ -1828,6 +1902,7 @@ async function saveJournal() {
   if (!spId && !name) { $('jInfo').textContent = 'Vyber druh nebo napiš název.'; return; }
   let photo = null;
   if (jPhoto) { try { photo = await store.addPhoto({ sp: spId, img: jPhoto, date: Date.now(), lat: null, lon: null, journal: true }); } catch (e) {} }
+  gainKnow('journal', 'za zápis do deníku');
   state.journal.push({ id: Date.now().toString(36), sp: spId, name, date: Date.now(), note: $('jNote').value.trim().slice(0, 500), photo,
     lat: pos.lat == null ? null : Math.round(pos.lat * 1000) / 1000, lon: pos.lon == null ? null : Math.round(pos.lon * 1000) / 1000 });
   jPhoto = null; saveState(); openJournal(); toast('Zapsáno do deníku.');
@@ -1868,6 +1943,7 @@ function doCatch(q) {
   let st = spStats(sp).map(v => Math.min(C.maxStat, Math.round(v * (C.statRandomMin + Math.random() * (1 - C.statRandomMin)) * (1 + q / 100 * C.photoBonus))));
   let c = state.caught[sp.id];
   enc.isNew = !c || !c.count;
+  if (enc.isNew) gainKnow('newSpecies', 'za nový druh');
   if (!c) { c = { count: 0, best: null, verified: false, photos: [] }; state.caught[sp.id] = c; }
   c.count++;
   if (c.verified) st = st.map(v => Math.min(C.maxStat, v + C.realPhotoBonus));
@@ -1922,6 +1998,9 @@ function onModalClick(e) {
   else if (act === 'quizAns' && enc) quizAnswer(Number(a.dataset.i));
   else if (act === 'profile') openProfile();
   else if (act === 'shop') openShop();
+  else if (act === 'nickSave') { const n = cleanNick($('nickIn').value); if (n && badWord(n)) { $('nickErr').textContent = 'Tuhle přezdívku zvol jinou.'; return; } state.nick = n; prefs.nickAsked = true; savePrefs(); saveState(); nickLabel(); refreshJa(); closeM(); if (n) toast('Ahoj, ' + n + '! 🐕'); }
+  else if (act === 'nickLater') { prefs.nickAsked = true; savePrefs(); closeM(); }
+  else if (act === 'nickEdit') askNick(true);
   else if (act === 'farm') openFarm();
   else if (act === 'injured') openM(injuredHTML());
   else if (act === 'taskAns') answerTask(Number(a.dataset.i));
@@ -2023,6 +2102,7 @@ function onModalClick(e) {
 }
 function onModalChange(e) {
   if (onLookChange(e.target)) return;
+  if (e.target.dataset.deed && e.target.files && e.target.files[0]) { doDeed(e.target.dataset.deed, e.target.files[0]); return; }
   if (e.target.dataset.farm === 'auto') { ensureFarm().auto = e.target.checked; saveState(); farmTick(true); return; }
   if (e.target.dataset.pref) { prefs[e.target.dataset.pref] = e.target.checked; savePrefs(); checkMute(); applyNight(); return; }
   const real = e.target.closest('input[data-real]');
@@ -2181,12 +2261,14 @@ function animalAct(act, uid, item) {
   } else if (act === 'evolve') {
     const r = evolve(cfg, state, a, sp.group);
     if (r === 'ok') { toast(sp.name + ': ' + stageNames(cfg, sp.group)[a.stage] + '!'); progressEvent({ kind: 'evolve' }); }
-    else toast(r === 'axp' ? 'Jedinec potřebuje víc XP (trénink, krmení).' : r === 'points' ? 'Nemáš dost bodů – získáš je vypuštěním zvířat.' : 'Už je v nejvyšším stádiu.');
+    else toast(r === 'axp' ? 'Jedinec potřebuje víc XP (trénink, krmení).' : r === 'points' ? 'Chybí vědomosti 📖 – získáš je kvízy, stopami, úkoly u krmítek a deníkem.' : 'Už je v nejvyšším stádiu.');
   } else if (act === 'feed') {
     const it = useItem(cfg, state, item); if (it) { a.axp += Number(it.value) || 0; toast(it.icon + ' ' + it.name + ': +' + it.value + ' XP jedince'); }
   } else if (act === 'release') {
     const v = release(cfg, state, a, sp); closeM(); renderCollection(); hudCones();
-    toast((a.nick || sp.name) + ' se vrátil do přírody. +' + v + ' bodů'); progressEvent({ kind: 'release' }); return;
+    let host = '';
+    if (cfg.farm.enabled) { const f = ensureFarm(), e = enclosureOf(cfg, sp.group); if ((f.lv['enc_' + e.id] || 0) > 0) { const g = (f.guests[e.id] ||= []); if (!g.includes(sp.id)) { g.push(sp.id); if (g.length > 8) g.shift(); } host = ' Bude se vracet na farmu jako host.'; } }
+    toast((a.nick || sp.name) + ' se vrátil do přírody. +' + v + ' 📖' + host); progressEvent({ kind: 'release' }); return;
   }
   saveState(); hudCones(); renderCollection(); openAnimal(uid);
 }

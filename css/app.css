@@ -409,3 +409,4 @@ body.dark .ftop .fres{background:#1f251d;color:var(--ink)}
 body.dark .acard,body.dark .quest,body.dark .album,body.dark .shopit,body.dark .fcard,body.dark .mgcard,body.dark .jastats div,body.dark .jahead,body.dark .fact,body.dark .look .chip:not(.on){background:rgba(255,255,255,.06);border:0}
 body.dark .pill{background:rgba(31,37,29,.85)}
 .fsheet .btn.ghost[data-fv]{margin-top:6px}
+.ftest{display:flex;gap:6px;align-items:center;margin:6px 0;font-size:12px;color:var(--mut)}

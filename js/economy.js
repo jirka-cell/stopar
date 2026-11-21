@@ -110,8 +110,8 @@ export function animalActionsHTML(cfg, st, a, sp, can) {
   h += can('train') ? `<button class="btn sm" data-act="train">Trénovat (${num(G.trainCost)} šišek)</button>` : `<button class="btn sm" disabled>Trénink od úr. ${can.level('train')}</button>`;
   h += !can('evolve') ? `<button class="btn sm" disabled>Vývoj od úr. ${can.level('evolve')}</button>`
     : master ? `<button class="btn sm" disabled>${esc(names[a.stage])} – nejvyšší stádium</button>`
-    : `<button class="btn sm${a.axp >= n.axp && st.points >= n.points ? ' primary' : ''}" data-act="evolve">Vyvinout na ${esc(names[a.stage + 1])} (${n.points} bodů)</button>`;
-  h += can('release') ? `<button class="btn sm" data-act="release" data-confirm="Opravdu vypustit? Ťukni znovu">Vypustit do přírody (+${releaseValue(cfg, sp, a)} bodů)</button>` : `<button class="btn sm" disabled>Vypouštění od úr. ${can.level('release')}</button>`;
+    : `<button class="btn sm${a.axp >= n.axp && st.points >= n.points ? ' primary' : ''}" data-act="evolve">Vyvinout na ${esc(names[a.stage + 1])} (${n.points} 📖)</button>`;
+  h += can('release') ? `<button class="btn sm" data-act="release" data-confirm="Opravdu vypustit? Ťukni znovu">Vypustit do přírody (+${releaseValue(cfg, sp, a)} 📖)</button>` : `<button class="btn sm" disabled>Vypouštění od úr. ${can.level('release')}</button>`;
   return h + '</div>';
 }
 
@@ -119,8 +119,8 @@ const cone = '<svg class="cone" viewBox="0 0 20 24" aria-hidden="true"><path d="
 export const coneIcon = cone;
 export function shopHTML(cfg, st, can) {
   const inv = Object.entries(st.inv).map(([id, n]) => { const it = cfg.shop.find(x => x.id === id); return it ? `<span class="chip">${esc(it.icon)} ${esc(it.name)} × ${n}</span>` : ''; }).join('');
-  return `<h2>Obchod</h2><p class="msg">${cone} <b>${Math.floor(st.cones)}</b> šišek · <b>${Math.floor(st.points)}</b> bodů</p>
-  <p class="msg small">Šišky dostáváš za ujité km a úkoly, body za zvířata vypuštěná do přírody. Body jsou na vývoj zvířat.</p>
+  return `<h2>Obchod</h2><p class="msg">${cone} <b>${Math.floor(st.cones)}</b> šišek · 📖 <b>${Math.floor(st.points)}</b> vědomostí</p>
+  <p class="msg small">Šišky dostáváš za ujité km a úkoly. Vědomosti za to, co se naučíš (kvízy, stopy, úkoly u krmítek, deník, nové druhy) – jsou na vývoj zvířat.</p>
   ${inv ? `<h3>Batoh</h3><div class="chips">${inv}</div>` : ''}
   ${can('shop') ? `<h3>Nabídka</h3>${cfg.shop.map(it => `<div class="shopit"><span class="aic" aria-hidden="true">${esc(it.icon)}</span><span><b>${esc(it.name)}</b><br><small>${esc(it.desc)}</small></span><button class="btn sm" data-act="buy" data-item="${esc(it.id)}"${st.cones < num(it.price) ? ' disabled' : ''}>${num(it.price)} ${cone}</button></div>`).join('')}`
     : `<p class="msg">Obchod se otevře na úrovni ${can.level('shop')}.</p>`}

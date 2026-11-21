@@ -2,7 +2,7 @@
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
 export const TERMS_VERSION = 3;
-export const APP_VERSION = '3.5.1';
+export const APP_VERSION = '3.6.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };
@@ -49,6 +49,7 @@ export function consentHTML(cfg) {
     <p class="msg small">Rodičovský PIN chrání smazání dat. Dítěti ho neříkejte.</p>
     ${pinFields('cPin', 'cPin2')}
   </div>
+  <div class="fld"><label for="cNick">Jak ti máme říkat? (přezdívka, ne celé jméno)</label><input type="text" id="cNick" maxlength="20" autocomplete="nickname" placeholder="např. Liška"></div>
   <label class="fld row">Přečetl(a) jsem podmínky a zásady ochrany osobních údajů a souhlasím s nimi<input type="checkbox" id="cOk"></label>
   <button class="btn full" data-act="legal">Přečíst podmínky a zásady</button>
   <p class="msg small" id="cErr"></p>

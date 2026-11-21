@@ -407,11 +407,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 36);
+  assert.equal(CHECKS.length, 39);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 36);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 39);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
@@ -538,7 +538,7 @@ test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce X
   const { cleanProgress } = await import('../js/progress.js');
   const st = Object.assign(cleanProgress({}), { animals: [], inv: {} });
   const a = animalFrom('kos', [50, 50, 50, 50], 90, 'park'); st.animals.push(a);
-  assert.equal(releaseValue(DEFAULTS, { rarity: '3' }, a), 60);
+  assert.equal(releaseValue(DEFAULTS, { rarity: '3' }, a), 30, 'vědomosti za vypuštění: základ 5 × vzácnost 6');
   assert.deepEqual(stageNames(DEFAULTS, 'Ptáci'), ['mládě', 'dospělý', 'mistr']);
   assert.deepEqual(stageNames(DEFAULTS, 'Obojživelníci'), ['pulec', 'mladý', 'dospělý', 'mistr']);
   assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'axp');
@@ -562,7 +562,7 @@ test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce X
   assert.equal(useItem(DEFAULTS, st, 'navnada').effect, 'lure'); assert.equal(st.inv.navnada, undefined);
   assert.equal(useItem(DEFAULTS, st, 'navnada'), null);
   // vypuštění odebere jedince
-  assert.equal(release(DEFAULTS, st, a, { rarity: '1' }), 30); assert.equal(st.animals.length, 0);
+  assert.equal(release(DEFAULTS, st, a, { rarity: '1' }), 15); assert.equal(st.animals.length, 0);
 });
 
 test('počasí: stav z odpovědi MET Norway, zaokrouhlená poloha, nový dotaz až po vypršení', async () => {
@@ -996,31 +996,6 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   I.ICON_FILES.add('atlas'); assert.match(I.ic('atlas'), /icons\/ui\/atlas\.svg/); I.ICON_FILES.delete('atlas');
 });
 
-test('farma: pomalá výroba se stropem skladu, chůze víc, pěstování spotřebuje semínka, stavba a kapacita příbytků', async () => {
-  const F = await import('../js/farm.js');
-  const t0 = Date.UTC(2026, 10, 21, 8);
-  const f = F.newFarm(['voliera', 'vybeh'], 12, t0);
-  assert.equal(f.lv.enc_voliera, 3, 'příbytek pojme, co už hráč má (12 → 3 × 5)');
-  assert.ok(F.encCap(f, 'voliera') >= 12);
-  const inv = {}; F.advance(f, t0 + 2 * 3600000, inv);
-  assert.ok(Math.abs(f.res.wood - 22) < 1e-9, 'dřevník 1/h → +2 za 2 h');
-  for (let i = 1; i <= 3; i++) F.advance(f, t0 + (2 + 72 * i) * 3600000, inv); // nejvýš 72 h naráz
-  assert.equal(f.res.wood, F.storeCap(f), 'sklad má strop, nic se neztratí ani nepřeteče');
-  assert.ok(inv.krmivo > 0, 'pole pěstuje krmivo');
-  const g = F.newFarm(['voliera'], 5, t0); g.res.seeds = 0; const inv2 = {};
-  F.advance(g, t0 + 10 * 3600000, inv2);
-  assert.ok((inv2.krmivo || 0) <= 10, 'bez semínek se pěstuje jen z toho, co semeniště dalo');
-  const w = F.newFarm([], 5, t0), before = w.res.wood; F.walkGain(w, 250, 'les');
-  assert.equal(w.res.wood - before, 4, '250 m lesem = 2× po 100 m = +4 dřeva'); assert.equal(w.walk, 50);
-  const b = F.newFarm(['voliera'], 5, t0); b.res.wood = 999; b.res.stone = 999;
-  assert.equal(F.startBuild(b, 'enc_voliera', 0, t0).err, 'Chybí suroviny.', 'bez šišek příbytek nejde');
-  const r = F.startBuild(b, 'enc_voliera', 100, t0); assert.ok(!r.err && r.cones > 0, 'příbytek stojí i šišky');
-  assert.equal(F.startBuild(b, 'store', 100, t0).err, 'Už se staví.');
-  F.advance(b, b.build.until + 1, {}); assert.equal(b.lv.enc_voliera, 2);
-  assert.equal(F.autoPick({ ...b, auto: true, build: null }, ['enc_voliera', 'store']), 'store', 'automatika příbytky nestaví');
-  assert.equal(F.cleanFarm({ lv: { zlo: 5, store: 99 }, res: { wood: -3 } }, ['voliera']).lv.store, 10);
-});
-
 test('úkoly podle místa, jízda autem a nové minihry', async () => {
   const T = await import('../js/tasks.js');
   assert.equal(T.placeKind({ at: 'park' }), 'park'); assert.equal(T.placeKind({ at: 'Kokořín', kind: 'Hrad nebo zámek' }), 'hrad');
@@ -1057,31 +1032,46 @@ test('závody: minihry jako závody se zvířetem, kód výsledku i pro nové hr
   const b = { stats: [99, 0, 0, 0], axp: 0 }; trainStat(cfg, b, 0, 1, 'x', 100); assert.equal(b.stats[0], 100, 'strop vlastnosti');
 });
 
-test('3D farma: každá budova má své místo, krajina je pro všechny stejná, souhrn výroby', async () => {
-  const D = await import('../js/farm3d.js');
-  const ids = ['enc_voliera', 'enc_vybeh', 'enc_rybnik', 'enc_terarium', 'enc_insektarium', 'lumber', 'quarry', 'nursery', 'field', 'orchard', 'worms', 'store', 'pantry'];
-  const pos = D.layout(ids);
-  assert.equal(Object.keys(pos).length, ids.length);
-  assert.equal(new Set(Object.values(pos).map(p => p.join())).size, ids.length, 'žádné dvě budovy na stejném políčku');
-  assert.equal(D.terrainAt(0, 0, pos), 'yard'); assert.equal(D.terrainAt(1, 0, pos), 'path');
-  assert.equal(D.terrainAt(...pos.lumber, pos), 'base');
-  assert.equal(D.terrainAt(4, -1, pos), D.terrainAt(4, -1, D.layout(ids)), 'stejné rozložení');
+
+test('farma: prázdný start, lineární ceny, pomalá výroba se stropem, chůze, pěstování, stavba a automatika', async () => {
   const F = await import('../js/farm.js');
-  const r = F.rates(F.newFarm(['voliera'], 5, 0));
-  assert.equal(r.wood, 1); assert.ok(r.items.krmivo > 0); assert.equal(r.items.pamlsek, undefined, 'sad úr. 0 nevyrábí');
+  const t0 = Date.UTC(2026, 10, 21, 8), f = F.newFarm(['voliera', 'vybeh'], 12, t0, 42);
+  assert.ok(F.isEmpty(f), 'nová farma je prázdná'); assert.equal(f.seed, 42);
+  assert.deepEqual([F.cost('enc_voliera', 0).wood, F.cost('enc_voliera', 1).wood, F.cost('enc_voliera', 9).wood], [15, 30, 150], 'lineární cena');
+  assert.deepEqual([F.buildMinutes(0), F.buildMinutes(4)], [5, 25], 'lineární doba');
+  f.lv.lumber = 1; f.lv.field = 1; f.res.seeds = 10; const inv = {};
+  F.advance(f, t0 + 2 * 3600000, inv); assert.ok(Math.abs(f.res.wood - 42) < 1e-9, 'dřevník 1/h');
+  for (let i = 1; i <= 3; i++) F.advance(f, t0 + (2 + 72 * i) * 3600000, inv);
+  assert.equal(f.res.wood, F.storeCap(f), 'strop skladu'); assert.ok(inv.krmivo > 0 && inv.krmivo <= 10, 'pole spotřebuje semínka');
+  const w = F.newFarm([], 5, t0), b0 = w.res.wood; F.walkGain(w, 250, 'les'); assert.equal(w.res.wood - b0, 4);
+  assert.equal(F.autoPick({ ...f, auto: true, build: null }, ['store', 'lumber']), null, 'automatika jen u postavených s místem');
+  f.pos.lumber = [2, 0]; assert.equal(F.autoPick({ ...f, auto: true, build: null, res: { wood: 999, stone: 999, seeds: 0 } }, ['store', 'lumber']), 'lumber');
+  const c = F.cleanFarm({ lv: { zlo: 5, store: 99 }, res: { wood: -3 }, seed: 7, guests: { voliera: ['kos', 5] }, deeds: { budka: 9 } }, ['voliera']);
+  assert.equal(c.lv.store, 10); assert.equal(c.seed, 7); assert.deepEqual(c.guests.voliera, ['kos', '5']); assert.equal(c.deeds.budka, 9);
 });
 
-test('farma: přesun budovy na políčko, výměna místa, limit jednou za X dní, ťuk najde správné políčko', async () => {
+test('3D farma: generátor krajiny (kopce, řeka, cesty), stavění jen u cest, přesun s výměnou a limitem', async () => {
   const D = await import('../js/farm3d.js'), F = await import('../js/farm.js');
-  const ids = ['enc_voliera', 'lumber', 'quarry'];
+  const T = D.genTerrain(123), T2 = D.genTerrain(123), T3 = D.genTerrain(124);
+  assert.equal(T.size, 1 + 3 * D.R_MAP * (D.R_MAP + 1), 'celá mapa');
+  assert.deepEqual([...T.values()].map(x => x.t + x.h), [...T2.values()].map(x => x.t + x.h), 'stejný seed = stejná krajina');
+  assert.notDeepEqual([...T.values()].map(x => x.t + x.h), [...T3.values()].map(x => x.t + x.h), 'jiný seed = jiná krajina');
+  const types = new Set([...T.values()].map(x => x.t)), hs = new Set([...T.values()].map(x => x.h));
+  assert.ok(types.has('road') && (types.has('water') || types.has('bridge')) && types.has('forest'), 'cesty, voda, les');
+  assert.ok(hs.size >= 2, 'kopce');
+  assert.equal(T.get('0,0').t, 'yard'); assert.equal(T.get('1,0').t, 'road');
+  const valid = D.validTiles(T, new Set());
+  assert.ok(valid.length > 20);
+  for (const [q, r] of valid) { const t = T.get(q + ',' + r); assert.ok(!['road', 'water', 'bridge', 'yard'].includes(t.t)); }
   for (const [q, r] of [[0, 0], [2, -1], [-3, 2], [1, 3]]) { const x = Math.sqrt(3) * (q + r / 2), z = 1.5 * r; assert.deepEqual(D.hexAt(x + 0.2, z - 0.2), [q, r]); }
-  const f = F.newFarm(['voliera'], 5, 0); let pos = D.layout(ids, f.pos);
-  assert.ok(F.moveBuilding(f, 'lumber', 0, 1, pos).err, 'u statku (1. kruh) ne');
-  assert.ok(F.moveBuilding(f, 'lumber', 6, 0, pos).err, 'moc daleko ne');
-  const r1 = F.moveBuilding(f, 'lumber', 3, 0, pos, 0, 1000); assert.ok(!r1.err); pos = D.layout(ids, f.pos);
-  assert.deepEqual(pos.lumber, [3, 0], 'nové místo platí');
-  const target = pos.quarry, r2 = F.moveBuilding(f, 'lumber', target[0], target[1], pos, 0, 2000); pos = D.layout(ids, f.pos);
-  assert.equal(r2.swapped, 'quarry'); assert.deepEqual(pos.lumber, target); assert.deepEqual(pos.quarry, [3, 0], 'výměna míst');
-  assert.match(F.moveBuilding(f, 'quarry', 4, 0, pos, 30, 3000).err, /za 30 dní/, 'jednou za měsíc');
-  assert.deepEqual(F.cleanFarm({ lv: { lumber: 1 }, pos: { lumber: [3, 0], zlo: [1, 1], quarry: 'x' }, moved: 5 }, []).pos, { lumber: [3, 0] });
+  const f = F.newFarm([], 5, 0, 123); f.res.wood = 999; f.res.stone = 999;
+  const road = [...T.values()].find(x => x.t === 'road' && x.q + x.r !== 0);
+  assert.ok(F.placeBuilding(f, 'lumber', road.q, road.r, T, 0).err, 'na cestu ne');
+  const [a, b] = valid;
+  assert.ok(!F.placeBuilding(f, 'lumber', a[0], a[1], T, 0).err); assert.deepEqual(f.pos.lumber, a); assert.equal(f.build.id, 'lumber');
+  F.advance(f, f.build.until + 1, {}); assert.equal(f.lv.lumber, 1);
+  assert.ok(!F.placeBuilding(f, 'quarry', b[0], b[1], T, 0).err); F.advance(f, f.build.until + 1, {});
+  assert.equal(F.moveBuilding(f, 'lumber', b[0], b[1], T, 0, 1000).swapped, 'quarry'); assert.deepEqual(f.pos.lumber, b); assert.deepEqual(f.pos.quarry, a);
+  assert.match(F.moveBuilding(f, 'quarry', valid[2][0], valid[2][1], T, 30, 2000).err, /za 30 dní/);
+  const pos = D.autoPlace(T, {}, ['store', 'pantry']); assert.ok(pos.store && pos.pantry && pos.store.join() !== pos.pantry.join());
 });

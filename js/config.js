@@ -209,7 +209,8 @@ export const DEFAULTS = {
     progressStyle: 'ring',  // ring = kroužek, stars = hvězdičky, bar = proužek
     // vývojová stádia: řádek bez skupiny = výchozí, jinak „Skupina: stádia“
     stages: ': mládě, dospělý, mistr\nObojživelníci: pulec, mladý, dospělý, mistr\nHmyz: larva, kukla, dospělec, mistr\nRyby: plůdek, mladá ryba, dospělá, mistr',
-    releaseBase: 10, releaseRarity: '1:1, 2:2.5, 3:6', // body za vypuštění = základ × vzácnost × (stádium + 1)
+    releaseBase: 5, releaseRarity: '1:1, 2:2.5, 3:6', // vědomosti za vypuštění = základ × vzácnost × (stádium + 1)
+    know: 'quiz:5, track:3, task:5, journal:3, newSpecies:5, keyId:3', // vědomosti 📖 za učení
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5,
     xpContest: 10           // XP za odehranou soutěž
   },
@@ -302,7 +303,10 @@ export const DEFAULTS = {
   farm: {
     enabled: true,          // Moje farma: kapacitu zvířat určují příbytky a spižírna (místo úrovně hráče)
     maxCap: 60,             // nejvíc míst pro jeden druh
-    moveDays: 0             // přesouvání budov: 0 = kdykoli (testování), později 30 = jednou za měsíc
+    moveDays: 0,            // přesouvání budov: 0 = kdykoli (testování), později 30 = jednou za měsíc
+    capacityCheck: false,   // DOČASNĚ vypnuto: chycená zvířata se ukládají bez ohledu na volná místa v příbytku
+    testTools: true,        // testování: +1/−1 úroveň zdarma, prázdná farma znovu
+    deedDays: 30            // skutečný čin (budka, krmítko…) stejného druhu jednou za tolik dní
   },
   games: {
     dailyCones: 40,         // denní strop šišek z miniher (ať nepřebijí chůzi)
@@ -488,7 +492,8 @@ export const SCHEMA = [
     ['maxRadius', 'Největší poloměr (m)', 'number', { min: 1000, max: 20000, step: 500 }]
   ] },
   { sec: 'farm', title: 'Moje farma', fields: [
-    ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }], ['moveDays', 'Přesun budov jednou za (dní, 0 = kdykoli)', 'number', { min: 0, max: 365, step: 1 }]
+    ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }], ['moveDays', 'Přesun budov jednou za (dní, 0 = kdykoli)', 'number', { min: 0, max: 365, step: 1 }],
+    ['capacityCheck', 'Hlídat kapacitu příbytků při chytání', 'bool'], ['testTools', 'Testovací nástroje farmy (+1/−1, prázdná farma)', 'bool'], ['deedDays', 'Skutečný čin stejného druhu jednou za (dní)', 'number', { min: 0, max: 365, step: 1 }]
   ] },
   { sec: 'games', title: 'Minihry', fields: [
     ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
@@ -550,7 +555,7 @@ export const SCHEMA = [
     ['evolveBoost', 'Vývoj: % ke všem vlastnostem', 'number', { min: 0, max: 100, step: 1 }],
     ['progressStyle', 'Postup ke stádiu', 'select', { options: [['ring', 'Kroužek (koláč)'], ['stars', 'Hvězdičky'], ['bar', 'Proužek']] }],
     ['stages', 'Vývojová stádia (řádek „Skupina: stádia“, bez skupiny = výchozí)', 'textarea'],
-    ['releaseBase', 'Vypuštění: základ bodů', 'number', { min: 0, step: 1 }], ['releaseRarity', 'Vypuštění: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
+    ['releaseBase', 'Vypuštění: základ vědomostí', 'number', { min: 0, step: 1 }], ['know', 'Vědomosti za učení (zdroj:počet)', 'text'], ['releaseRarity', 'Vypuštění: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
     ['radiusMult', 'Dalekohled: násobek dosahu', 'number', { min: 1, max: 10, step: 0.1 }], ['radiusMinutes', 'Dalekohled: minut', 'number', { min: 1, step: 1 }],
     ['lensMult', 'Objektiv: násobek zelené zóny', 'number', { min: 1, max: 5, step: 0.1 }],
     ['xpContest', 'XP za odehranou soutěž', 'number', { min: 0, step: 1 }]
