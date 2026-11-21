@@ -1766,7 +1766,7 @@ function openFarmCatalog() {
   </div>
   <h3>✨ Další</h3><div class="bgrid">
     <button class="bcard" data-fv="deeds"><span class="bico">🌱</span><b>Skutečný čin</b><small>budka, krmítko…</small></button>
-    ${isEmpty(f) ? '<button class="bcard" data-fv="regen"><span class="bico">🎲</span><b>Jiná krajina</b><small>dokud je farma prázdná</small></button>' : ''}
+    ${isEmpty(f) ? '<button class="bcard" data-fv="regenPick"><span class="bico">🎲</span><b>Jiná krajina</b><small>dokud je farma prázdná</small></button>' : ''}
     ${cfg.farm.testTools ? '<button class="bcard" data-fv="reset"><span class="bico">🧪</span><b>Začít znovu</b><small>prázdná farma (test)</small></button>' : ''}
   </div>`;
   s2.hidden = false; actNow = null; updateAct();
@@ -1829,7 +1829,7 @@ function farmSideHTML() {
   <h3>Úkoly farmy</h3>${FARM_TASKS.map(([id, txt, ok, rw]) => { const done = f.tasks[id], can = !done && ok(f); return `<div class="nmrow"><span>${done ? '✅' : can ? '🎁' : '▫️'} ${esc(txt)}</span><span>${can ? `<button class="btn sm" data-fv="task" data-id="${id}">Vyzvednout ${rwTxt(rw)}</button>` : rwTxt(rw)}</span></div>`; }).join('')}
   <div class="row2"><button class="btn ghost" data-fv="photo">📸 Fotka farmy</button><button class="btn ghost" data-fv="share">👪 Pozvat rodinu</button></div>
   <h3>Krajina</h3><div class="bgrid">${Object.entries(BIOMES).map(([k, b]) => `<button class="bcard${(f.biome || 'pahorkatina') === k ? ' on' : ''}" data-fv="biome" data-b="${k}"><span class="bico">${b.icon}</span><b>${esc(b.name)}</b><small>${esc(b.desc)}</small></button>`).join('')}</div>
-  <button class="btn full ghost" data-fv="regen2" data-confirm="Vygenerovat?">🎲 Jiná krajina (budovy zůstanou)</button>
+  <button class="btn full ghost" data-fv="regenPick">🎲 Jiná krajina (budovy zůstanou)</button>
   <p class="msg small">Zvířat celkem: ${state.animals.length} · druhů: ${new Set(state.animals.map(a => a.sp)).size}</p>`;
 }
 // Panel vybrané budovy: popis, stav, vylepšení; u obydlí ubytovaná zvířata a přepínání
@@ -1906,6 +1906,19 @@ function onFarmClick(e) {
     else if (k === 'tilehint') { $('fsheet').hidden = true; toast('Ťukni na volné políčko na farmě a vyber pole, les nebo rybníček.'); }
     else if (k === 'tile') { const res = setTile(ensureFarm(), farmTerrain(), ...farmTileSel, fv.dataset.t); if (res.err) toast(res.err); else { saveState(); toast(TILE_INFO[fv.dataset.t][0] + ' Hotovo.'); renderFarmView(); } }
     else if (k === 'buildHere') { const f = ensureFarm(), id = fv.dataset.id, res = placeBuilding(f, id, ...farmTileSel, farmTerrain(), state.cones); if (res.err) { toast(res.err); return; } if (res.cones) { state.cones -= res.cones; hudCones(); } farmTileSel = null; farmSel = id; saveState(); toast('🔨 Stavba začala.'); renderFarmView(); }
+    else if (k === 'regenPick') {
+      const f = ensureFarm(), s2 = $('fsheet'); if (!s2) return;
+      s2.innerHTML = `<div class="fsh-h"><b>🎲 Jiná krajina</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
+      <p class="msg small">Vyber krajinu, vygeneruje se nová.${isEmpty(f) ? '' : ' Budovy zůstanou, upravená políčka mimo novou farmu zmizí.'}</p>
+      <div class="bgrid">${Object.entries(BIOMES).map(([b, B]) => `<button class="bcard${f.biome === b ? ' on' : ''}" data-fv="regenGo" data-b="${b}"><span class="bico">${B.icon}</span><b>${esc(B.name)}</b><small>${esc(B.desc)}</small></button>`).join('')}<button class="bcard" data-fv="regenGo" data-b="random"><span class="bico">🎲</span><b>Náhodně</b><small>překvap mě</small></button></div>`;
+      s2.hidden = false;
+    }
+    else if (k === 'regenGo') {
+      const f = ensureFarm(), keys = Object.keys(BIOMES), b = fv.dataset.b === 'random' ? keys[Math.floor(Math.random() * keys.length)] : fv.dataset.b; if (!BIOMES[b]) return;
+      f.biome = b; f.seed = 1 + Math.floor(Math.random() * 99999); farmGhost = true;
+      if (isEmpty(f)) f.pos = {}; else { const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); }
+      saveState(); $('fsheet').hidden = true; toast(BIOMES[b].icon + ' Nová krajina: ' + BIOMES[b].name); renderFarmView();
+    }
     else if (k === 'regen2') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.textContent = 'Opravdu? Ťukni znovu'; return; } const f = ensureFarm(); f.seed = 1 + Math.floor(Math.random() * 99999); farmGhost = true; const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); saveState(); toast('🎲 Nová krajina.'); renderFarmView(); }
     else if (k === 'moveCancel') { farmMove = ''; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
     else if (k === 'place') { farmPlace = fv.dataset.id; $('fsheet').hidden = true; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken())); } toast('Ťukni na zvýrazněné políčko.'); }

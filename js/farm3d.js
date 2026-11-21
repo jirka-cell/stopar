@@ -51,7 +51,7 @@ export function genWorld(seed, must = [], biome = 'pahorkatina') {
   // farma: roste od statku mezi překážkami; prodloužení podél náhodné osy = nepravidelný tvar
   const mustK = new Set(must.map(p => K(...p))), axis = R() * Math.PI, stretch = R() * 0.25;
   let lim = 0.4, maxD = 9; // když se farma nevejde, druhé kolo dovolí mírné svahy a větší dosah
-  const blocked = (q, r) => { if (mustK.has(K(q, r)) || (!q && !r)) return false; const [x, z] = axial(q, r); return hexDist(q, r) > maxD || lineDist(river, x, z) < 2.0 || rawH(x, z) > lim; };
+  const blocked = (q, r) => { if (mustK.has(K(q, r)) || (!q && !r)) return false; const [x, z] = axial(q, r); return hexDist(q, r) > maxD || lineDist(river, x, z) < 2.6 || rawH(x, z) > lim; };
   const cells = new Map([[K(0, 0), { q: 0, r: 0, t: 'yard' }]]), front = new Map();
   const push = (q, r) => { const k = K(q, r); if (!cells.has(k) && !front.has(k) && !blocked(q, r)) front.set(k, [q, r]); };
   DIRS.forEach(([a, b]) => push(a, b));
@@ -100,6 +100,15 @@ export function genWorld(seed, must = [], biome = 'pahorkatina') {
     return h;
   };
   const BRIDGE_H = 0.6;
+  const ROAD_G = 0.14, RAIL_G = 0.05; // největší stoupání na jednotku délky
+  const gradeLimit = (prof, pts, g, fixed) => {
+    const len = i => Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    for (let pass = 0; pass < 4; pass++) {
+      for (let i = 1; i < prof.length; i++) if (!fixed(i)) { const d = g * len(i); prof[i] = Math.max(prof[i - 1] - d, Math.min(prof[i - 1] + d, prof[i])); }
+      for (let i = prof.length - 2; i >= 0; i--) if (!fixed(i)) { const d = g * len(i + 1); prof[i] = Math.max(prof[i + 1] - d, Math.min(prof[i + 1] + d, prof[i])); }
+    }
+    return prof;
+  };
   const smooth = (prof, pts, passes, keep) => { for (let p = 0; p < passes; p++) prof = prof.map((v, i) => { if (keep(i)) return v; let s2 = 0, n = 0; for (let j = Math.max(0, i - 4); j <= Math.min(prof.length - 1, i + 4); j++) { s2 += prof[j]; n++; } return s2 / n; }); return prof; };
   // niveleta trati: terén vyhlazený; tunel tam, kde je nad tratí aspoň 0,7 horniny; krátké mezery mezi tunely se spojí
   function railProfile(pts) {
@@ -108,15 +117,17 @@ export function genWorld(seed, must = [], biome = 'pahorkatina') {
     // nejdřív „ideální“ niveleta bez kopců: kopce nad prahem se ignorují (budou tunelem)
     const cap = Math.min(...prof) + 1.2; prof = prof.map(v => Math.min(v, cap));
     prof = smooth(prof, pts, 8, i => nearRiver[i]);
+    prof = gradeLimit(prof, pts, RAIL_G, i => nearRiver[i]);
     let tun = pts.map(([x, z], i) => !nearRiver[i] && H0(x, z) > prof[i] + 0.7);
     for (let i = 0; i < tun.length; i++) if (!tun[i]) { let j = i; while (j < tun.length && !tun[j]) j++; if (i > 0 && j < tun.length && j - i < 8) for (let k = i; k < j; k++) tun[k] = true; i = j; }
     for (let i = 0; i < tun.length; i++) if (tun[i]) { let j = i; while (j < tun.length && tun[j]) j++; if (j - i < 7) for (let k = i; k < j; k++) tun[k] = false; else { tun[i] = tun[i + 1] = tun[j - 1] = tun[j - 2] = false; } i = j; } // krátký tunel = zářez; u vjezdu zářez k portálu
     return { prof, tun };
   }
-  function roadProfile(pts, fix) {
-    const nearRiver = pts.map(([x, z]) => lineDist(river, x, z) < 1.0), atX = pts.map(([x, z]) => !!fix && Math.hypot(x - fix.x, z - fix.z) < 1.0);
-    let prof = pts.map(([x, z], i) => atX[i] ? fix.y : nearRiver[i] ? BRIDGE_H : Math.max(0.05, H0(x, z)) + 0.04);
-    return smooth(prof, pts, 4, i => nearRiver[i] || atX[i]);
+  function roadProfile(pts, fix, br) {
+    const onBr = pts.map(([x, z]) => !!br && Math.hypot(x - br[0], z - br[1]) < 1.75), atX = pts.map(([x, z]) => !!fix && Math.hypot(x - fix.x, z - fix.z) < 1.0), atFarm = pts.map(([x, z]) => Math.hypot(x - pts[0][0], z - pts[0][1]) < 0.3);
+    const fixed = i => atFarm[i] || atX[i] || onBr[i];
+    let prof = pts.map(([x, z], i) => atFarm[i] ? TILE_H : atX[i] ? fix.y : onBr[i] ? BRIDGE_H : Math.max(0.05, H0(x, z)) + 0.04);
+    return gradeLimit(smooth(prof, pts, 4, fixed), pts, ROAD_G, fixed);
   }
   // přejezd: cesta přes trať kolmo (rovný kus v ose kolmé na trať), napojení obloukem
   const segX = (P, Q, A, Bq) => { const rx = Q[0] - P[0], rz = Q[1] - P[1], sx = Bq[0] - A[0], sz = Bq[1] - A[1], den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) return null; const t = ((A[0] - P[0]) * sz - (A[1] - P[1]) * sx) / den, u = ((A[0] - P[0]) * rz - (A[1] - P[1]) * rx) / den; return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [P[0] + rx * t, P[1] + rz * t] : null; };
@@ -148,7 +159,8 @@ export function genWorld(seed, must = [], biome = 'pahorkatina') {
     const { prof, tun } = railProfile(r2.pts);
     let grade = 0, along = 0, tunLen = 0, fdSt = Infinity;
     for (let i = 1; i < r2.pts.length; i++) { const l = Math.hypot(r2.pts[i][0] - r2.pts[i - 1][0], r2.pts[i][1] - r2.pts[i - 1][1]) || 1; grade = Math.max(grade, Math.abs(prof[i] - prof[i - 1]) / l); const dR = lineDist(river, ...r2.pts[i]); if (dR > 1.2 && dR < 3) along += l; if (tun[i]) tunLen += l; else if (dR >= 2.5 && i > 3 && i < r2.pts.length - 4) fdSt = Math.min(fdSt, farmDist(...r2.pts[i])); }
-    const cost = tunLen * 0.4 + along * 1.5 + grade * 30 + Math.max(0, fdSt - 2.4) * 25;
+    let fill = 0; for (let i = 0; i < r2.pts.length; i++) if (!tun[i] && lineDist(river, ...r2.pts[i]) > 1.5) fill = Math.max(fill, Math.abs(prof[i] - Math.max(0, H0(...r2.pts[i]))));
+    const cost = tunLen * 0.4 + along * 1.5 + grade * 30 + Math.max(0, fdSt - 2.4) * 25 + Math.max(0, fill - 1.2) * 15;
     const ok = fdSt <= 2.5 && tunLen < 12; // nádraží přímo u farmy
     if (!best || (ok && !best.ok) || (ok === best.ok && cost < best.cost)) best = { cost, ok, ...r2, prof, tun };
   };
@@ -165,7 +177,7 @@ export function genWorld(seed, must = [], biome = 'pahorkatina') {
     if (r1.bridge && r3.bridge) continue;
     tryRail({ pts: [...r1.pts, ...r3.pts.slice(1)], bridge: r1.bridge || r3.bridge });
   }
-  if (best) { const [i0, i1, cp] = clipRun(best.pts); best.pts = cp; best.prof = best.prof.slice(i0, i1 + 1); best.tun = best.tun.slice(i0, i1 + 1); if (best.bridge && !inBox(best.bridge)) best.bridge = null; }
+  if (best) { const [i0, i1, cp] = clipRun(best.pts); best.pts = cp; best.prof = best.prof.slice(i0, i1 + 1); const np = best.prof.length; if (np > 2) { best.prof[0] = best.prof[1]; best.prof[np - 1] = best.prof[np - 2]; } best.tun = best.tun.slice(i0, i1 + 1); if (best.bridge && !inBox(best.bridge)) best.bridge = null; }
   const rail = best ? best.pts : [], railProf = best ? best.prof : [], railTun = best ? best.tun : [];
   const railBridge = best && best.bridge, bridges = [];
   // nádraží: místo trati nejblíž farmě (ne v tunelu, ne u řeky); nástupiště na straně farmy
@@ -181,20 +193,23 @@ export function genWorld(seed, must = [], biome = 'pahorkatina') {
       const da = [Math.cos(a), Math.sin(a)];
       let bc = null, bv = -Infinity;
       // roh hexu na okraji farmy: oba sousedé u rohu mimo farmu; cesta z rohu vyjde ve směru rohu
-      for (const c of cells.values()) for (let ci = 0; ci < 6; ci++) { const ca = Math.PI / 6 + ci * Math.PI / 3, [x, z] = axial(c.q, c.r), px = x + Math.cos(ca) * HEX, pz = z + Math.sin(ca) * HEX, dn = [Math.cos(ca), Math.sin(ca)]; if (cells.has(K(...hexAt(px + dn[0] * 0.5, pz + dn[1] * 0.5)))) continue; if (lineDist(river, px, pz) < 2.6) continue; /* u břehu není místo na nájezd na most */ if (station && Math.hypot(px - station.x, pz - station.z) < 2.6) continue; /* místo nádraží */ const v = px * da[0] + pz * da[1] + (dn[0] * da[0] + dn[1] * da[1]) * 3; if (v > bv) { bv = v; bc = { px, pz, dn }; } }
+      for (const c of cells.values()) for (let ci = 0; ci < 6; ci++) { const ca = Math.PI / 6 + ci * Math.PI / 3, [x, z] = axial(c.q, c.r), px = x + Math.cos(ca) * HEX, pz = z + Math.sin(ca) * HEX, dn = [Math.cos(ca), Math.sin(ca)]; if (cells.has(K(...hexAt(px + dn[0] * 0.5, pz + dn[1] * 0.5)))) continue; if (lineDist(river, px, pz) < 4.5) continue; /* u břehu není místo na nájezd na most */ if (station && Math.hypot(px - station.x, pz - station.z) < 2.6) continue; /* místo nádraží */ const v = px * da[0] + pz * da[1] + (dn[0] * da[0] + dn[1] * da[1]) * 3; if (v > bv) { bv = v; bc = { px, pz, dn }; } }
       if (!bc) break;
       const r2 = route([bc.px, bc.pz], bc.dn, [da[0] * 40, da[1] * 40], da, 60);
       r2.pts = clipRun(r2.pts)[2]; if (r2.bridge && !inBox(r2.bridge)) r2.bridge = null;
       const maxH = Math.max(...r2.pts.map(([x, z]) => rawH(x, z)));
       if (maxH > 1.25) continue; // přes hory cesta nevede
       const pc0 = rail.length ? perpCross(r2.pts) : { pts: r2.pts, cross: null };
-      if (station && lineDist(pc0.pts, station.x, station.z) < 1.7) continue; // cesta ne přes nádraží
-      pick = { a, ...r2, pc: pc0 }; break;
+      if (station) { const r = [Math.sin(station.a), Math.cos(station.a)], hit = p => { const dx = p[0] - station.x, dz = p[1] - station.z; return Math.abs(dx * r[0] + dz * r[1]) < 1.8 && Math.abs(dx * r[1] - dz * r[0]) < 0.8; }; if (pc0.pts.some((p, i) => hit(p) || (i && hit([(p[0] + pc0.pts[i - 1][0]) / 2, (p[1] + pc0.pts[i - 1][1]) / 2])))) continue; } // cesta ne přes nádraží
+      const rp = roadProfile(pc0.pts, pc0.cross, r2.bridge);
+      if (pc0.pts.some((q, i) => i && Math.abs(rp[i] - rp[i - 1]) > ROAD_G * 1.05 * Math.hypot(q[0] - pc0.pts[i - 1][0], q[1] - pc0.pts[i - 1][1]) + 0.003)) continue; // nesplnitelný sklon (např. přejezd hned u farmy)
+      if (pc0.pts.some(([x, z], i) => lineDist(river, x, z) > 1.8 && !inRegion(x, z) && Math.abs(rp[i] - Math.max(0, H0(x, z))) > 1.2)) continue; // přehnaný zářez nebo násyp
+      pick = { a, ...r2, pc: pc0, rp }; break;
     }
     if (!pick) continue;
     const pc = pick.pc;
     if (pc.cross) crossings.push({ ...pc.cross, road: roads.length });
-    usedA.push(pick.a); roads.push(pc.pts); roadProf.push(roadProfile(pc.pts, pc.cross));
+    usedA.push(pick.a); roads.push(pc.pts); roadProf.push(pick.rp);
     if (pick.bridge && !(railBridge && Math.hypot(railBridge[0] - pick.bridge[0], railBridge[1] - pick.bridge[1]) < 2) && !bridges.some(b => Math.hypot(b[0] - pick.bridge[0], b[1] - pick.bridge[1]) < 2)) bridges.push(pick.bridge);
   }
   const villages = [], vilSize = biome === 'hory' || biome === 'tajga' ? [4, 7] : biome === 'nizina' || biome === 'mokrady' ? [8, 12] : [6, 10];
@@ -338,8 +353,8 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   // cesty v krajině (kostra), po terénu
   W.roads.forEach((pts, ri2) => {
     const v = [], idx = [], w2 = 0.32, RP = W.roadProf[ri2];
-    pts.forEach(([x, z], i) => { const [ax, az] = pts[Math.max(0, i - 1)], [bx, bz] = pts[Math.min(pts.length - 1, i + 1)], l = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / l * w2 / 2, nz = (bx - ax) / l * w2 / 2, y = RP[i] + 0.02, onBridge = W.bridges.some(b => Math.hypot(b[0] - x, b[1] - z) < 1.45);
-      v.push(x + nx, onBridge ? -5 : y, z + nz, x - nx, onBridge ? -5 : y, z - nz); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } }); // na mostě vede cesta po mostovce
+    pts.forEach(([x, z], i) => { const [ax, az] = pts[Math.max(0, i - 1)], [bx, bz] = pts[Math.min(pts.length - 1, i + 1)], l = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / l * w2 / 2, nz = (bx - ax) / l * w2 / 2, y = RP[i] + 0.02;
+      v.push(x + nx, y, z + nz, x - nx, y, z - nz); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } }); // na mostě vede cesta po mostovce
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xd8c59a, roughness: 0.9, side: THREE.DoubleSide })); m.receiveShadow = true; scene.add(m);
   });
