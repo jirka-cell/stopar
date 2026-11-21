@@ -470,3 +470,6 @@ body.dark .jtile.g-ven{color:#7fd39a}body.dark .jtile.g-hraj{color:#f0a27a}body.
 .bcard.on{border-color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
 .bcard:disabled{opacity:.5}
 .fsheet h3{margin:12px 0 6px;font-size:14px}
+/* farma: dvě tlačítka vedle sebe, náhled cizí farmy v okně */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.fvis{position:relative;height:min(60vh,420px);border-radius:12px;overflow:hidden;margin:8px 0}

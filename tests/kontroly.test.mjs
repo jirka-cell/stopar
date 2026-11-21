@@ -1063,7 +1063,9 @@ test('3D farma: svět ze seedu (hory, řeka, železnice), nepravidelná farma me
   assert.equal(W.cells.get('0,0').t, 'yard');
   for (const c of W.cells.values()) { const x = Math.sqrt(3) * (c.q + c.r / 2), z = 1.5 * c.r; let m = Infinity; for (let i = 1; i < W.river.length; i++) { const [ax, az] = W.river[i - 1]; m = Math.min(m, Math.hypot(x - ax, z - az)); } assert.ok(m > 0.8 || (!c.q && !c.r), 'farma neleží na řece'); }
   const ring = [...W.cells.values()].map(c => D.hexDist(c.q, c.r)); assert.ok(Math.max(...ring) >= 3, 'tvar není jen kruh kolem statku');
-  assert.ok(W.peaks.some(p => p.h > 3), 'vysoké hory'); assert.ok(W.rail.length > 80 && W.railProf.length === W.rail.length, 'železnice s niveletou');
+  assert.ok(W.peaks.some(p => p.h > 1), 'kopce'); assert.ok(Math.max(...W.peaks.map(p => p.h)) < 3.6, 'pahorkatina bez velehor');
+  for (const b of Object.keys(D.BIOMES)) assert.equal(D.genWorld(W.seed, [], b).cells.size, D.REGION_SIZE, 'farma v každé krajině: ' + b);
+  assert.ok([1, 2, 3].some(k => D.genWorld(k * 71, [], 'hory').peaks.some(p => p.h > 4)), 'hory mají vysoké štíty'); assert.ok(W.rail.length > 80 && W.railProf.length === W.rail.length, 'železnice s niveletou');
   assert.ok(W.H(30, 30) !== undefined && W.H(0, 0) === 0, 'farma je rovná');
   const W4 = D.genWorld(123, [[9, 0]]); assert.ok(W4.cells.has('9,0'), 'budova zůstane na farmě i po nové krajině');
   for (const [q, r] of [[0, 0], [2, -1], [-3, 2], [1, 3]]) { const x = Math.sqrt(3) * (q + r / 2), z = 1.5 * r; assert.deepEqual(D.hexAt(x + 0.2, z - 0.2), [q, r]); }
@@ -1116,4 +1118,16 @@ test('farma: ozdoby jen pro vzhled – stojí suroviny, zaberou políčko, jdou 
   assert.ok(F.placeDecor(f, W, 0, 0, 'well').err, 'statek ne'); assert.ok(F.placeDecor(f, W, b[0], b[1], 'raketa').err);
   F.removeDecor(f, ...a); assert.equal(f.decor[a.join()], undefined);
   assert.deepEqual(F.cleanFarm({ lv: {}, decor: { '1,0': 'mill', '2,0': 'zlo' } }, []).decor, { '1,0': 'mill' });
+});
+
+test('Farma: úkoly s odměnou (jednou) a nádraží s denním vlakem', async () => {
+  const F = await import('../js/farm.js');
+  const f = F.cleanFarm(F.newFarm(['a', 'b']), ['a', 'b']);
+  assert.equal(F.claimTask(f, 'decor2'), null, 'nesplněný úkol nic nedá');
+  f.decor = { '1,0': 'bench', '2,0': 'station' }; const w0 = f.res.wood;
+  assert.deepEqual(F.claimTask(f, 'decor2'), { cones: 5 }); assert.equal(F.claimTask(f, 'decor2'), null, 'podruhé nic');
+  f.lv.enc_a = 3; assert.ok(F.claimTask(f, 'lv3')); assert.equal(f.res.wood, w0 + 20, 'suroviny přičteny');
+  assert.equal(F.trainDelivery(f, '2026-11-21'), 3); assert.equal(F.trainDelivery(f, '2026-11-21'), 0, 'jednou denně');
+  const g = F.cleanFarm(JSON.parse(JSON.stringify(f)), ['a', 'b']); assert.ok(g.tasks.decor2 && g.trainDay === '2026-11-21', 'přežije uložení');
+  assert.deepEqual(F.cleanFarm({ ...f, tasks: { hack: 1 } }, ['a', 'b']).tasks, {}, 'neznámé úkoly pryč');
 });

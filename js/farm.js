@@ -37,7 +37,7 @@ export const canAfford = (f, c, cones) => f.res.wood >= c.wood && f.res.stone >=
 export function newFarm(encIds, need = 5, now = Date.now(), seed = 1 + Math.floor(Math.random() * 99999)) {
   const lv = Object.fromEntries(BUILDINGS.map(b => [b.id, 0]));
   for (const id of encIds) lv['enc_' + id] = 0;
-  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [], decor: {} };
+  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [], decor: {}, tasks: {}, trainDay: '' };
 }
 export const isEmpty = f => Object.values(f.lv).every(v => !v) && !f.build;
 export function cleanFarm(f, encIds) {
@@ -50,6 +50,7 @@ export function cleanFarm(f, encIds) {
   out.frac = Object.fromEntries(Object.entries(f.frac || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.min(1, num(v)))]));
   out.pos = Object.fromEntries(Object.entries(f.pos && typeof f.pos === 'object' ? f.pos : {}).filter(([k, v]) => k in out.lv && Array.isArray(v) && v.length === 2 && v.every(Number.isInteger)).map(([k, v]) => [k, [v[0], v[1]]]));
   out.moved = Math.max(0, num(f.moved));
+  out.biome = /^[a-z]{3,15}$/.test(f.biome) ? f.biome : 'pahorkatina';
   out.seed = Math.max(1, Math.round(num(f.seed, 1 + (Math.round(num(f.t)) % 99991))));
   out.guests = Object.fromEntries(Object.entries(f.guests || {}).map(([k, v]) => [String(k).slice(0, 30), (Array.isArray(v) ? v : []).map(String).slice(0, 8)]));
   out.guestDay = String(f.guestDay || '').slice(0, 10);
@@ -57,6 +58,8 @@ export function cleanFarm(f, encIds) {
   out.decor = Object.fromEntries(Object.entries(f.decor && typeof f.decor === 'object' ? f.decor : {}).filter(([k, v]) => /^-?\d+,-?\d+$/.test(k) && DECOR.some(d => d[0] === v)).slice(0, 120));
   out.roads = (Array.isArray(f.roads) ? f.roads : []).filter(k => typeof k === 'string' && /^-?\d+,-?\d+\|-?\d+,-?\d+$/.test(k)).slice(0, 400);
   out.breedDay = String(f.breedDay || '').slice(0, 10);
+  out.trainDay = String(f.trainDay || '').slice(0, 10);
+  out.tasks = Object.fromEntries(Object.entries(f.tasks && typeof f.tasks === 'object' ? f.tasks : {}).filter(([k]) => FARM_TASKS.some(t => t[0] === k)).map(([k, v]) => [k, Math.max(1, num(v, 1))]));
   out.deeds = Object.fromEntries(Object.entries(f.deeds || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, num(v))]));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
   return out;
@@ -64,7 +67,7 @@ export function cleanFarm(f, encIds) {
 
 /* ---------- ozdoby: nic nevyrábí, jen vzhled; na jedno políčko jedna ---------- */
 export const DECOR = [['barn', '🏚️', 'Stodola', { wood: 6, stone: 2 }], ['mill', '🌬️', 'Větrný mlýn', { wood: 6, stone: 4 }], ['well', '🪣', 'Studna', { stone: 4 }], ['chapel', '⛪', 'Kaplička', { stone: 6 }],
-  ['beehive', '🐝', 'Včelín', { wood: 3 }], ['scarecrow', '🧑‍🌾', 'Strašák', { wood: 1 }], ['bench', '🪑', 'Lavička', { wood: 2 }], ['hay', '🌾', 'Kupka sena', { seeds: 2 }]];
+  ['beehive', '🐝', 'Včelín', { wood: 3 }], ['scarecrow', '🧑‍🌾', 'Strašák', { wood: 1 }], ['bench', '🪑', 'Lavička', { wood: 2 }], ['hay', '🌾', 'Kupka sena', { seeds: 2 }], ['station', '🚉', 'Nádraží (vlak vozí šišky)', { wood: 12, stone: 10 }]];
 export const takenTiles = (f, except = '') => new Set([...Object.entries(f.pos).filter(([k]) => k !== except).map(([, p]) => p.join()), ...Object.keys(f.decor || {})]);
 export function placeDecor(f, W, q, r, type) {
   const d = DECOR.find(x => x[0] === type); if (!d) return { err: 'Neznámá ozdoba.' };
@@ -74,6 +77,28 @@ export function placeDecor(f, W, q, r, type) {
   f.decor[q + ',' + r] = type; return {};
 }
 export const removeDecor = (f, q, r) => { delete f.decor[q + ',' + r]; };
+
+/* ---------- úkoly farmy: splň a vyzvedni odměnu (jednou) ---------- */
+const built = f => Object.values(f.lv).filter(v => v > 0).length;
+export const FARM_TASKS = [
+  ['b3', 'Postav 3 budovy', f => built(f) >= 3, { cones: 5 }],
+  ['tile4', 'Uprav 4 políčka krajiny', f => Object.keys(f.tiles).length >= 4, { seeds: 10 }],
+  ['road5', 'Nakresli 5 úseků cest', f => f.roads.length >= 5, { stone: 15 }],
+  ['decor2', 'Postav 2 ozdoby', f => Object.keys(f.decor).length >= 2, { cones: 5 }],
+  ['lv3', 'Vylepši budovu na úroveň 3', f => Object.values(f.lv).some(v => v >= 3), { wood: 20 }],
+  ['station', 'Postav nádraží', f => Object.values(f.decor).includes('station'), { cones: 10 }],
+  ['b6', 'Postav 6 budov', f => built(f) >= 6, { cones: 15 }],
+  ['lv5', 'Vylepši budovu na úroveň 5', f => Object.values(f.lv).some(v => v >= 5), { cones: 20 }]
+];
+// Vrátí odměnu (šišky si přičte volající), suroviny přičte rovnou; null = nesplněno nebo už vyzvednuto
+export function claimTask(f, id) {
+  const t = FARM_TASKS.find(x => x[0] === id); if (!t || f.tasks[id] || !t[2](f)) return null;
+  f.tasks[id] = Date.now();
+  for (const [k, v] of Object.entries(t[3])) if (k in f.res) f.res[k] += v;
+  return t[3];
+}
+// Nádraží: jednou denně přijede nákladní vlak se šiškami
+export function trainDelivery(f, day) { if (!Object.values(f.decor).includes('station') || f.trainDay === day) return 0; f.trainDay = day; return 3; }
 
 /* ---------- políčka farmy ---------- */
 export const TILE_TYPES = ['meadow', 'field', 'forest', 'pond'];
