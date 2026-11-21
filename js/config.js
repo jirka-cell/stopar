@@ -290,6 +290,12 @@ export const DEFAULTS = {
     { id: '11', text: 'Ježci, netopýři a plši usínají zimním spánkem. Přilétají zimní hosté ze severu.' },
     { id: '12', text: 'Zima: stopy ve sněhu, ptáci na krmítkách. Vyvěs lojovou kouli a pozoruj, kdo přiletí.' }
   ],
+  planner: {
+    kmh: 3.5,               // rychlost chůze pro odhad času (s dětmi)
+    cpCones: 10, cpXp: 10,  // odměna na trase
+    finishCones: 30, finishXp: 50, // bonus za dojití celé trasy
+    cpRadius: 25            // m – kdy se odměna na trase sebere
+  },
   // Obchod: effect = feed (XP jedince = value) | lure (zvíře vždy přijde) | lens (širší zelená zóna) | radius (větší dosah chytání)
   shop: [
     { id: 'krmivo', name: 'Krmivo', icon: '🥣', price: 15, effect: 'feed', value: 15, desc: '+15 XP jedinci, kterého nakrmíš' },
@@ -453,6 +459,12 @@ export const SCHEMA = [
   { sec: 'field', title: 'Stopy a poznávání', fields: [
     ['trackChance', 'Stopa místo zvířete: šance (0–1)', 'number', { min: 0, max: 1, step: 0.05 }],
     ['xpTrack', 'XP za určenou stopu', 'number', { min: 0, step: 1 }]
+  ] },
+  { sec: 'planner', title: 'Plánovač procházek', fields: [
+    ['kmh', 'Rychlost pro odhad času (km/h)', 'number', { min: 1, max: 8, step: 0.5 }],
+    ['cpCones', 'Odměna na trase: šišky', 'number', { min: 0, step: 1 }], ['cpXp', 'Odměna na trase: XP', 'number', { min: 0, step: 1 }],
+    ['finishCones', 'Celá trasa: šišky', 'number', { min: 0, step: 1 }], ['finishXp', 'Celá trasa: XP', 'number', { min: 0, step: 1 }],
+    ['cpRadius', 'Odměna se sebere do (m)', 'number', { min: 5, max: 100, step: 5 }]
   ] },
   { sec: 'world', title: 'Svět (počasí, šero, skrýše, varianty)', fields: [
     ['weather', 'Počasí z MET Norway', 'bool'],

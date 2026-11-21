@@ -100,6 +100,9 @@ export function makeStyle(id, o, ctx) {
   if (o.buildings === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
   if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, paint: { 'raster-opacity': .9 } }); });
   // turistické trasy KČT: bílý okraj a barevný střed jako na značce, naučné stezky čárkovaně
+  add({ id: 'walk-casing', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .9 } });
+  add({ id: 'walk-line', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#e2602a', 'line-width': 5 } });
+  add({ id: 'plan-line', type: 'line', source: 'plan', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['==', ['get', 'sel'], 1], 6, 3], 'line-opacity': ['case', ['==', ['get', 'sel'], 1], 1, .55] } });
   add({ id: 'kct-casing', type: 'line', source: 'kct', layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 8], 'line-opacity': .9 } });
   // line-dasharray nesmí záviset na datech → naučné stezky jako samostatná vrstva
   const kw = ['interpolate', ['linear'], ['zoom'], 11, 1.5, 16, 3.5];
@@ -137,6 +140,8 @@ export function makeStyle(id, o, ctx) {
   };
   if (ctx.demUrl) sources.dem = { type: 'raster-dem', tiles: [ctx.demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 13, attribution: 'Terén: Mapzen/AWS Terrain Tiles' };
   if (ctx.contourUrl) sources.contours = { type: 'vector', tiles: [ctx.contourUrl], maxzoom: 16 };
+  sources.plan = { type: 'geojson', data: ctx.plan || EMPTY };
+  sources.walk = { type: 'geojson', data: ctx.walk || EMPTY };
   sources.kct = { type: 'geojson', data: ctx.kct || EMPTY, attribution: 'Trasy: © přispěvatelé OpenStreetMap' };
   if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => {
     if (o[k] && t !== 'hiking') sources['tr-' + t] = { type: 'raster', tiles: [ctx.trailsUrl.replace('{type}', t)], tileSize: 256, maxzoom: 18, attribution: 'Trasy: <a href="https://waymarkedtrails.org">Waymarked Trails</a> (CC BY-SA)' };

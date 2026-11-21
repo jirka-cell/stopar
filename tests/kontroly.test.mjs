@@ -801,3 +801,31 @@ test('styl mapy: vlastnosti, které MapLibre neumí měnit podle dat, nejsou dat
     for (const k of ['line-dasharray', 'fill-extrusion-opacity', 'raster-opacity']) if (k in p) assert.ok(!JSON.stringify(p[k]).includes('"get"'), `${id}/${l.id}: ${k} nesmí záviset na datech`);
   }
 });
+
+test('plánovač: graf pěšin, nejkratší cesta, okruh dané délky, zjednodušení a polyline do odkazu', async () => {
+  const P = await import('../js/planner.js');
+  // mřížka 7×7 uzlů po ~100 m: vodorovně pěšiny (levné), svisle ulice (dražší)
+  const els = [], id = (r, c) => r * 10 + c + 1;
+  for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) els.push({ type: 'node', id: id(r, c), lat: 50 + r * 0.0009, lon: 14 + c * 0.0014 });
+  for (let r = 0; r < 7; r++) els.push({ type: 'way', id: 1000 + r, tags: { highway: 'footway' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(c => id(r, c)) });
+  for (let c = 0; c < 7; c++) els.push({ type: 'way', id: 2000 + c, tags: { highway: 'residential' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(r => id(r, c)) });
+  const g = P.buildGraph({ elements: els });
+  assert.equal(g.nodes.size, 49);
+  assert.equal(P.nearestNode(g, [50.0001, 14.0001]), id(0, 0));
+  const path = P.route(g, id(0, 0), id(0, 6));
+  assert.equal(path.length, 7, 'po pěšině rovně'); assert.deepEqual(path, [0, 1, 2, 3, 4, 5, 6].map(c => id(0, c)));
+  assert.equal(P.route(g, id(0, 0), 99999), null);
+  const loops = P.suggestLoops(g, [50.0027, 14.0042], 1200);
+  assert.ok(loops.length >= 1, 'aspoň jeden okruh');
+  for (const L of loops) { assert.ok(L.len > 500 && L.len < 2500, 'délka ~1,2 km: ' + Math.round(L.len)); assert.deepEqual(L.coords[0], L.coords.at(-1), 'okruh končí na startu'); }
+  // zjednodušení a polyline
+  const line = [[50, 14], [50.0001, 14.001], [50, 14.002], [50.01, 14.002]];
+  assert.equal(P.simplify(line, 50).length, 3, 'malá odchylka zmizí');
+  const enc = P.encodePolyline([[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]);
+  assert.equal(enc, '_p~iF~ps|U_ulLnnqC_mqNvxq`@', 'vzorový příklad Google');
+  assert.deepEqual(P.decodePolyline(enc), [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]);
+  assert.equal(P.decodePolyline('_p~'), null);
+  const cps = P.checkpointsAlong([[50, 14], [50, 14.01]], 3);
+  assert.equal(cps.length, 3); assert.ok(Math.abs(cps[1][1] - 14.005) < 1e-9, 'prostřední v polovině');
+  assert.equal(P.cleanRoute({ p: enc, n: 'X' }).n, 'X'); assert.equal(P.cleanRoute({ p: '_p~' }), null);
+});

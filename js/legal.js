@@ -1,7 +1,7 @@
 // Úvodní souhlas, zásady ochrany osobních údajů, podmínky a stránka O aplikaci a licence.
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
-export const TERMS_VERSION = 2;
+export const TERMS_VERSION = 3;
 export const APP_VERSION = '3.0.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
@@ -71,6 +71,7 @@ export function privacyHTML(cfg, overpass, back) {
     <li>Waymarked Trails – turistické a cyklotrasy, jen když je vrstva zapnutá (tile.waymarkedtrails.org)</li>
     <li>MET Norway – počasí pro hru (api.met.no); posílá se jen poloha zaokrouhlená na zhruba 10 km</li>
     <li>Wikipedie – popis chráněného území, jen když jeho kartu otevřeš (wikipedia.org)</li>
+    <li>Nominatim (OpenStreetMap) – jen když v plánovači procházek hledáš místo; dostane hledaný text (nominatim.openstreetmap.org)</li>
     <li>GitHub Pages – odkud se aplikace načítá (jirka-cell.github.io)</li>
   </ul>
   <p class="kv">Tyto služby mají vlastní pravidla; my od nich žádná data nedostáváme.</p>
@@ -101,6 +102,7 @@ export function aboutHTML(cfg) {
     <li>Trasy © <a href="https://waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a>, licence CC BY-SA 3.0.</li>
     <li>Počasí: data <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>, licence CC BY 4.0.</li>
     <li>Popisy chráněných území: Wikipedie, licence CC BY-SA 4.0.</li>
+    <li>Vyhledávání míst: Nominatim, data © přispěvatelé OpenStreetMap (ODbL).</li>
   </ul>
   <h3>Software</h3>
   <ul class="facts">
