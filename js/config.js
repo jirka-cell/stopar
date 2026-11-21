@@ -109,6 +109,9 @@ export const DEFAULTS = {
     defaultBiotope: 'louka', // biotop, když OSM nic nemá
     villagePlaces: 'village,hamlet,isolated_dwelling', // place=… vesnice (rozliší vesnici od města)
     townPlaces: 'city,town,suburb,quarter,borough',     // place=… město
+    protectedPaths: true,   // v chráněných územích zvířata jen u cest
+    pathBuffer: 30,         // m – jak daleko od cesty
+    targetTags: 'tourism=viewpoint|Vyhlídka|🔭\nman_made=tower|Rozhledna|🗼\nnatural=peak|Vrchol|⛰️\nhistoric=castle|Hrad nebo zámek|🏰\nhistoric=ruins|Zřícenina|🏚️\nnatural=spring|Pramen|💧\nnatural=cave_entrance|Jeskyně|🕳️',
     villageRadius: 1500     // m – jak daleko hledat nejbližší název obce
   },
   daynight: {
@@ -211,6 +214,40 @@ export const DEFAULTS = {
     releaseBase: 10, releaseRarity: '1:1, 2:2.5, 3:6', // body za vypuštění = základ × vzácnost × (stádium + 1)
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5
   },
+  world: {
+    weather: true,          // počasí z MET Norway (api.met.no, CC BY 4.0)
+    // řádek „stav: druh nebo skupina:násobek, …“; stavy rain (i 3 h po dešti), snow, cold, hot, clear, cloudy
+    weatherBoost: 'rain: hlemyzd:3, kos:2, mlok:3, colek:2, Obojživelníci:1.8\nsnow: konadra:2, modrinka:2, vrabec:1.5, zajic:1.5\ncold: konadra:2, modrinka:2, vrabec:1.5\nhot: jesterka:2.5, zmije:2, slepys:1.5, vazka:2, babocka:2, otakarek:2, Hmyz:1.5\nclear: Hmyz:1.3',
+    twilightFrom: -8, twilightTo: 4, // šero: výška slunce mezi (°) – víc srnců, zajíců, lišek…
+    twilightBoost: 'srnec:3, zajic:2.5, liska:2, jelen:2, netopyr:2, jezek:2, jezevec:1.5, kos:1.5',
+    hideMinutes: 2, hideMove: 15, hideBoost: '2:2, 3:3', // skrýš: v klidu (m) X minut → plašší a vzácnější zvířata
+    quietMonths: '4-7', quietBiotopes: 'mokrad, skaly', // klidová pásma: v chráněném území v době hnízdění nic v rákosí a na skalách
+    variantChance: 0.003, albinGroups: 'Ptáci, Savci, Obojživelníci, Plazi, Ryby', melanGroups: 'Savci, Plazi', melanSpecies: 'zmije:0.08, veverka:0.05',
+    stampRadius: 40, xpStamp: 15
+  },
+  // Sezónní události: od–do jako MM-DD, boost = druh nebo skupina:násobek
+  events: [
+    { id: 'hodinka', name: 'Ptačí hodinka', from: '01-05', to: '01-12', boost: 'Ptáci:1.5', text: 'Velké sčítání ptáků na krmítkách (Česká společnost ornitologická).' },
+    { id: 'zabitah', name: 'Žabí tah', from: '03-10', to: '04-20', boost: 'Obojživelníci:2.5', text: 'Žáby, ropuchy a čolci putují k rybníkům. Na silnicích dávej pozor!' },
+    { id: 'prilet', name: 'Jarní přílet ptáků', from: '03-15', to: '05-10', boost: 'cap:3, konipas:2, kukacka:2, rakosnik:2', text: 'Vracejí se tažní ptáci z Afriky a jižní Evropy.' },
+    { id: 'rije', name: 'Jelení říje', from: '09-15', to: '10-15', boost: 'jelen:3, srnec:1.5', text: 'Jeleni troubí a soupeří o laně – za šera je slyšet daleko.' },
+    { id: 'tah', name: 'Podzimní tah', from: '09-01', to: '10-31', boost: 'Ptáci:1.3', text: 'Ptáci se shromažďují a táhnou na jih.' }
+  ],
+  // Kalendář přírody: text pro každý měsíc (id = číslo měsíce)
+  calendar: [
+    { id: '1', text: 'Nejchladnější měsíc. Ptáci se slétají na krmítka, ve sněhu najdeš stopy zajíců, lišek a srnců.' },
+    { id: '2', text: 'Ozývají se první sýkory a datli bubnují. Lišky mají páření, ve sněhu jsou vidět jejich stopy v řadě.' },
+    { id: '3', text: 'Probouzí se ježci a začíná žabí tah. Vracejí se čápi, kvetou podběly.' },
+    { id: '4', text: 'Ptáci zpívají a stavějí hnízda. Kuká kukačka, objevují se první motýli a ještěrky.' },
+    { id: '5', text: 'Les je plný zpěvu, rodí se srnčata. Létají chrousti a vážky.' },
+    { id: '6', text: 'Ptáci krmí mláďata. Na loukách je spousta hmyzu, v teplých nocích létají netopýři.' },
+    { id: '7', text: 'Horko: u vody vážky a skokani, na sluníčku ještěrky. Mláďata se učí létat.' },
+    { id: '8', text: 'Dozrávají ostružiny a lískové oříšky. Rorýsi a čápi se chystají k odletu.' },
+    { id: '9', text: 'Začíná podzimní tah a jelení říje. Veverky si dělají zásoby.' },
+    { id: '10', text: 'Barevné listí, houby. Ptáci táhnou na jih, ježci se vykrmují na zimu.' },
+    { id: '11', text: 'Ježci, netopýři a plši usínají zimním spánkem. Přilétají zimní hosté ze severu.' },
+    { id: '12', text: 'Zima: stopy ve sněhu, ptáci na krmítkách. Vyvěs lojovou kouli a pozoruj, kdo přiletí.' }
+  ],
   // Obchod: effect = feed (XP jedince = value) | lure (zvíře vždy přijde) | lens (širší zelená zóna) | radius (větší dosah chytání)
   shop: [
     { id: 'krmivo', name: 'Krmivo', icon: '🥣', price: 15, effect: 'feed', value: 15, desc: '+15 XP jedinci, kterého nakrmíš' },
@@ -347,13 +384,28 @@ export const SCHEMA = [
     ['defaultBiotope', 'Výchozí biotop (id)', 'text'],
     ['villagePlaces', 'Názvy obcí = vesnice (place=…)', 'text'],
     ['townPlaces', 'Názvy obcí = město (place=…)', 'text'],
-    ['villageRadius', 'Hledat název obce do (m)', 'number', { min: 100, max: 5000, step: 100 }]
+    ['villageRadius', 'Hledat název obce do (m)', 'number', { min: 100, max: 5000, step: 100 }],
+    ['protectedPaths', 'V chráněných územích zvířata jen u cest', 'bool'],
+    ['pathBuffer', 'Vzdálenost od cesty v chráněném území (m)', 'number', { min: 5, max: 200, step: 5 }],
+    ['targetTags', 'Turistické cíle (řádek: klíč=hodnota|název|ikona)', 'textarea']
   ] },
   { sec: 'daynight', title: 'Den a noc', fields: [
     ['mode', 'Režim', 'select', { options: [['sun', 'Podle slunce'], ['hours', 'Podle hodin'], ['day', 'Vždy den'], ['night', 'Vždy noc']] }],
     ['sunAltitude', 'Noc pod výškou slunce (°)', 'number', { min: -18, max: 5, step: 0.5 }],
     ['nightFrom', 'Noc od (h)', 'number', { min: 0, max: 23, step: 1 }],
     ['nightTo', 'Noc do (h)', 'number', { min: 0, max: 23, step: 1 }]
+  ] },
+  { sec: 'world', title: 'Svět (počasí, šero, skrýše, varianty)', fields: [
+    ['weather', 'Počasí z MET Norway', 'bool'],
+    ['weatherBoost', 'Počasí: násobky druhů (řádek „stav: druh:násobek, …“)', 'textarea'],
+    ['twilightFrom', 'Šero od výšky slunce (°)', 'number', { min: -18, max: 10, step: 1 }], ['twilightTo', 'Šero do výšky slunce (°)', 'number', { min: -18, max: 15, step: 1 }],
+    ['twilightBoost', 'Šero: násobky druhů', 'text'],
+    ['hideMinutes', 'Skrýš: minut bez pohybu', 'number', { min: 1, max: 30, step: 1 }], ['hideMove', 'Skrýš: pohyb do (m)', 'number', { min: 5, max: 100, step: 1 }],
+    ['hideBoost', 'Skrýš: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
+    ['quietMonths', 'Klidová pásma: měsíce', 'text'], ['quietBiotopes', 'Klidová pásma: biotopy (v chráněném území)', 'text'],
+    ['variantChance', 'Barevné varianty: šance (0–1)', 'number', { min: 0, max: 1, step: 0.001 }],
+    ['albinGroups', 'Albíni: skupiny', 'text'], ['melanGroups', 'Tmavá forma: skupiny', 'text'], ['melanSpecies', 'Tmavá forma: druhy se šancí (druh:šance)', 'text'],
+    ['stampRadius', 'Razítko: vzdálenost od cíle (m)', 'number', { min: 10, max: 300, step: 5 }], ['xpStamp', 'Razítko: XP', 'number', { min: 0, step: 1 }]
   ] },
   { sec: 'atlas', title: 'Atlas – odemykání údajů', fields: [
     ['basicAt', 'Zařazení, poznávání, ochrana – po úlovku č.', 'number', { min: 1, max: 50, step: 1 }],
@@ -431,6 +483,11 @@ export const LISTS = [
     ['effect', 'Účinek', 'select', { options: [['feed', 'krmení (XP jedince)'], ['lure', 'návnada'], ['lens', 'objektiv'], ['radius', 'dalekohled']] }],
     ['value', 'Hodnota (XP u krmení)', 'number', { min: 0, step: 1 }], ['desc', 'Popis', 'text']
   ] },
+  { sec: 'events', title: 'Sezónní události', label: o => o.name || o.id, fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['from', 'Od (MM-DD)', 'text'], ['to', 'Do (MM-DD)', 'text'],
+    ['boost', 'Násobky (druh nebo skupina:násobek, …)', 'text'], ['text', 'Popis', 'textarea']
+  ] },
+  { sec: 'calendar', title: 'Kalendář přírody', label: o => 'Měsíc ' + o.id, fields: [['id', 'Měsíc (1–12)', 'text'], ['text', 'Text', 'textarea']] },
   { sec: 'enclosures', title: 'Ubikace ve sbírce', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['groups', 'Skupiny (oddělené čárkou)', 'text']
   ] }
@@ -507,7 +564,7 @@ export function presetLayers(p) {
 }
 
 // Seznamy s id: ukládají se jen změny proti výchozím položkám, nové výchozí položky z aktualizací se doplní
-export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests', 'shop'];
+export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests', 'shop', 'events', 'calendar'];
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 

@@ -47,8 +47,8 @@ test('parseOverpass čte plochy, toky a multipolygon s dírou', () => {
       { type: 'way', role: 'inner', geometry: sq(51.005, 13.005, 0.005) }
     ] },
     { type: 'way', tags: { highway: 'path' }, geometry: sq(50, 12, 0.001) }
-  ] });
-  assert.equal(f.length, 3);
+  ] }).filter(x => x.b);
+  assert.equal(f.length, 3, 'pěšina není biotop (ukládá se zvlášť jako cesta pro chráněná území)');
   assert.deepEqual(f.map(x => [x.b, x.line]), [['les', false], ['voda', true], ['park', false]]);
   assert.equal(f[2].outer.length, 1, 'dvě části vnější hranice se mají spojit do jednoho prstence');
   assert.equal(f[2].inner.length, 1);
@@ -559,4 +559,65 @@ test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce X
   assert.equal(useItem(DEFAULTS, st, 'navnada'), null);
   // vypuštění odebere jedince
   assert.equal(release(DEFAULTS, st, a, { rarity: '1' }), 30); assert.equal(st.animals.length, 0);
+});
+
+test('počasí: stav z odpovědi MET Norway, zaokrouhlená poloha, nový dotaz až po vypršení', async () => {
+  const { weatherFromMet, refreshWeather, weatherCond, weatherKey } = await import('../js/world.js');
+  const now = Date.parse('2026-11-21T10:20:00Z');
+  const met = (sym, t) => ({ properties: { timeseries: [{ time: '2026-11-21T10:00:00Z', data: { instant: { details: { air_temperature: t } }, next_1_hours: { summary: { symbol_code: sym } } } }] } });
+  assert.equal(weatherFromMet(met('lightrain', 8), now).cond, 'rain');
+  assert.equal(weatherFromMet(met('heavysnow', -2), now).cond, 'snow');
+  assert.equal(weatherFromMet(met('cloudy', -3), now).cond, 'cold');
+  assert.equal(weatherFromMet(met('clearsky_day', 28), now).cond, 'hot');
+  assert.equal(weatherKey(50.0755, 14.4378), '50.1,14.4');
+  let calls = 0, url = '';
+  const fetcher = async u => { calls++; url = u; return { ok: true, headers: { get: () => new Date(now + 3600000).toUTCString() }, json: async () => met('rain', 7) }; };
+  const w = await refreshWeather(null, 50.0755, 14.4378, now, fetcher);
+  assert.ok(url.includes('lat=50.1&lon=14.4'), 'jen zaokrouhlená poloha');
+  assert.equal(await refreshWeather(w, 50.08, 14.41, now + 60000, fetcher), w, 'v platnosti bez dotazu');
+  assert.equal(calls, 1);
+  const dry = { ...w, cond: 'cloudy' };
+  assert.equal(weatherCond(dry, now + 3600000), 'rain', 'do 3 h po dešti');
+  assert.equal(weatherCond(dry, now + 4 * 3600000), 'cloudy');
+});
+
+test('svět: události i přes Nový rok, násobky druhů, klidová pásma a barevné varianty', async () => {
+  const { activeEvents, speciesMult, variantFor, wikiOf, protectedType } = await import('../js/world.js');
+  assert.deepEqual(activeEvents(DEFAULTS, new Date(2026, 2, 20)).map(e => e.id).sort(), ['prilet', 'zabitah']);
+  const cfg = { ...DEFAULTS, events: [{ id: 'z', from: '12-20', to: '01-10', boost: 'kos:2' }] };
+  assert.equal(activeEvents(cfg, new Date(2027, 0, 3)).length, 1);
+  assert.equal(activeEvents(cfg, new Date(2027, 0, 11)).length, 0);
+  const sp = id => DEFAULTS.species.find(s => s.id === id);
+  const ctx = { now: new Date(2026, 6, 1), weather: 'rain', twilight: false, hidden: false };
+  assert.equal(speciesMult(DEFAULTS, sp('hlemyzd'), ctx), 3);
+  assert.equal(speciesMult(DEFAULTS, sp('skokan'), ctx), 1.8, 'skupina Obojživelníci');
+  assert.equal(speciesMult(DEFAULTS, sp('srnec'), { ...ctx, weather: '', twilight: true }), 3);
+  assert.equal(speciesMult(DEFAULTS, sp('lednacek'), { ...ctx, weather: '', hidden: true }), 3, 'vzácnost 3 ve skrýši');
+  assert.equal(speciesMult(DEFAULTS, sp('volavka'), { ...ctx, quiet: true, bio: 'mokrad' }), 0);
+  assert.equal(variantFor(DEFAULTS, sp('zmije'), 0.05), 'melan', 'černá zmije je běžná');
+  assert.equal(variantFor(DEFAULTS, sp('kos'), 0.05), '');
+  assert.equal(variantFor(DEFAULTS, sp('kos'), 0.999), 'albin');
+  assert.equal(variantFor(DEFAULTS, sp('babocka'), 0.999), '', 'hmyz albíny nemá');
+  assert.equal(wikiOf({ wikipedia: 'cs:CHKO Křivoklátsko' }).url, 'https://cs.wikipedia.org/wiki/CHKO_K%C5%99ivokl%C3%A1tsko');
+  assert.equal(protectedType({ protect_class: '5' }), 'chráněná krajinná oblast');
+});
+
+test('chráněné území: zvířata jen u cest, turistické cíle se načtou s názvem', async () => {
+  const { spawnAllowed, protectedAt, targetsNear } = await import('../js/osm.js');
+  osmSetConfig(clone(DEFAULTS)); try { await clearOsmCache(); } catch (e) {}
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u, o) => {
+    const q = decodeURIComponent(String(o.body)).slice(5);
+    const els = q.includes('is_in') ? [{ type: 'area', id: 1, tags: { name: 'CHKO Test', protect_class: '5', wikipedia: 'cs:CHKO Test' } }, { type: 'node', id: 7, lat: 49.2004, lon: 16.6004, tags: { tourism: 'viewpoint', name: 'Vyhlídka Test' } }]
+      : [{ type: 'way', id: 2, tags: { highway: 'path' }, geometry: [{ lat: 49.2001, lon: 16.6001 }, { lat: 49.2009, lon: 16.6009 }] }];
+    return { ok: true, json: async () => ({ elements: els }) };
+  };
+  try {
+    ensureArea(49.2005, 16.6005, 10); await new Promise(r => setTimeout(r, 80));
+    assert.equal(protectedAt(49.2005, 16.6005).name, 'CHKO Test');
+    assert.equal(spawnAllowed(49.2005, 16.6005), true, 'u cesty');
+    assert.equal(spawnAllowed(49.2005, 16.6095), false, 'daleko od cesty');
+    const t = targetsNear(49.2005, 16.6005, 100);
+    assert.equal(t.length, 1); assert.equal(t[0].name, 'Vyhlídka Test'); assert.equal(t[0].icon, '🔭');
+  } finally { globalThis.fetch = realFetch; }
 });

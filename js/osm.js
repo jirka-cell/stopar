@@ -7,6 +7,9 @@ let rules = [];          // [{k,v,line,bio,prio}]
 let rulesHash = '';
 let villageMap = {};     // biotop → biotop pro vesnice (např. mesto → vesnice)
 let placeSets = { v: new Set(), t: new Set() };
+let targetRules = [];    // [{k, v, kind, icon}] – turistické cíle
+const PATHS = 'path|footway|track|bridleway|cycleway|steps';
+const PATH_RE = new RegExp('^(' + PATHS + ')$');
 const chunks = new Map(); // key -> features
 const loading = new Map();
 let onChange = () => {};
@@ -26,7 +29,11 @@ export function osmSetConfig(cfg, cb) {
   villageMap = Object.fromEntries(cfg.biotopes.filter(b => b.villageFrom).map(b => [String(b.villageFrom).trim(), b.id]));
   const list = s => new Set(String(s || '').split(',').map(x => x.trim()).filter(Boolean));
   placeSets = { v: list(cfg.osm.villagePlaces), t: list(cfg.osm.townPlaces) };
-  const h = JSON.stringify(rules) + '|' + cfg.osm.chunkDeg + '|places:' + [...placeSets.v, ...placeSets.t].join(',') + '|' + cfg.osm.villageRadius;
+  // turistické cíle: řádek „klíč=hodnota|název druhu|ikona“
+  targetRules = String(cfg.osm.targetTags || '').split('\n').map(l => l.split('|').map(x => x.trim())).filter(([kv]) => kv && kv.includes('='))
+    .map(([kv, kind, icon]) => { const [k, v] = kv.split('='); return { k: k.trim(), v: v.trim(), kind: kind || kv, icon: icon || '📍' }; });
+  const h = JSON.stringify(rules) + '|' + cfg.osm.chunkDeg + '|places:' + [...placeSets.v, ...placeSets.t].join(',') + '|' + cfg.osm.villageRadius
+    + '|t:' + JSON.stringify(targetRules) + '|pa:' + (cfg.osm.protectedPaths ? 1 : 0);
   if (h !== rulesHash) { rulesHash = h; chunks.clear(); }
 }
 
@@ -57,7 +64,10 @@ function buildQuery(bb) {
     const dLat = CFG.osm.villageRadius / 111320, dLon = CFG.osm.villageRadius / (111320 * Math.cos(bb[0] * Math.PI / 180));
     parts.push(`node["place"~"^(${places.join('|')})$"](${bb[0] - dLat},${bb[1] - dLon},${bb[2] + dLat},${bb[3] + dLon});`);
   }
-  return `[out:json][timeout:${CFG.osm.timeout}];(${parts.join('')});out geom;`;
+  for (const t of targetRules) if (/^[\w:]+$/.test(t.k) && /^[\w:]+$/.test(t.v)) parts.push(`node["${t.k}"="${t.v}"]["name"]${box};way["${t.k}"="${t.v}"]["name"]${box};`);
+  // chráněné území: rozhoduje střed čtverce (oblasti z databáze Overpass, bez těžké geometrie hranic)
+  const pa = CFG.osm.protectedPaths ? `is_in(${((bb[0] + bb[2]) / 2).toFixed(5)},${((bb[1] + bb[3]) / 2).toFixed(5)})->.a;(area.a["boundary"="protected_area"];area.a["leisure"="nature_reserve"];area.a["boundary"="national_park"];);out tags;` : '';
+  return `[out:json][timeout:${CFG.osm.timeout}];(${parts.join('')});out geom;${pa}`;
 }
 
 function matchRule(tags, wantLine) {
@@ -99,12 +109,26 @@ function bboxOf(rings) {
   return [s, w, n, e];
 }
 
+const PA_TAGS = ['name', 'protect_class', 'protection_title', 'boundary', 'leisure', 'wikipedia', 'wikidata', 'website', 'operator'];
+const pickTags = t => Object.fromEntries(PA_TAGS.filter(k => t[k]).map(k => [k, String(t[k]).slice(0, 200)]));
 export function parseOverpass(json) {
   const feats = [];
   for (const el of json.elements || []) {
     const tags = el.tags || {};
+    if (el.type === 'area') { feats.push({ pa: pickTags(tags) }); continue; }
+    const tg = tags.name && targetRules.find(t => tags[t.k] === t.v);
+    if (tg) {
+      const pts = el.type === 'node' ? [[el.lat, el.lon]] : (el.geometry || []).map(g => [g.lat, g.lon]);
+      if (pts.length) feats.push({ tg: tg.kind, icon: tg.icon, name: String(tags.name).slice(0, 80), id: el.type[0] + el.id, lat: pts.reduce((a, p) => a + p[0], 0) / pts.length, lon: pts.reduce((a, p) => a + p[1], 0) / pts.length });
+      if (el.type === 'node') continue;
+    }
     if (el.type === 'node') {
       if (tags.place && el.lat != null) feats.push({ pl: tags.place, lat: el.lat, lon: el.lon });
+      continue;
+    }
+    if (el.type === 'way' && el.geometry && PATH_RE.test(tags.highway || '') && !matchRule(tags, true)) {
+      const pts = el.geometry.map(g => [g.lat, g.lon]);
+      feats.push({ path: true, outer: [pts], bb: bboxOf([pts]) });
       continue;
     }
     if (el.type === 'way' && el.geometry) {
@@ -143,7 +167,12 @@ async function loadChunk(key) {
     if (Date.now() < failUntil) throw RETRY_LATER;
     const bb = chunkBBox(key);
     const body = 'data=' + encodeURIComponent(buildQuery(bb));
-    const feats = parseOverpass(await fetchOverpass(body));
+    let feats = parseOverpass(await fetchOverpass(body));
+    // v chráněném území se zvířata objevují jen u cest → stáhnout i pěšiny tohoto čtverce
+    if (feats.some(f => f.pa)) {
+      const q = `[out:json][timeout:${CFG.osm.timeout}];way["highway"~"^(${PATHS})$"](${bb[0]},${bb[1]},${bb[2]},${bb[3]});out geom;`;
+      feats = feats.concat(parseOverpass(await fetchOverpass('data=' + encodeURIComponent(q))).filter(f => f.path));
+    }
     failCount = 0; status.error = '';
     chunks.set(key, feats);
     try { await store.set(cacheKey, { time: Date.now(), features: feats }, 'osm'); } catch (e) {}
@@ -222,7 +251,7 @@ export function biotopeAt(lat, lon) {
   if (!feats) return null;
   let best = null;
   for (const f of feats) {
-    if (f.pl) continue;
+    if (!f.b) continue;
     if (best && f.p >= best.p) continue;
     const bb = f.bb;
     if (f.line) {
@@ -251,8 +280,29 @@ function villageOrTown(feats, lat, lon, b) {
 
 export function loadedFeatures() {
   const out = [];
-  chunks.forEach(f => { for (const x of f) if (!x.pl) out.push(x); });
+  chunks.forEach(f => { for (const x of f) if (x.b) out.push(x); });
   return out;
 }
 
 export async function clearOsmCache() { chunks.clear(); failCount = 0; failUntil = 0; status.error = ''; await store.clear('osm'); }
+
+// Chráněné území v bodě (tagy z OSM) nebo null; undefined = data ještě nejsou
+export function protectedAt(lat, lon) {
+  const feats = chunks.get(chunkKey(lat, lon));
+  if (!feats) return undefined;
+  return (feats.find(f => f.pa) || {}).pa || null;
+}
+// Smí se tu objevit zvíře? V chráněném území jen do pathBuffer m od cesty (aby hra nelákala mimo cesty)
+export function spawnAllowed(lat, lon) {
+  if (!CFG || !CFG.osm.protectedPaths) return true;
+  const feats = chunks.get(chunkKey(lat, lon));
+  if (!feats || !feats.some(f => f.pa)) return true;
+  const buf = Number(CFG.osm.pathBuffer) || 30, pad = buf / mPerDegLat * 1.6;
+  return feats.some(f => f.path && !(lat < f.bb[0] - pad || lat > f.bb[2] + pad || lon < f.bb[1] - pad * 1.6 || lon > f.bb[3] + pad * 1.6) && distToLine(lat, lon, f.outer[0]) <= buf);
+}
+// Turistické cíle v načtených čtvercích do vzdálenosti r (m)
+export function targetsNear(lat, lon, r) {
+  const out = [], seen = new Set();
+  chunks.forEach(f => { for (const x of f) if (x.tg && !seen.has(x.id)) { seen.add(x.id); const d = Math.hypot((x.lat - lat) * mPerDegLat, (x.lon - lon) * mPerDegLon(lat)); if (d <= r) out.push({ ...x, d }); } });
+  return out.sort((a, b) => a.d - b.d);
+}

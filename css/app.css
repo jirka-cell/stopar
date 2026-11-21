@@ -155,3 +155,10 @@ ul.facts{margin:6px 0;padding-left:18px;font-size:13px;line-height:1.45}
 .shopit{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:6px 0;background:#fff;font-size:13px}
 .shopit small{color:var(--mut)}
 .btn:disabled{opacity:.5}
+#hbio{pointer-events:auto;white-space:normal}
+#hbio.link{text-decoration:underline dotted;cursor:pointer}
+.tgmk{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#fff;border:2px solid #b5562b;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}
+.tgmk span{transform:rotate(45deg);font-size:15px}
+.tgmk.done{border-color:var(--acc);background:var(--acc2)}
+.bmk.var-albin img{filter:grayscale(1) brightness(1.6) contrast(.8) drop-shadow(0 0 4px #fff)}
+.bmk.var-melan img{filter:brightness(.45) saturate(.6) drop-shadow(0 0 3px #fff)}

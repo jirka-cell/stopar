@@ -1,7 +1,7 @@
 // Úvodní souhlas, zásady ochrany osobních údajů, podmínky a stránka O aplikaci a licence.
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
-export const TERMS_VERSION = 1;
+export const TERMS_VERSION = 2;
 export const APP_VERSION = '2.0.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
@@ -69,6 +69,8 @@ export function privacyHTML(cfg, overpass, back) {
     <li>Overpass API – data OpenStreetMap o biotopech (${servers})</li>
     <li>Amazon Web Services – výškopis pro vrstevnice a výšková pásma (s3.amazonaws.com)</li>
     <li>Waymarked Trails – turistické a cyklotrasy, jen když je vrstva zapnutá (tile.waymarkedtrails.org)</li>
+    <li>MET Norway – počasí pro hru (api.met.no); posílá se jen poloha zaokrouhlená na zhruba 10 km</li>
+    <li>Wikipedie – popis chráněného území, jen když jeho kartu otevřeš (wikipedia.org)</li>
     <li>GitHub Pages – odkud se aplikace načítá (jirka-cell.github.io)</li>
   </ul>
   <p class="kv">Tyto služby mají vlastní pravidla; my od nich žádná data nedostáváme.</p>
@@ -97,6 +99,8 @@ export function aboutHTML(cfg) {
     <li>Mapové dlaždice <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>, schéma OpenMapTiles.</li>
     <li>Výškopis: Terrain Tiles (Mapzen, AWS Open Data), zdroje mj. SRTM, GMTED, ETOPO1 a EU-DEM (Copernicus).</li>
     <li>Trasy © <a href="https://waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a>, licence CC BY-SA 3.0.</li>
+    <li>Počasí: data <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>, licence CC BY 4.0.</li>
+    <li>Popisy chráněných území: Wikipedie, licence CC BY-SA 4.0.</li>
   </ul>
   <h3>Software</h3>
   <ul class="facts">

@@ -22,7 +22,9 @@ export function currentRegion(cfg) {
  * bioAt / altAt jde podstrčit v testech; v aplikaci čtou biotopy z OSM a výšku z dlaždic Terrarium.
  * altAt vrací metry, null = výška se načítá (zvíře počká), NaN = výška není k dispozici (pásma se ignorují).
  */
-export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt = biotopeAt, altAt = () => NaN) {
+// opts.allow(lat, lon) – smí se tu zvíře objevit (chráněná území jen u cest); opts.mult(sp, bio, lat, lon) – násobek šance
+// (počasí, šero, události, skrýš); opts.twilight – v šeru chodí i noční zvířata; opts.variant(sp, h) – barevná varianta
+export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt = biotopeAt, altAt = () => NaN, opts = {}) {
   const S = cfg.spawn;
   const cell = S.cellSize, r = S.radius;
   const kx = mPerDegLon(Number(S.refLat ?? 50)), ky = mPerDegLat; // pevná šířka, ať mají všichni hráči stejnou mřížku
@@ -54,6 +56,7 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
     if (bio === null) { pending++; continue; }
     const alt = zones.length ? altAt(blat, blon) : NaN;
     if (alt === null) { pending++; continue; }
+    if (opts.allow && !opts.allow(blat, blon)) continue;
     const zone = Number.isNaN(alt) ? null : zoneFor(alt, zones);
     let tot = 0;
     const cand = [];
@@ -61,27 +64,30 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
       let w = (spBio[i][bio] || 0) * (rw[String(s.rarity)] ?? 1);
       // výšková pásma: prázdné = všude; neznámá výška = bez omezení
       if (zone && Object.keys(spAlt[i]).length) w *= spAlt[i][zone] || 0;
-      if (s.night && !night) w = 0;
+      if (s.night && !night) w = opts.twilight ? w * 0.5 : 0;
       else if (!s.night && night) w *= S.nightFactorDay;
+      if (w > 0 && opts.mult) w *= opts.mult(s, bio, blat, blon);
       if (w > 0) { cand.push([s, w]); tot += w; }
     });
     if (!tot) continue;
     let q = hash01(S.seed, cx, cy, slot, 4) * tot, pick = cand[0][0];
     for (const [s, w] of cand) { q -= w; if (q <= 0) { pick = s; break; } }
-    out.push({ id, sp: pick.id, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d });
+    const variant = opts.variant ? opts.variant(pick, hash01(S.seed, cx, cy, slot, 9)) : '';
+    out.push({ id, sp: pick.id, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d, variant });
   }
   return { birds: out, pending };
 }
 
 // Verze algoritmu rozmisťování – zvýšit při každé změně, která mění, kde a jaká zvířata se objeví
-export const SPAWN_ALGO = 4;
+export const SPAWN_ALGO = 5;
 
 // Krátký kód z nastavení, které ovlivňuje rozmístění. Stejný kód = stejná zvířata na stejném místě.
 export function spawnCode(cfg) {
   const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o[k]]));
   const data = [
     SPAWN_ALGO, cfg.spawn, pick(cfg.daynight, ['mode', 'sunAltitude', 'nightFrom', 'nightTo']),
-    pick(cfg.osm, ['chunkDeg', 'lineBuffer', 'defaultBiotope', 'villagePlaces', 'townPlaces', 'villageRadius']),
+    pick(cfg.osm, ['chunkDeg', 'lineBuffer', 'defaultBiotope', 'villagePlaces', 'townPlaces', 'villageRadius', 'protectedPaths', 'pathBuffer']),
+    pick(cfg.world, ['twilightFrom', 'twilightTo', 'twilightBoost', 'quietMonths', 'quietBiotopes', 'variantChance', 'albinGroups', 'melanGroups', 'melanSpecies']), cfg.events,
     cfg.species.map(s => pick(s, ['id', 'active', 'rarity', 'night', 'bio', 'alt', 'months', 'regions'])),
     cfg.rarities, cfg.regions, cfg.biotopes.map(b => pick(b, ['id', 'priority', 'tags', 'villageFrom']))
   ];

@@ -126,7 +126,7 @@ export function makeQuiz(sp, all, rand = Math.random) {
 }
 
 /* ---------- profil ---------- */
-export function profileHTML(cfg, st, lv) {
+export function profileHTML(cfg, st, lv, extra = '') {
   const G = cfg.game, pct = Math.round(lv.into / lv.need * 100);
   const quests = currentQuests(cfg, st);
   const qrow = i => `<div class="quest${i.done ? ' done' : ''}"><span>${i.done ? '✔' : esc(i.t.period === 'week' ? '📅' : '☀️')} ${esc(i.t.name)}</span><span>${i.t.kind === 'walk' ? (i.p / 1000).toFixed(1).replace('.', ',') + ' / ' + (num(i.t.count) / 1000).toFixed(1).replace('.', ',') + ' km' : i.p + ' / ' + num(i.t.count, 1)}</span></div>`;
@@ -138,6 +138,7 @@ export function profileHTML(cfg, st, lv) {
   <h3>Úkoly</h3>${quests.map(qrow).join('') || '<p class="msg small">Žádné úkoly.</p>'}
   <h3>Sběratelská alba</h3><div class="albums">${cfg.albums.map(a => { const p = albumProgress(a, st.caught); return `<div class="album${p.have >= p.total && p.total ? ' done' : ''}"><span class="aic" aria-hidden="true">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${p.have} / ${p.total}</small><div class="prog"><div style="width:${p.total ? p.have / p.total * 100 : 0}%"></div></div></div>`; }).join('')}</div>
   <h3>Odznaky</h3><div class="badges">${cfg.badges.map(b => `<div class="badge${st.badges[b.id] ? ' on' : ''}" title="${esc(b.name)}"><span aria-hidden="true">${esc(b.icon)}</span><small>${esc(b.name)}</small></div>`).join('')}</div>
+  ${extra}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
 export const UNLOCK_NAMES = { shop: 'obchod', release: 'vypouštění', evolve: 'vývoj zvířat', train: 'trénink', contests: 'soutěže', hide: 'skrýše' };
