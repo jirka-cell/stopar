@@ -407,11 +407,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 39);
+  assert.equal(CHECKS.length, 42);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 39);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 42);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
@@ -761,7 +761,10 @@ test('sváteční tvorové: Dušičky, Mikuláš, Vánoce a Velikonoce podle dat
   assert.deepEqual([...got].sort(), ['andel', 'cert'], 'o Mikuláši jen čert a anděl, i ve městě');
   assert.equal(activeWindow(DEFAULTS, new Date(2026, 3, 4, 12).getTime()).fest, 'velikonoce');
   assert.equal(activeWindow({ ...DEFAULTS, world: { ...DEFAULTS.world, festivals: false } }, nik), null);
-  assert.equal(festWindows(2026).length, 4);
+  assert.equal(festWindows(2026).length, 5);
+  const { hradyWindow } = await import('../js/myths.js'), hw = hradyWindow(2026);
+  assert.equal(new Date(hw.from + 86400000).toDateString(), new Date(2026, 7, 29).toDateString(), 'Noc na hradech kolem poslední srpnové soboty');
+  assert.equal(activeWindow(DEFAULTS, new Date(2026, 7, 29, 20).getTime()).fest, 'hrady');
   assert.ok(DEFAULTS.myths.filter(t => t.fest).every(t => t.easy));
 });
 

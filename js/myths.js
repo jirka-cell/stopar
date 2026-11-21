@@ -24,6 +24,8 @@ Object.assign(ART, {
   cert: `${sh}<path d="M100 110q30 4 30 -16q-6 10 -16 8" stroke="#3a2a2a" stroke-width="4" fill="none"/><ellipse cx="80" cy="100" rx="28" ry="26" fill="#5a3a2a"/><circle cx="80" cy="66" r="22" fill="#7a4a3a"/><path d="M62 50l-8 -18l16 10zM98 50l8 -18l-16 10z" fill="#f2e6c8"/>${eye(72, 64, 5)}${eye(88, 64, 5)}<path d="M70 78q10 8 20 0" stroke="#2a1a1a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M80 82q-4 14 4 22" stroke="#e44" stroke-width="5" fill="none" stroke-linecap="round"/>`,
   andel: `${sh}<ellipse cx="50" cy="80" rx="20" ry="30" fill="#fff" stroke="#e0e6f0" stroke-width="2" transform="rotate(-25 50 80)"/><ellipse cx="110" cy="80" rx="20" ry="30" fill="#fff" stroke="#e0e6f0" stroke-width="2" transform="rotate(25 110 80)"/><path d="M80 74L56 126H104Z" fill="#fff8e0"/><circle cx="80" cy="60" r="17" fill="#ffe0c8"/><path d="M63 56q17 -24 34 0q-4 -12 -17 -12t-17 12z" fill="#f2c94c"/><ellipse cx="80" cy="34" rx="16" ry="4" fill="none" stroke="#f2c21b" stroke-width="3"/>${eye(74, 62, 3.5)}${eye(86, 62, 3.5)}`,
   skritek: `${sh}<path d="M62 84h36l6 42H56Z" fill="#c0283a"/><rect x="58" y="100" width="44" height="6" fill="#2b2b2b"/><circle cx="80" cy="72" r="16" fill="#ffd8b8"/><path d="M62 66q18 -48 40 -4z" fill="#2f7d4f"/><circle cx="104" cy="60" r="5" fill="#fff"/><path d="M66 78q14 22 28 0q-2 14 -14 16q-12 -2 -14 -16z" fill="#fff"/>${eye(74, 70, 3)}${eye(86, 70, 3)}`,
+  bilapani: `${sh}<path d="M80 50L50 128H110Z" fill="#f4f6ff" opacity=".9"/><path d="M80 50L58 128" stroke="#dfe3f2" stroke-width="2"/><circle cx="80" cy="46" r="15" fill="#fbfbff"/><path d="M64 44q16 -26 32 0q-4 -14 -16 -14t-16 14z" fill="#e8e0d0"/>${eye(74, 47, 3)}${eye(86, 47, 3)}<path d="M76 55q4 3 8 0" stroke="#a0a6c0" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="80" cy="80" r="40" fill="#e8ecff" opacity=".18"/>`,
+  rytir: `${sh}<rect x="62" y="74" width="36" height="48" rx="6" fill="#9aa4b0"/><rect x="62" y="96" width="36" height="6" fill="#c0283a"/><circle cx="80" cy="56" r="18" fill="#b8c0ca"/><rect x="66" y="52" width="28" height="6" rx="2" fill="#2b2f36"/><path d="M80 38v-12" stroke="#d9442b" stroke-width="5" stroke-linecap="round"/><path d="M104 70v50" stroke="#c8ccd2" stroke-width="5" stroke-linecap="round"/><path d="M98 76h12" stroke="#8a6a3a" stroke-width="5" stroke-linecap="round"/>`,
   zajicek: `${sh}<ellipse cx="68" cy="40" rx="8" ry="24" fill="#f2ebe2"/><ellipse cx="92" cy="40" rx="8" ry="24" fill="#f2ebe2"/><ellipse cx="68" cy="42" rx="4" ry="16" fill="#ffc0cf"/><ellipse cx="92" cy="42" rx="4" ry="16" fill="#ffc0cf"/><ellipse cx="80" cy="100" rx="28" ry="26" fill="#f2ebe2"/><circle cx="80" cy="70" r="20" fill="#f7f1ea"/>${eye(73, 68, 4)}${eye(87, 68, 4)}<ellipse cx="80" cy="78" rx="4" ry="3" fill="#ff8fab"/><ellipse cx="112" cy="116" rx="9" ry="12" fill="#7ac2e8"/><path d="M104 114h16M104 120h16" stroke="#fff" stroke-width="2"/>`
 });
 export const mythURL = m => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 140">${ART[m.id] || ART.bludicka}</svg>`);
@@ -46,6 +48,12 @@ export function easter(y) {
   const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
   return new Date(y, month - 1, day);
 }
+// Noc na hradech: pátek až neděle kolem poslední soboty v srpnu (shortcut: pevné pravidlo, skutečné datum akcí se může lišit)
+export function hradyWindow(year) {
+  const d = new Date(year, 7, 31); while (d.getDay() !== 6) d.setDate(d.getDate() - 1);
+  const sat = d.getTime();
+  return { season: 'fest', fest: 'hrady', name: 'Noc na hradech', from: sat - 86400000, to: sat + 2 * 86400000 - 1 };
+}
 // Sváteční dny: speciální tvorové pro děti (lehčí na chycení), všude, ne jen u biotopu
 export function festWindows(year) {
   const d = (m, day) => new Date(year, m, day).getTime(), e = easter(year).getTime();
@@ -53,7 +61,8 @@ export function festWindows(year) {
     { season: 'fest', fest: 'dusicky', name: 'Dušičky', from: d(9, 30), to: d(10, 3) - 1 },
     { season: 'fest', fest: 'mikulas', name: 'Mikuláš', from: d(11, 4), to: d(11, 7) - 1 },
     { season: 'fest', fest: 'vanoce', name: 'Vánoce', from: d(11, 23), to: d(11, 27) - 1 },
-    { season: 'fest', fest: 'velikonoce', name: 'Velikonoce', from: e - 2 * 86400000, to: e + 2 * 86400000 - 1 }
+    { season: 'fest', fest: 'velikonoce', name: 'Velikonoce', from: e - 2 * 86400000, to: e + 2 * 86400000 - 1 },
+    hradyWindow(year)
   ];
 }
 export const activeWindow = (cfg, now = Date.now()) => {
@@ -94,4 +103,12 @@ export function mythsHTML(cfg, st) {
   return `<div class="grp">🔮 Tajná sekce – bájní tvorové (${n} / ${reg.length})</div><div class="grid">${reg.map(card).join('')}</div>`
     + (fes.length ? `<div class="grp">🎉 Sváteční tvorové (${nf} / ${fes.length})</div><div class="grid">${fes.map(card).join('')}</div>` : '');
 }
-export const FEST_NAMES = { dusicky: 'Dušičky', mikulas: 'Mikuláš', vanoce: 'Vánoce', velikonoce: 'Velikonoce' };
+export const FEST_NAMES = { dusicky: 'Dušičky', mikulas: 'Mikuláš', vanoce: 'Vánoce', velikonoce: 'Velikonoce', hrady: 'Noc na hradech' };
+// Pověsti: kde a kdy se který tvor ukazuje (z nastavení tvorů)
+export function legendsHTML(cfg, st, BIO, daysTo) {
+  const reg = cfg.myths.filter(t => !t.fest);
+  return `<h2>📜 Pověsti</h2><p class="msg small">České pověsti o tvorech z tajné sekce. Ukazují se jen 2× ročně na pár dní, každý u svého místa.${daysTo != null ? ` Další bájné dny začnou za <b>${daysTo}</b> dní.` : ''}</p>
+  ${reg.map(t => { const where = String(t.bio || '').split(',').map(x => x.trim()).filter(Boolean).map(b => (BIO[b] ? BIO[b].name : b.replace('_', ' '))).join(', ') || 'kdekoli';
+    return `<div class="fcard"><div class="fico"><img src="${mythURL(t)}" alt="" style="width:44px;height:38px;object-fit:contain${st.myths[t.id] ? '' : ';filter:grayscale(1) opacity(.5)'}"></div><div class="finfo"><b>${st.myths[t.id] ? esc(t.name) : '???'}</b><small>📍 ${esc(where)}${t.night ? ' · 🌙 jen v noci' : ''}${t.months ? ' · měsíce ' + esc(t.months) : ''}</small><small>${esc(t.fact || '')}</small></div></div>`; }).join('')}
+  <button class="btn full ghost" data-act="close">Zavřít</button>`;
+}

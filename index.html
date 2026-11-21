@@ -18,23 +18,20 @@
 <body>
 <div id="app">
   <header>
-    <h1 id="logo">Stopař</h1>
-    <span class="sp"></span>
-    <span class="pill" id="hgps" title="Přesnost GPS">GPS –</span>
-    <button class="hbtn lvl" id="lvlBtn" aria-label="Úroveň a úkoly">Úr. 1</button>
-    <button class="hbtn" id="coneBtn" aria-label="Šišky a obchod">0</button>
+    <div class="htitle"><h1 id="logo">Stopuj s Aegonem</h1><div class="hsub" id="hbio">–</div></div>
+    <div class="hstat"><span id="hgps" title="Přesnost polohy">GPS –</span><span id="hdist">dnes 0,0 km</span></div>
+    <button class="rose" id="roseBtn" aria-label="Sever a kompas"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/><g id="roseN"><path d="M20 4l5 16h-10z" fill="#d9442b"/><path d="M20 36l-5-16h10z" fill="currentColor" fill-opacity=".55"/><circle cx="20" cy="20" r="2.2" fill="#fff" stroke="currentColor" stroke-width="1"/></g><text x="20" y="3.6" text-anchor="middle" font-size="5" font-weight="700" fill="#d9442b" id="roseL">S</text></svg></button>
+    <button class="hbtn" id="lvlBtn" aria-label="Úroveň a úkoly" hidden>Úr. 1</button>
+    <button class="hbtn" id="coneBtn" aria-label="Šišky a obchod" hidden>0</button>
     <button class="hbtn" id="menuBtn" aria-label="Menu">Menu</button>
   </header>
   <main>
     <section class="view on" id="mapv">
       <div id="map"></div>
-      <div class="hud">
-        <div class="pill" id="hbio">Biotop: –</div>
-        <div class="pill" id="hdist">0,0 km</div>
-      </div>
       <div class="banner" id="banner" hidden></div>
       <div class="netmon" id="netmon" role="button" tabindex="0" aria-label="Stahovaná data" hidden></div>
       <div class="maptools" id="tools">
+        <button class="tool" id="centerBtn"><span data-ic="center"></span><b>Na mě</b></button>
         <button class="tool" data-tool="tester" id="clFab" hidden><span data-ic="tester"></span><b>Testeři</b></button>
         <button class="tool" data-tool="data"><span data-ic="data"></span><b>Data</b></button>
         <button class="tool" data-tool="offline"><span data-ic="offline"></span><b>Offline</b></button>
@@ -42,7 +39,6 @@
         <button class="tool" id="lookBtn" hidden><span data-ic="layers"></span><b>Vrstvy</b></button>
         <button class="tool" id="compassBtn" hidden><span data-ic="compass"></span><b>Kompas</b></button>
       </div>
-      <button class="recenter" id="centerBtn" aria-label="Vycentrovat na mě"><span data-ic="center"></span> Na mě</button>
       <div class="cards" id="cards" aria-live="polite"></div>
       <button class="dial" id="dialBtn" aria-label="Otevřít nabídku" aria-expanded="false"><span data-ic="dial"></span></button>
       <div class="legend" id="legend"></div>

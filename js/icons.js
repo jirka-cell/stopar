@@ -6,7 +6,8 @@ export const ICON_FILES = new Set([/* např. 'map', 'atlas' */]);
 export const IC = {
   // spodní lišta a hlavní tlačítka
   map: '🗺️', collection: '🐾', atlas: '📖', me: '🐕', dial: '✚', close: '✕',
-  catch: '📷', route: '🥾', plan: '🧭', center: '◎',
+  catch: '📷', route: '🥾', plan: '🧭',
+  center: '<svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M12 2.5 4.6 20.2l.8.8L12 18.2l6.6 2.8.8-.8z" fill="currentColor"/></svg>',
   // nástroje mapy
   compass: '🧭', layers: '🗂️', measure: '📏', offline: '⬇️', data: '📶', tester: '📋',
   // Já – Ven

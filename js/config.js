@@ -19,12 +19,13 @@ export const DEFAULTS = {
   version: CONFIG_VERSION,
   general: {
     appName: 'Stopař',
+    headerTitle: 'Stopuj s Aegonem', // nápis v horní liště
     adminPin: '1234',
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
     testerFab: true,
-    dataMonitor: true,      // ukazatel stahovaných dat v rohu mapy (ladění; v ostrém vydání vypnout)        // plovoucí tlačítko kontrolního seznamu pro testery (vpravo dole)
+    dataMonitor: false,     // ukazatel stahovaných dat v rohu mapy (ladění) – čistá plocha: výchozí vypnuto        // plovoucí tlačítko kontrolního seznamu pro testery (vpravo dole)
     monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
@@ -261,6 +262,8 @@ export const DEFAULTS = {
     { id: 'cert', name: 'Čertík', fest: 'mikulas', easy: true, bio: '', months: '', night: false, active: true, fact: 'S Mikulášem chodí 5. prosince. Zlobivým nosí uhlí – ale tenhle je spíš rošťák než zlý.' },
     { id: 'andel', name: 'Anděl', fest: 'mikulas', easy: true, bio: '', months: '', night: false, active: true, fact: 'Mikulášův pomocník, který zapisuje dobré skutky a nosí dětem dárky.' },
     { id: 'skritek', name: 'Vánoční skřítek', fest: 'vanoce', easy: true, bio: '', months: '', night: false, active: true, fact: 'Pomáhá balit dárky a v zimě sype ptáčkům do krmítek. Zkus to taky!' },
+    { id: 'bilapani', name: 'Bílá paní', fest: 'hrady', easy: true, bio: '', months: '', night: false, active: true, fact: 'Strážkyně hradů z pověstí. Když se ukáže, prý ohlašuje radost nebo smutek rodu – dnes spíš dobrou výpravu.' },
+    { id: 'rytir', name: 'Duch rytíře', fest: 'hrady', easy: true, bio: '', months: '', night: false, active: true, fact: 'Bez hlavy se nebojí! Hlídá hradby a vypráví o obléhání. Na zříceninách dnes žijí hlavně netopýři.' },
     { id: 'zajicek', name: 'Velikonoční zajíček', fest: 'velikonoce', easy: true, bio: '', months: '', night: false, active: true, fact: 'Schovává barevná vajíčka. Skuteční zajíci mají na jaře mláďata – nechte je v klidu.' },
     { id: 'snezny', name: 'Sněžný muž', bio: 'hory, nad_lesem', months: '12-2', night: false, active: true, fact: 'Chlupatý obr z hor. Viděli ho jen ti nejtrpělivější – a nikdo mu nevěří.' },
     { id: 'vila', name: 'Víla', bio: 'louka, park', months: '6-8', night: false, active: true, fact: 'Tančí na rozkvetlých loukách za letních dnů. Kdo ji vyfotí, má prý štěstí celý rok.' },
@@ -306,6 +309,7 @@ export const DEFAULTS = {
     moveDays: 0,            // přesouvání budov: 0 = kdykoli (testování), později 30 = jednou za měsíc
     capacityCheck: false,   // DOČASNĚ vypnuto: chycená zvířata se ukládají bez ohledu na volná místa v příbytku
     testTools: true,        // testování: +1/−1 úroveň zdarma, prázdná farma znovu
+    breedChance: 0.15,      // chov: denní šance na mládě (dvojice v příbytku úr. 2+)
     deedDays: 30            // skutečný čin (budka, krmítko…) stejného druhu jednou za tolik dní
   },
   games: {
@@ -374,7 +378,7 @@ export const DEFAULTS = {
 // Popis polí pro admin (generický formulář). [klíč, popisek, typ, volby]
 export const SCHEMA = [
   { sec: 'general', title: 'Obecné', fields: [
-    ['appName', 'Název aplikace', 'text'],
+    ['appName', 'Název aplikace', 'text'], ['headerTitle', 'Nápis v horní liště', 'text'],
     ['adminPin', 'PIN do adminu', 'text'],
     ['simulation', 'Simulace chůze ťukáním do mapy (bez GPS)', 'bool'],
     ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
@@ -493,7 +497,7 @@ export const SCHEMA = [
   ] },
   { sec: 'farm', title: 'Moje farma', fields: [
     ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }], ['moveDays', 'Přesun budov jednou za (dní, 0 = kdykoli)', 'number', { min: 0, max: 365, step: 1 }],
-    ['capacityCheck', 'Hlídat kapacitu příbytků při chytání', 'bool'], ['testTools', 'Testovací nástroje farmy (+1/−1, prázdná farma)', 'bool'], ['deedDays', 'Skutečný čin stejného druhu jednou za (dní)', 'number', { min: 0, max: 365, step: 1 }]
+    ['capacityCheck', 'Hlídat kapacitu příbytků při chytání', 'bool'], ['testTools', 'Testovací nástroje farmy (+1/−1, prázdná farma)', 'bool'], ['deedDays', 'Skutečný čin stejného druhu jednou za (dní)', 'number', { min: 0, max: 365, step: 1 }], ['breedChance', 'Chov: denní šance na mládě', 'number', { min: 0, max: 1, step: 0.05 }]
   ] },
   { sec: 'games', title: 'Minihry', fields: [
     ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
@@ -609,7 +613,7 @@ export const LISTS = [
   ] },
   { sec: 'myths', title: 'Bájní tvorové (tajná sekce)', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['active', 'Aktivní', 'bool'], ['bio', 'Biotopy nebo výšková pásma (id, …)', 'text'],
-    ['months', 'Měsíce (prázdné = celý rok)', 'text'], ['night', 'Jen v noci', 'bool'], ['fest', 'Svátek (dusicky, mikulas, vanoce, velikonoce; prázdné = bájný tvor)', 'text'], ['easy', 'Lehčí chytání (pro děti)', 'bool'], ['fact', 'Pověst / zajímavost', 'textarea']
+    ['months', 'Měsíce (prázdné = celý rok)', 'text'], ['night', 'Jen v noci', 'bool'], ['fest', 'Svátek (dusicky, mikulas, vanoce, velikonoce, hrady; prázdné = bájný tvor)', 'text'], ['easy', 'Lehčí chytání (pro děti)', 'bool'], ['fact', 'Pověst / zajímavost', 'textarea']
   ] },
   { sec: 'events', title: 'Sezónní události', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['from', 'Od (MM-DD)', 'text'], ['to', 'Do (MM-DD)', 'text'],

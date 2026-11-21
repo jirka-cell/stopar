@@ -29,7 +29,7 @@ import { planUrls, estimate, download as offlineDownload, removeUrls, cleanAreas
 import { buildGraph, graphQuery, suggestLoops, loopThrough, nearestNode, simplify, encodePolyline, decodePolyline, checkpointsAlong, cleanRoute, pathLength, plannerHTML, choiceHTML, ROUTE_COLORS, viaIndex, profile, walkMinutes, pointsHTML, progressAlong, fmtMin } from './planner.js';
 import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './trails.js';
 import { cleanTreasure, treasureLink, decodeTreasure, searchCircle, treasuresHTML, treasureFormHTML, feedersNear, feederReward, parkCell, cleanPlaces, distM } from './treasure.js';
-import { mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML } from './myths.js';
+import { legendsHTML, mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML } from './myths.js';
 import { nextSpeed, muteState, attachGestures, whatsHereHTML, stepKind } from './mapui.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
@@ -120,7 +120,7 @@ function initDog() {
   const el = $('dog'); if (!el) return;
   el.hidden = !cfg.dog.enabled; el.style.setProperty('--dog', cfg.dog.size + 'px');
   if (!cfg.dog.enabled) { if (dog) { dog.stop(); dog = null; } return; }
-  if (!dog) { dog = new Dog(el, cfg); dog.start(); bindDogDrag(); placeDog(); }
+  if (!dog) { dog = new Dog(el, cfg); dog.start(); bindDogDrag(); placeDog(); dog.update({ inRange: false, near: false, dir: 1, walking: false, idleMs: 0, night: false }); } // obrázek hned, i bez polohy
   dog.cfg = cfg; updateDog();
 }
 // Co pes vidí: zvíře v dosahu (vystaví), blízko (čenichá), chůze hráče, jak dlouho je klid
@@ -370,7 +370,7 @@ function applyConfig(first) {
   RAR = Object.fromEntries(cfg.rarities.map(r => [String(r.id), r]));
   osmSetConfig(cfg, () => { refreshBirds(); if (cfg.general.showBiotopes) drawBiotopes(); });
   elevSetConfig(cfg, () => { refreshBirds(); if (pos.lat != null) hudBio(); const L = pl.loops[pl.sel]; if (L && L.prof && !L.prof.ready && !$('plpanel').hidden) showPlanPanel(); });
-  $('logo').textContent = cfg.general.appName;
+  $('logo').textContent = cfg.general.headerTitle || cfg.general.appName;
   document.title = cfg.general.appName;
   $('legend').innerHTML = cfg.biotopes.map(b => `<span><i style="background:${esc(b.color)}"></i>${esc(b.name)}</span>`).join('');
   $('legend').classList.toggle('on', !!cfg.general.showBiotopes);
@@ -476,7 +476,10 @@ function initMap() {
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
   // atribuce sbalená do (i), ať nezakrývá mapu ani Aegona
   map.once('load', () => document.querySelectorAll('.maplibregl-ctrl-attrib').forEach(el => el.classList.remove('maplibregl-compact-show')));
-  map.addControl(new maplibregl.NavigationControl({ showZoom: false, visualizePitch: true }), 'top-right');
+  // růžice v horní liště: ukazuje sever; ťuk = zpět na sever, druhý ťuk = kompas (pokud je zapnutý v nastavení)
+  const rose = () => { const n = $('roseN'); if (n) n.setAttribute('transform', 'rotate(' + (-map.getBearing()) + ' 20 20)'); document.body.classList.toggle('flatmap', map.getPitch() < 15); };
+  map.on('rotate', rose); map.on('pitch', rose); map.on('load', rose);
+  $('roseBtn').onclick = () => { if (compassOn) { toggleCompass(); map.easeTo({ bearing: 0, duration: 400 }); } else if (Math.abs(map.getBearing()) > 1) map.easeTo({ bearing: 0, duration: 400 }); else if (cfg.map.compass) toggleCompass(); else toast('Mapa je natočená na sever.'); };
   // Ťuknutí na severku vypne režim kompasu a vrátí mapu na sever
   setTimeout(() => { const c = document.querySelector('.maplibregl-ctrl-compass'); if (c) c.addEventListener('click', () => { if (compassOn) toggleCompass(); }); }, 0);
   const me = document.createElement('div'); me.className = 'me'; me.innerHTML = '<i class="dir"></i>';
@@ -778,6 +781,8 @@ function smartCards() {
   if (pos.lat == null) return out;
   if (state.walk && !state.walk.done) { const i = walkInfo(); out.push({ id: 'walk', ic: 'route', t: state.walk.n, s: `${km(i.done)} z ${km(i.total)} km${i.rewards ? ' · ' + i.rewards + ' 🎁' : ''} · cíl kolem ${i.eta}`, b: 'Trasa' }); }
   const m = birds.find(b => b.myth && dist(pos.lat, pos.lon, b.lat, b.lon) <= cfg.spawn.radius);
+  const dt = daysToWindow(cfg);
+  if (!m && dt != null && dt <= 3) out.push({ id: 'omen', ic: 'myth', t: 'Zvláštní stopy… 👣', s: dt <= 0 ? 'Bájní tvorové jsou blízko!' : 'Za ' + dt + ' dn' + (dt === 1 ? 'í' : 'y') + ' začnou bájné dny', b: 'Pověsti', at: null });
   if (m) out.push({ id: 'myth', ic: 'myth', t: 'Poblíž je bájný tvor!', s: Math.round(dist(pos.lat, pos.lon, m.lat, m.lon)) + ' m – rychle, než zmizí', b: 'Ukázat', at: [m.lat, m.lon] });
   if (cfg.world.feeders) {
     const P = placesToday(), f = feedersHere().filter(x => !P.feeders.includes(x.id)).map(x => ({ x, d: dist(pos.lat, pos.lon, x.lat, x.lon) })).filter(x => x.d <= 400).sort((a, b) => a.d - b.d)[0];
@@ -790,6 +795,7 @@ function renderCards() {
   const el = $('cards'); if (!el) return;
   const list = !$('plpanel').hidden ? [] : smartCards(), key = JSON.stringify(list.map(c => [c.id, c.t, c.s]));
   if (key === cardsKey) return; cardsKey = key; cardsData = list;
+  $('dialBtn').classList.toggle('badge', list.length > 0);
   el.innerHTML = list.map((c, i) => `<div class="scard">${ic(c.ic)}<div><b>${esc(c.t)}</b><small>${esc(c.s)}</small></div><button class="btn sm primary" data-ci="${i}">${esc(c.b)}</button><button class="x" data-cx="${i}" aria-label="Schovat">✕</button></div>`).join('');
 }
 let cardsData = [];
@@ -799,6 +805,7 @@ function onCardClick(e) {
   if (!b) return;
   const c = cardsData[Number(b.dataset.ci)]; if (!c) return;
   if (c.id === 'walk') openWalkMgr();
+  else if (c.id === 'omen') openM(legendsHTML(cfg, state, BIO, daysToWindow(cfg)));
   else if (c.at && map) { follow = false; lastTouch = Date.now(); document.body.classList.add('away'); map.flyTo({ center: [c.at[1], c.at[0]], zoom: Math.max(map.getZoom(), 16), duration: 800 }); }
 }
 // Správa trasy při chůzi
@@ -940,7 +947,7 @@ function refreshBirds() {
     if (!m) {
       const el = document.createElement('div');
       el.className = 'bmk' + (near ? '' : ' far') + (speciesLocked(sp) ? ' locked' : '') + (b.variant ? ' var-' + b.variant : '');
-      el.innerHTML = b.track && !tracked.has(b.id) ? '<span class="paw" aria-label="Stopa">🐾</span>' : cfg.map.classMarkers ? `<span class="cls" role="img" aria-label="${esc(sp.group || 'Zvíře')}">${ic(classIcon(sp.group))}</span>` : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`;
+      el.innerHTML = (b.track && !tracked.has(b.id) ? '<span class="paw" aria-label="Stopa">🐾</span>' : cfg.map.classMarkers ? `<span class="cls" role="img" aria-label="${esc(sp.group || 'Zvíře')}">${ic(classIcon(sp.group))}</span>` : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`) + '<i class="pin" aria-hidden="true"></i>';
       el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
     } else m.el.classList.toggle('far', !near);
@@ -1460,27 +1467,27 @@ function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
 function hudBio() {
   const b = biotopeAt(pos.lat, pos.lon);
   const hb = $('hbio');
-  let t = 'Biotop: ' + (b === null ? 'načítám…' : (BIO[b] ? BIO[b].name : b));
-  const alt = elevationAt(pos.lat, pos.lon), zone = Number.isFinite(alt) ? zoneFor(alt, parseZones(currentRegion(cfg).zones)) : null;
-  if (Number.isFinite(alt)) t += ' · ' + alt + ' m' + (zone ? ' ' + zoneName(zone) : '');
+  let t = b === null ? 'načítám…' : (BIO[b] ? BIO[b].name : b);
+  const alt = elevationAt(pos.lat, pos.lon);
+  if (Number.isFinite(alt)) t += ' · ' + alt + ' m';
   if (isNight()) t += ' · noc'; else if (isTwilight()) t += ' · šero';
   const wc = cfg.world.weather ? weatherCond(weather) : '';
-  if (wc) t += ' · ' + WEATHER_ICON[wc] + (weather.temp != null ? ' ' + weather.temp + ' °C' : '');
+  if (wc) t += ' · ' + WEATHER_ICON[wc] + (weather.temp != null ? ' ' + weather.temp + '°' : '');
   if (hidden) t += ' · skrýš';
   const pa = protectedAt(pos.lat, pos.lon);
-  if (pa) t += ' · 🛡️ ' + (pa.name || protectedType(pa));
+  if (pa) t += ' · 🛡️';
   hb.classList.toggle('link', !!pa);
   const err = errorAt(pos.lat, pos.lon);
-  if (err) { t += ' · OSM chyba'; hb.classList.add('bad'); hb.title = err; } else { hb.classList.remove('bad'); hb.title = ''; }
+  if (err) { t += ' · ⚠️'; hb.classList.add('bad'); hb.title = err; } else { hb.classList.remove('bad'); hb.title = ''; }
   hb.textContent = t;
 }
 // V simulaci se ukazují simulované km; do skutečné ušlé vzdálenosti se nepočítají
-function hudDist() { $('hdist').textContent = ((cfg.general.simulation ? state.simDist : state.dist) / 1000).toFixed(1).replace('.', ',') + ' km' + (cfg.general.simulation ? ' (sim.)' : ''); }
+function hudDist() { const m = cfg.general.simulation ? state.simDist : (state.walkDays[dayStr(new Date())] || 0); $('hdist').textContent = 'dnes ' + (m / 1000).toFixed(1).replace('.', ',') + ' km' + (cfg.general.simulation ? ' (sim.)' : ''); }
 function hudGPS() {
   const g = $('hgps');
   if (cfg.general.simulation) { g.textContent = 'Simulace'; g.classList.remove('bad'); return; }
   if (pos.src !== 'gps') { g.textContent = 'GPS –'; g.classList.add('bad'); return; }
-  g.textContent = 'GPS ±' + Math.round(pos.acc) + ' m';
+  g.textContent = '±' + Math.round(pos.acc) + ' m';
   g.classList.toggle('bad', pos.acc > cfg.gps.maxAccuracy);
 }
 
@@ -1544,7 +1551,7 @@ function bindUI() {
   $('sbirkav').addEventListener('click', e => { if (e.target.closest('[data-act=farm]')) openFarm(); });
   $('farmv').addEventListener('click', onFarmClick);
   $('jav').addEventListener('change', e => { onModalChange(e); });
-  $('centerBtn').onclick = () => { follow = true; document.body.classList.remove('away'); if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); };
+  $('centerBtn').onclick = () => { setUi(false); follow = true; document.body.classList.remove('away'); if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); };
   $('compassBtn').onclick = toggleCompass;
   $('lookBtn').onclick = () => { setUi(false); openLook(); };
   $('menuBtn').onclick = () => { if (kidMode() && !document.body.classList.contains('parent')) parentGate(); else show('jav'); };
@@ -1640,10 +1647,21 @@ function ensureFarm() {
   for (const e of cfg.enclosures) if (!(('enc_' + e.id) in state.farm.lv)) state.farm.lv['enc_' + e.id] = 0;
   return state.farm;
 }
+// Chov: druh s aspoň 2 jedinci v postaveném příbytku úrovně 2+ → šance na mládě (průměr rodičů, stádium 0)
+function breedOne(f, rnd = Math.random) {
+  const by = {};
+  for (const a of state.animals) { const sp = SP[a.sp]; if (!sp) continue; const e = enclosureOf(cfg, sp.group); if ((f.lv['enc_' + e.id] || 0) >= 2) (by[a.sp] ||= []).push(a); }
+  const pairs = Object.values(by).filter(l => l.length >= 2);
+  if (!pairs.length || rnd() > Number(cfg.farm.breedChance ?? 0.15)) return null;
+  const l = pairs[Math.floor(rnd() * pairs.length)], [p1, p2] = l;
+  const young = animalFrom(p1.sp, p1.stats.map((v, i) => Math.round((v + (p2.stats[i] || v)) / 2)), Math.round((p1.q + p2.q) / 2), p1.bio);
+  state.animals.push(young); return young;
+}
 function farmTick(quiet) {
   if (!cfg.farm.enabled) return;
   const f = ensureFarm(), got = farmAdvance(f, Date.now(), state.inv);
   const gd = today(), n = Object.values(f.guests).reduce((a, g) => a + g.length, 0);
+  if (f.breedDay !== gd) { f.breedDay = gd; const born = breedOne(f); if (born && !quiet) toast('🐣 Na farmě se narodilo mládě: ' + SP[born.sp].name + '!'); }
   if (n && f.guestDay !== gd) { f.guestDay = gd; f.res.seeds += n * 2; if (!quiet) toast('🐾 Hosté na farmě přinesli ' + n * 2 + ' semínek.'); }
   const pick = autoPick(f, BUILDINGS.map(b => b.id)); if (pick) startBuild(f, pick, state.cones);
   if (got.built && !quiet) { const b = BUILDINGS.find(x => x.id === got.built), e = cfg.enclosures.find(x => 'enc_' + x.id === got.built); toast('🏡 Farma: hotovo – ' + (b ? b.name : e ? e.name : got.built) + ' úr. ' + f.lv[got.built]); }
@@ -2003,6 +2021,7 @@ function onModalClick(e) {
   else if (act === 'nickEdit') askNick(true);
   else if (act === 'farm') openFarm();
   else if (act === 'injured') openM(injuredHTML());
+  else if (act === 'legends') openM(legendsHTML(cfg, state, BIO, daysToWindow(cfg)));
   else if (act === 'taskAns') answerTask(Number(a.dataset.i));
   else if (act === 'farmBuild') { const r = startBuild(ensureFarm(), a.dataset.id, state.cones); if (r.err) toast(r.err); else { if (r.cones) { state.cones -= r.cones; hudCones(); } saveState(); toast('🔨 Stavba začala.'); } if ($('farmv').classList.contains('on')) refreshFarmView(); else openFarm(true); }
   else if (act === 'nightCfg') openM(nightHTML());
@@ -2141,7 +2160,7 @@ function filterBar(all) {
 }
 // Atlas zvířat: druhy + poznávání (klíč, deník, kalendář, zraněné zvíře) na jednom místě
 function atlasTabs() {
-  const t = [['key', 'key', 'Určovací klíč'], ['journal', 'journal', 'Deník'], ['calendar', 'calendar', 'Kalendář'], ['injured', 'injured', 'Zraněné zvíře']];
+  const t = [['key', 'key', 'Určovací klíč'], ['journal', 'journal', 'Deník'], ['calendar', 'calendar', 'Kalendář'], ['legends', 'myth', 'Pověsti'], ['injured', 'injured', 'Zraněné zvíře']];
   return `<div class="atabs"><button class="on">${ic('atlas')} Druhy</button>${t.map(([a, i, n]) => `<button data-act="${a}">${ic(i)} ${n}</button>`).join('')}</div>`;
 }
 function renderAtlas() {

@@ -53,6 +53,7 @@ export function cleanFarm(f, encIds) {
   out.seed = Math.max(1, Math.round(num(f.seed, 1 + (Math.round(num(f.t)) % 99991))));
   out.guests = Object.fromEntries(Object.entries(f.guests || {}).map(([k, v]) => [String(k).slice(0, 30), (Array.isArray(v) ? v : []).map(String).slice(0, 8)]));
   out.guestDay = String(f.guestDay || '').slice(0, 10);
+  out.breedDay = String(f.breedDay || '').slice(0, 10);
   out.deeds = Object.fromEntries(Object.entries(f.deeds || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, num(v))]));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
   return out;
