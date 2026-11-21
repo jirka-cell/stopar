@@ -88,7 +88,7 @@ export function spawnCode(cfg) {
   const data = [
     SPAWN_ALGO, cfg.spawn, pick(cfg.daynight, ['mode', 'sunAltitude', 'nightFrom', 'nightTo']),
     pick(cfg.osm, ['chunkDeg', 'lineBuffer', 'defaultBiotope', 'villagePlaces', 'townPlaces', 'villageRadius', 'protectedPaths', 'pathBuffer']),
-    pick(cfg.world, ['twilightFrom', 'twilightTo', 'twilightBoost', 'quietMonths', 'quietBiotopes', 'variantChance', 'albinGroups', 'melanGroups', 'melanSpecies']), cfg.events,
+    pick(cfg.world, ['weatherSpawn', 'twilightFrom', 'twilightTo', 'twilightBoost', 'quietMonths', 'quietBiotopes', 'variantChance', 'albinGroups', 'melanGroups', 'melanSpecies']), cfg.events,
     cfg.species.map(s => pick(s, ['id', 'active', 'rarity', 'night', 'bio', 'alt', 'months', 'regions'])),
     cfg.field && cfg.field.trackChance, cfg.rarities, cfg.regions, cfg.biotopes.map(b => pick(b, ['id', 'priority', 'tags', 'villageFrom']))
   ];

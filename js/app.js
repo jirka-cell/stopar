@@ -405,7 +405,7 @@ let still = { lat: null, lon: null, t: 0 }, hidden = false;
 function checkHide() {
   const was = hidden;
   hidden = pos.src !== 'last' && still.t > 0 && unlocked('hide') && Date.now() - still.t >= cfg.world.hideMinutes * 60000;
-  if (hidden !== was) { toast(hidden ? 'Jsi ve skrýši – objevují se plašší a vzácnější zvířata.' : 'Opustil jsi skrýš.'); clearMarkers(); refreshBirds(); }
+  if (hidden !== was) toast(hidden ? 'Jsi ve skrýši – zvířata se tě méně bojí a líp se fotí.' : 'Opustil jsi skrýš.');
 }
 function setPos(lat, lon, acc, src) {
   if (still.lat == null || dist(still.lat, still.lon, lat, lon) > cfg.world.hideMove) still = { lat, lon, t: Date.now() };
@@ -579,7 +579,7 @@ async function loadWeather() {
   weatherBusy = true;
   try {
     const w = await refreshWeather(weather || null, pos.lat, pos.lon);
-    if (w !== weather) { const changed = !weather || weatherCond(w) !== weatherCond(weather); weather = w; store.set('weather', w).catch(() => {}); if (changed) { clearMarkers(); refreshBirds(); } }
+    if (w !== weather) { const changed = !weather || weatherCond(w) !== weatherCond(weather); weather = w; store.set('weather', w).catch(() => {}); if (changed && cfg.world.weatherSpawn) { clearMarkers(); refreshBirds(); } }
   } catch (e) { weatherRetry = Date.now() + 10 * 60000; }
   finally { weatherBusy = false; }
 }
@@ -633,7 +633,8 @@ async function openProtected() {
 
 function refreshBirds() {
   if (pos.lat == null || !map) return;
-  const now = new Date(), ctx = { now, weather: cfg.world.weather ? weatherCond(weather) : '', twilight: isTwilight(), hidden };
+  // rozmístění smí záviset jen na tom, co je stejné pro všechny (počasí až se serverem, skrýš je osobní bonus při chytání)
+  const now = new Date(), ctx = { now, weather: cfg.world.weather && cfg.world.weatherSpawn ? weatherCond(weather) : '', twilight: isTwilight() };
   const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now);
   const quietSet = new Set(String(cfg.world.quietBiotopes || '').split(',').map(x => x.trim()));
   const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone, now.getTime(), biotopeAt, elevationAt, {
@@ -817,7 +818,7 @@ function renderEnc() {
     <div class="foods">${cfg.foods.map(f => `<button data-f="${esc(f.id)}">${esc(f.name)}</button>`).join('')}</div>
     ${enc.lure ? '' : invOf(cfg, state, 'lure').map(it => `<button class="btn full" data-act="lure" data-item="${esc(it.id)}">Použít ${esc(it.icon)} ${esc(it.name)} (${state.inv[it.id]})</button>`).join('')}<button class="btn ghost full" data-act="close">Nechat být</button>`);
   } else if (enc.step === 'photo') {
-    const g = gameFor(sp); enc.zone = Math.min(.95, Number(g.zone) * (enc.lens ? Number(cfg.game.lensMult) || 1 : 1)); enc.speed = Number(g.speed);
+    const g = gameFor(sp); enc.zone = Math.min(.95, Number(g.zone) * (enc.lens ? Number(cfg.game.lensMult) || 1 : 1) * (hidden ? Number(cfg.world.hideZone) || 1 : 1)); enc.speed = Number(g.speed);
     openM(`<h2>${esc(sp.name)}</h2><div class="frame"><div id="fb" style="width:100%;height:100%">${birdImg(sp)}</div><div class="cross"></div></div>
     <div class="bar"><div class="zone" style="left:${(.5 - enc.zone / 2) * 100}%;width:${enc.zone * 100}%"></div><div class="mark" id="mk"></div></div>
     <p class="msg">${esc(enc.msg)}</p><button class="btn primary full" data-act="shoot">Cvak (zbývá ${cfg.catch.shots - enc.shots})</button>${enc.lens || enc.shots ? '' : invOf(cfg, state, 'lens').map(it => `<button class="btn full" data-act="lens" data-item="${esc(it.id)}">Nasadit ${esc(it.icon)} ${esc(it.name)} (${state.inv[it.id]})</button>`).join('')}`);
@@ -938,7 +939,7 @@ function photoAnim() {
 function gone() { state.gone[enc.b.id] = Date.now(); removeMarker(enc.b.id); saveState(); }
 function pickFood(f) {
   const C = cfg.catch, food = parseMap(enc.sp.food), m = food[f] || 0;
-  const ch = enc.lure ? 1 : m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong;
+  const ch = enc.lure ? 1 : Math.min(1, (m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong) + (hidden ? Number(cfg.world.hideChance) || 0 : 0));
   enc.tries++;
   const hit = Math.random() < ch;
   if (hit && kidMode()) { doCatch(cfg.family.kidQuality); return; }

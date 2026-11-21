@@ -47,7 +47,7 @@ export function activeEvents(cfg, now = new Date()) {
 }
 
 /* ---------- násobitel šance druhu ---------- */
-// ctx: { now: Date, weather: cond, twilight: bool, hidden: bool, quiet: bool (klidové pásmo právě platí), bio }
+// ctx: { now: Date, weather: cond, twilight: bool, quiet: bool (klidové pásmo právě platí), bio }
 export function speciesMult(cfg, sp, ctx) {
   const W = cfg.world;
   let m = 1;
@@ -60,7 +60,6 @@ export function speciesMult(cfg, sp, ctx) {
     if (k.trim() === ctx.weather) { const b = parseMap(rest); m *= num(b[sp.id], num(b[sp.group], 1)); }
   }
   if (ctx.twilight) m *= num(parseMap(W.twilightBoost)[sp.id], 1);
-  if (ctx.hidden) m *= num(parseMap(W.hideBoost)[String(sp.rarity)], 1);
   if (ctx.quiet && groupsOf(W.quietBiotopes).has(ctx.bio)) m = 0;
   return m;
 }

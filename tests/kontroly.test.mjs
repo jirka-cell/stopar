@@ -588,11 +588,12 @@ test('svět: události i přes Nový rok, násobky druhů, klidová pásma a bar
   assert.equal(activeEvents(cfg, new Date(2027, 0, 3)).length, 1);
   assert.equal(activeEvents(cfg, new Date(2027, 0, 11)).length, 0);
   const sp = id => DEFAULTS.species.find(s => s.id === id);
-  const ctx = { now: new Date(2026, 6, 1), weather: 'rain', twilight: false, hidden: false };
+  const ctx = { now: new Date(2026, 6, 1), weather: 'rain', twilight: false };
   assert.equal(speciesMult(DEFAULTS, sp('hlemyzd'), ctx), 3);
   assert.equal(speciesMult(DEFAULTS, sp('skokan'), ctx), 1.8, 'skupina Obojživelníci');
   assert.equal(speciesMult(DEFAULTS, sp('srnec'), { ...ctx, weather: '', twilight: true }), 3);
-  assert.equal(speciesMult(DEFAULTS, sp('lednacek'), { ...ctx, weather: '', hidden: true }), 3, 'vzácnost 3 ve skrýši');
+  assert.equal(speciesMult(DEFAULTS, sp('lednacek'), { ...ctx, weather: '', hidden: true }), 1, 'skrýš rozmístění nemění');
+  assert.equal(DEFAULTS.world.weatherSpawn, false, 'počasí do rozmístění až se serverem');
   assert.equal(speciesMult(DEFAULTS, sp('volavka'), { ...ctx, quiet: true, bio: 'mokrad' }), 0);
   assert.equal(variantFor(DEFAULTS, sp('zmije'), 0.05), 'melan', 'černá zmije je běžná');
   assert.equal(variantFor(DEFAULTS, sp('kos'), 0.05), '');

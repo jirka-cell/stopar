@@ -237,7 +237,9 @@ export const DEFAULTS = {
     weatherBoost: 'rain: hlemyzd:3, kos:2, mlok:3, colek:2, Obojživelníci:1.8\nsnow: konadra:2, modrinka:2, vrabec:1.5, zajic:1.5\ncold: konadra:2, modrinka:2, vrabec:1.5\nhot: jesterka:2.5, zmije:2, slepys:1.5, vazka:2, babocka:2, otakarek:2, Hmyz:1.5\nclear: Hmyz:1.3',
     twilightFrom: -8, twilightTo: 4, // šero: výška slunce mezi (°) – víc srnců, zajíců, lišek…
     twilightBoost: 'srnec:3, zajic:2.5, liska:2, jelen:2, netopyr:2, jezek:2, jezevec:1.5, kos:1.5',
-    hideMinutes: 2, hideMove: 15, hideBoost: '2:2, 3:3', // skrýš: v klidu (m) X minut → plašší a vzácnější zvířata
+    hideMinutes: 2, hideMove: 15, // skrýš: v klidu (m) X minut → osobní bonus při chytání (rozmístění se nemění)
+    hideChance: 0.2, hideZone: 1.3, // skrýš: + šance, že zvíře přijde; × šířka zelené zóny
+    weatherSpawn: false,    // počasí mění, která zvířata se objeví – zapnout až se serverem (jinak můžou mít telefony různá zvířata)
     quietMonths: '4-7', quietBiotopes: 'mokrad, skaly', // klidová pásma: v chráněném území v době hnízdění nic v rákosí a na skalách
     variantChance: 0.003, albinGroups: 'Ptáci, Savci, Obojživelníci, Plazi, Ryby', melanGroups: 'Savci, Plazi', melanSpecies: 'zmije:0.08, veverka:0.05',
     stampRadius: 40, xpStamp: 15
@@ -428,11 +430,12 @@ export const SCHEMA = [
   ] },
   { sec: 'world', title: 'Svět (počasí, šero, skrýše, varianty)', fields: [
     ['weather', 'Počasí z MET Norway', 'bool'],
-    ['weatherBoost', 'Počasí: násobky druhů (řádek „stav: druh:násobek, …“)', 'textarea'],
+    ['weatherBoost', 'Počasí: násobky druhů (platí jen se zapnutým „Počasí mění rozmístění“)', 'textarea'],
     ['twilightFrom', 'Šero od výšky slunce (°)', 'number', { min: -18, max: 10, step: 1 }], ['twilightTo', 'Šero do výšky slunce (°)', 'number', { min: -18, max: 15, step: 1 }],
     ['twilightBoost', 'Šero: násobky druhů', 'text'],
     ['hideMinutes', 'Skrýš: minut bez pohybu', 'number', { min: 1, max: 30, step: 1 }], ['hideMove', 'Skrýš: pohyb do (m)', 'number', { min: 5, max: 100, step: 1 }],
-    ['hideBoost', 'Skrýš: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
+    ['hideChance', 'Skrýš: + šance, že zvíře přijde (0–1)', 'number', { min: 0, max: 1, step: 0.05 }], ['hideZone', 'Skrýš: × šířka zelené zóny', 'number', { min: 1, max: 3, step: 0.1 }],
+    ['weatherSpawn', 'Počasí mění rozmístění zvířat (jen se serverem – jinak různé telefony uvidí jiná zvířata)', 'bool'],
     ['quietMonths', 'Klidová pásma: měsíce', 'text'], ['quietBiotopes', 'Klidová pásma: biotopy (v chráněném území)', 'text'],
     ['variantChance', 'Barevné varianty: šance (0–1)', 'number', { min: 0, max: 1, step: 0.001 }],
     ['albinGroups', 'Albíni: skupiny', 'text'], ['melanGroups', 'Tmavá forma: skupiny', 'text'], ['melanSpecies', 'Tmavá forma: druhy se šancí (druh:šance)', 'text'],
