@@ -136,7 +136,10 @@ test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryt�
   assert.ok(!off.sources['tr-hiking']);
   const on = makeStyle('hra', { ...DEFAULTS.layers, contours: true, trHiking: true, buildings: '3d' }, ctx);
   assert.equal(on.layers.find(l => l.id === 'contour').layout.visibility, 'visible');
-  assert.match(on.sources['tr-hiking'].tiles[0], /\/hiking\//);
+  assert.ok(!on.sources['tr-hiking'], 'turistické trasy už nejsou obrázky');
+  assert.equal(on.layers.find(l => l.id === 'kct-line').layout.visibility, 'visible');
+  assert.equal(off.layers.find(l => l.id === 'kct-line').layout.visibility, 'none');
+  assert.match(makeStyle('hra', { ...DEFAULTS.layers, trCycling: true }, ctx).sources['tr-cycling'].tiles[0], /\/cycling\//, 'cyklotrasy zůstávají z Waymarked Trails');
   assert.ok(on.layers.some(l => l.type === 'fill-extrusion'));
   assert.equal(on.sources.catch.data.geometry.type, 'Polygon');
 });
@@ -773,4 +776,28 @@ test('poklady a krmítka: odkaz na poklad, přibližný kruh, krmítka u cílů 
     assert.ok(parkAt(48.502, 17.002)); assert.equal(parkAt(48.4999, 16.9999), null);
     const p = parksNear(48.502, 17.002, 500); assert.equal(p.length, 1); assert.ok(p[0].size > 250);
   } finally { globalThis.fetch = realFetch; }
+});
+
+test('turistické trasy: barva podle značky KČT, naučné stezky, převod relací na čáry, dlaždice výřezu', async () => {
+  const { trailColor, isEducational, trailsGeoJSON, tilesFor } = await import('../js/trails.js');
+  assert.equal(trailColor({ 'osmc:symbol': 'red:white:red_bar' }), '#d9302a');
+  assert.equal(trailColor({ 'osmc:symbol': 'blue:white:blue_bar' }), '#2a62c9');
+  assert.equal(trailColor({ colour: 'yellow' }), '#f2b81b');
+  assert.equal(trailColor({}), '#9a5ab0');
+  assert.ok(isEducational({ 'osmc:symbol': 'green:white:green_diag' }));
+  assert.ok(isEducational({ name: 'Naučná stezka Kopec' })); assert.ok(!isEducational({ name: 'Červená' }));
+  const f = trailsGeoJSON({ elements: [{ type: 'relation', id: 5, tags: { route: 'hiking', 'osmc:symbol': 'green:white:green_bar', name: 'Zelená' }, members: [
+    { type: 'way', geometry: [{ lat: 50, lon: 14 }, { lat: 50.01, lon: 14.01 }] }, { type: 'way', geometry: [{ lat: 50 }] }, { type: 'node', lat: 1, lon: 1 }] }] });
+  assert.equal(f.length, 1); assert.equal(f[0].properties.color, '#2e9a3a'); assert.deepEqual(f[0].geometry.coordinates[0], [14, 50]);
+  const t = tilesFor([50.01, 14.01, 50.12, 14.2], 4);
+  assert.equal(t.length, 4); assert.ok(t.every(k => /^\d+_\d+$/.test(k)));
+});
+
+test('styl mapy: vlastnosti, které MapLibre neumí měnit podle dat, nejsou datové (jinak se mapa nenačte)', () => {
+  const ctx = { vectorUrl: DEFAULTS.map.vectorUrl, glyphsUrl: DEFAULTS.map.glyphsUrl, demUrl: 'dem://x', contourUrl: 'contour://x', trailsUrl: DEFAULTS.map.trailsUrl, biotopes: DEFAULTS.biotopes, game: {} };
+  const all = Object.fromEntries(Object.keys(DEFAULTS.layers).map(k => [k, k === 'buildings' ? '3d' : true]));
+  for (const id of Object.keys(STYLES)) for (const l of makeStyle(id, all, ctx).layers) {
+    const p = l.paint || {};
+    for (const k of ['line-dasharray', 'fill-extrusion-opacity', 'raster-opacity']) if (k in p) assert.ok(!JSON.stringify(p[k]).includes('"get"'), `${id}/${l.id}: ${k} nesmí záviset na datech`);
+  }
 });

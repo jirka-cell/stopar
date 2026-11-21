@@ -324,3 +324,6 @@ export function parkAt(lat, lon) {
   const f = feats.find(x => x.b === 'park' && !x.line && lat >= x.bb[0] && lat <= x.bb[2] && lon >= x.bb[1] && lon <= x.bb[3] && x.outer.some(r => inRing(lat, lon, r)) && !x.inner.some(r => inRing(lat, lon, r)));
   return f ? 'p' + f.bb.map(v => v.toFixed(4)).join('_') : null;
 }
+
+// Libovolný dotaz Overpass přes stejné servery a časové limity (turistické trasy, offline balíček)
+export const overpassQuery = q => fetchOverpass('data=' + encodeURIComponent(q));

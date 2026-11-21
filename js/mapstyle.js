@@ -98,7 +98,14 @@ export function makeStyle(id, o, ctx) {
   road('road-minor', minor, p.minor, 1); road('road-major', major, p.road, 1.45);
   add({ id: 'rail', type: 'line', source: 'om', 'source-layer': 'transportation', filter: ['==', ['get', 'class'], 'rail'], layout: vis(o.rail), paint: { 'line-color': p.rail, 'line-width': 1.5, 'line-dasharray': [3, 2] } });
   if (o.buildings === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
-  if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k]) add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, paint: { 'raster-opacity': .9 } }); });
+  if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, paint: { 'raster-opacity': .9 } }); });
+  // turistické trasy KČT: bílý okraj a barevný střed jako na značce, naučné stezky čárkovaně
+  add({ id: 'kct-casing', type: 'line', source: 'kct', layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 8], 'line-opacity': .9 } });
+  // line-dasharray nesmí záviset na datech → naučné stezky jako samostatná vrstva
+  const kw = ['interpolate', ['linear'], ['zoom'], 11, 1.5, 16, 3.5];
+  add({ id: 'kct-line', type: 'line', source: 'kct', filter: ['!=', ['get', 'edu'], 1], layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': kw } });
+  add({ id: 'kct-edu', type: 'line', source: 'kct', filter: ['==', ['get', 'edu'], 1], layout: vis(o.trHiking), paint: { 'line-color': ['get', 'color'], 'line-width': kw, 'line-dasharray': [2, 1.5] } });
+  add({ id: 'kct-label', type: 'symbol', source: 'kct', minzoom: 14, layout: { ...vis(o.trHiking), 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11 }, paint: txt({ 'text-color': ['get', 'color'] }) });
 
   // Herní kruhy: dosah objevování, přesnost GPS, dosah chytání
   add({ id: 'range', type: 'fill', source: 'range', paint: { 'fill-color': p.game, 'fill-opacity': .03 } });
@@ -130,8 +137,9 @@ export function makeStyle(id, o, ctx) {
   };
   if (ctx.demUrl) sources.dem = { type: 'raster-dem', tiles: [ctx.demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 13, attribution: 'Terén: Mapzen/AWS Terrain Tiles' };
   if (ctx.contourUrl) sources.contours = { type: 'vector', tiles: [ctx.contourUrl], maxzoom: 16 };
+  sources.kct = { type: 'geojson', data: ctx.kct || EMPTY, attribution: 'Trasy: © přispěvatelé OpenStreetMap' };
   if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => {
-    if (o[k]) sources['tr-' + t] = { type: 'raster', tiles: [ctx.trailsUrl.replace('{type}', t)], tileSize: 256, maxzoom: 18, attribution: 'Trasy: <a href="https://waymarkedtrails.org">Waymarked Trails</a> (CC BY-SA)' };
+    if (o[k] && t !== 'hiking') sources['tr-' + t] = { type: 'raster', tiles: [ctx.trailsUrl.replace('{type}', t)], tileSize: 256, maxzoom: 18, attribution: 'Trasy: <a href="https://waymarkedtrails.org">Waymarked Trails</a> (CC BY-SA)' };
   });
   return { version: 8, glyphs: ctx.glyphsUrl, sources, layers: L };
 }

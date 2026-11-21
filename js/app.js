@@ -1,7 +1,7 @@
 import { esc, DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths, compactConfig } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
-import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt } from './osm.js';
+import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt, overpassQuery } from './osm.js';
 import { refreshWeather, weatherCond, WEATHER_ICON, WEATHER_NAME, activeEvents, speciesMult, inQuietMonths, variantFor, protectedHTML, protectedType, wikiSummary, calendarHTML, cleanStamps, stampsHTML } from './world.js';
 import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
@@ -17,6 +17,7 @@ import { qrSVG } from './qr.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { Dog } from './dog.js';
+import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './trails.js';
 import { cleanTreasure, treasureLink, decodeTreasure, searchCircle, treasuresHTML, treasureFormHTML, feedersNear, feederReward, parkCell, cleanPlaces, distM } from './treasure.js';
 import { mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML } from './myths.js';
 import { nextSpeed, muteState, attachGestures, whatsHereHTML } from './mapui.js';
@@ -346,7 +347,7 @@ function mapCtx() {
   return {
     vectorUrl: cfg.map.vectorUrl, glyphsUrl: cfg.map.glyphsUrl, trailsUrl: cfg.map.trailsUrl,
     demUrl: demSource ? demSource.sharedDemProtocolUrl : cfg.map.demUrl, contourUrl,
-    attribution: safeAttribution(cfg.map.attribution), biotopes: cfg.biotopes, game: gameData()
+    attribution: safeAttribution(cfg.map.attribution), biotopes: cfg.biotopes, game: gameData(), kct: trailsData()
   };
 }
 // Přepne styl jen při změně (den/noc, nastavení vrstev); force = po uložení adminu
@@ -358,12 +359,18 @@ function applyMapStyle(force) {
   if (!force && !map.isStyleLoaded()) return; // den/noc přepne při dalším ticku
   styleKey = key;
   map.setStyle(makeStyle(id, cfg.layers, mapCtx()));
-  gamePending = bioPending = true;
+  gamePending = bioPending = kctPending = true;
   const want3d = cfg.layers.buildings === '3d';
   if (want3d !== pitch3d) { pitch3d = want3d; map.easeTo({ pitch: want3d ? 45 : 0, duration: 500 }); }
 }
 // Kruhy a ladicí biotopy se zapíšou, až je styl připravený (poloha může přijít dřív než styl)
-let gamePending = false, bioPending = false;
+let gamePending = false, bioPending = false, kctPending = false;
+// Turistické trasy pro výřez mapy (od zoomu 11)
+function refreshTrails() {
+  if (!map || !cfg.layers.trHiking || map.getZoom() < 11) return;
+  const b = map.getBounds();
+  loadTrails(tilesFor([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]), overpassQuery, cfg.osm.cacheDays, () => { kctPending = true; flushMap(); });
+}
 function updateGame() { gamePending = true; flushMap(); }
 function flushMap() {
   if (!map) return;
@@ -372,6 +379,7 @@ function flushMap() {
       const g = gameData(), src = ['range', 'catch', 'acc'].map(k => [k, map.getSource(k)]);
       if (src.every(([, s]) => s)) { src.forEach(([k, s]) => s.setData(g[k])); gamePending = false; }
     }
+    if (kctPending) { const s = map.getSource('kct'); if (s) { s.setData(trailsData()); kctPending = false; } }
     if (bioPending) { const s = map.getSource('biodebug'); if (s) { s.setData(cfg.general.showBiotopes ? biotopeGeo() : NONE); bioPending = false; } }
   } catch (e) { /* styl se ještě načítá, zkusí se při dalším styledata/idle */ }
 }
@@ -411,7 +419,8 @@ function initMap() {
       else simTarget = { lat: e.lngLat.lat, lon: e.lngLat.lng };
     }
   });
-  map.on('styledata', flushMap);
+  map.on('styledata', () => { kctPending = true; flushMap(); });
+  map.on('moveend', refreshTrails);
   map.on('idle', flushMap);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
@@ -1456,7 +1465,7 @@ function checkPin() {
     save: c => saveConfig(c),
     close: () => { document.querySelector('nav').style.display = ''; show('mapv'); },
     exportAll: () => exportData(true),
-    clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
+    clearOsm: async () => { await clearOsmCache(); clearTrails(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => openM(`<h2>Smazat postup?</h2><p class="msg">Smažou se úlovky a fotky.</p>${await pinFieldIfSet()}
       <button class="btn danger full" data-act="resetOk">Smazat postup</button><button class="btn full ghost" data-act="close">Zrušit</button>`),
     respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Zvířata obnovena.'); },
