@@ -34,7 +34,7 @@ export const treasureFormHTML = () => `<h2>Schovat poklad</h2><p class="msg smal
 /* ---------- krmítka ---------- */
 // Krmítka: u každého turistického cíle a uprostřed větších parků (místa jsou z mapy → stejná pro všechny)
 export function feedersNear(targets, parks, minPark) {
-  return [...targets.map(t => ({ id: 'f' + t.id, lat: t.lat, lon: t.lon, at: t.name })), ...parks.filter(p => p.size >= minPark).map(p => ({ id: 'f' + p.id, lat: p.lat, lon: p.lon, at: 'park' }))];
+  return [...targets.map(t => ({ id: 'f' + t.id, lat: t.lat, lon: t.lon, at: t.name, kind: t.tg })), ...parks.filter(p => p.size >= minPark).map(p => ({ id: 'f' + p.id, lat: p.lat, lon: p.lon, at: 'park' }))];
 }
 // Odměna z krmítka jednou denně: šišky, XP a někdy krmivo (deterministicky podle dne a místa)
 export function feederReward(cfg, id, day) {

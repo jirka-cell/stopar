@@ -64,3 +64,11 @@ export function whatsHereHTML(info) {
   ${info.extra || ''}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
+
+// Druh posunu mezi dvěma polohami GPS: chůze se počítá, jízda (auto, MHD, kolo) ne, skok GPS se ignoruje
+export function stepKind(d, dt, gps) {
+  const v = d / Math.max(1, dt);
+  if (v > (Number(gps.maxSpeed) || 8)) return 'jump';
+  if (v > (Number(gps.vehicleSpeed) || 3.3)) return 'ride';
+  return 'walk';
+}

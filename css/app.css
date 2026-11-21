@@ -318,3 +318,57 @@ body.ui-open .cards{display:none}
 .jtile input{display:none}
 .jarow{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 body.kid nav button{font-size:13px}
+.bmk .cls{display:flex;width:40px;height:40px;border-radius:50%;background:#fff;border:3px solid var(--acc);align-items:center;justify-content:center;font-size:21px;box-shadow:0 2px 4px rgba(0,0,0,.25);animation:bob 1.6s ease-in-out infinite;margin:0 auto}
+.bmk.far .cls{opacity:.8}
+.bmk.locked .cls{filter:grayscale(1);opacity:.55}
+/* Aegon: posouvání, bouda, přemýšlení */
+.dog{touch-action:none}
+.dog.drag{opacity:.85;transform:scale(1.08);z-index:730}
+.dog .think{display:none;position:absolute;right:6px;top:-6px;width:20px;height:20px;border-radius:50%;border:3px solid rgba(255,255,255,.9);border-top-color:var(--acc);box-shadow:0 0 0 1px rgba(0,0,0,.15);animation:spin .8s linear infinite}
+.dog.busy .think{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.kennel{position:absolute;left:50%;bottom:calc(24px + var(--sab));transform:translateX(-50%);z-index:725;display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(255,255,255,.95);border:2px dashed #9a6a3a;border-radius:16px;padding:8px 14px;font-size:12px}
+.kennel .ic{font-size:30px}
+.kennel.over{background:#fff3d6;border-style:solid;transform:translateX(-50%) scale(1.12)}
+.kennel[hidden]{display:none}
+/* noc */
+.dimlay{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:450;transition:opacity .6s}
+.redlay{position:fixed;inset:0;background:#ff2a00;mix-blend-mode:multiply;pointer-events:none;z-index:5000;display:none}
+body.red .redlay{display:block}
+body.dark{--bg:#151a14;--ink:#e4ebe0;--mut:#9aa596;--card:#1f251d;--line:#343c31;--acc2:#24382a;color-scheme:dark}
+body.dark .pill,body.dark .tool>span,body.dark .tool b,body.dark .recenter,body.dark .scard,body.dark .netmon,body.dark .plpanel,body.dark .chip,body.dark .kennel,body.dark .quest,body.dark .album,body.dark .mgcard{background:#1f251d;color:var(--ink);border-color:#343c31}
+body.dark .btn:not(.primary):not(.danger){background:#2a3127;color:var(--ink);border-color:#3a4336}
+body.dark input,body.dark textarea,body.dark select{background:#262d24;color:var(--ink);border-color:#3a4336}
+body.dark .banner{background:#3a3220;border-color:#5a4a2a;color:var(--ink)}
+/* dětský vzhled */
+nav [data-kid]{display:none}
+body.kid:not(.parent) nav [data-kid]{display:flex}
+body.kid:not(.parent) nav [data-v=mapv],body.kid:not(.parent) nav [data-v=atlasv],body.kid:not(.parent) nav [data-v=jav]{display:none}
+body.kid:not(.parent).on-map nav{transform:none}
+body.kid:not(.parent) .dial,body.kid:not(.parent) .tools{display:none}
+body.kid:not(.parent) nav button{font-size:14px;padding:9px 0 10px}
+body.kid:not(.parent) nav button .ic{font-size:30px}
+body.kid:not(.parent) nav .act i{width:70px;height:70px;font-size:30px;margin-top:-36px}
+body.kid:not(.parent) .cards{bottom:calc(var(--navh) + 40px + var(--sab))}
+body.kid:not(.parent) .recenter{bottom:calc(var(--navh) + 36px + var(--sab))}
+body.kid:not(.parent) .dog:not([style*="top"]){bottom:calc(var(--navh) + 24px + var(--sab))}
+body.kid #menuBtn{font-weight:700}
+/* farma */
+.fres{display:flex;justify-content:center;gap:14px;font-size:15px;margin:6px 0}
+.fres small{color:var(--mut);font-size:11px}
+.fcard{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px;margin-bottom:7px}
+.fico{font-size:28px;line-height:1}
+.finfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.finfo b small{color:var(--mut);font-weight:400}
+.finfo>small{color:var(--mut);font-size:12px}
+.finfo .btn{align-self:flex-start;margin-top:3px}
+.finfo .prog{margin:4px 0 0}
+.farmbtn{margin:10px 10px 0;width:calc(100% - 20px)}
+/* minihry: kruhy, kdo to byl */
+.mgboard.rings{display:block;border-radius:50%;background:#eef4e8}
+.ring{position:absolute;left:50%;top:50%;border-radius:50%;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.85);transition:transform .2s;cursor:pointer}
+.ring>div{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background-size:cover;background-position:center}
+.mgboard.rings.won .ring{box-shadow:none}
+.who .fact{margin-bottom:8px}
+.who .acard.right{outline:3px solid var(--acc)}
+.who .acard.wrong{outline:3px solid #c0504a;opacity:.7}

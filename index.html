@@ -48,7 +48,9 @@
       <div class="legend" id="legend"></div>
       <div class="plpanel" id="plpanel" hidden></div>
       <div class="mute" id="mute" aria-live="polite"><b>👀 Zastav se a rozhlédni se</b><span>Zvířata se ukážou, až zastavíš. Vibrace ti dá vědět, že je něco blízko.</span></div>
-      <button class="dog" id="dog" aria-label="Pes Aegon" hidden><img alt="" draggable="false"></button>
+      <div class="dimlay" id="dim"></div>
+      <div class="kennel" id="kennel" hidden><span data-ic="kennel"></span><b>Pustit na volno</b></div>
+      <button class="dog" id="dog" aria-label="Pes Aegon (posuň prstem)" hidden><img alt="" draggable="false"><i class="think" aria-hidden="true"></i></button>
     </section>
     <section class="view" id="atlasv"></section>
     <section class="view" id="sbirkav"></section>
@@ -58,12 +60,14 @@
   </main>
   <nav id="nav">
     <button class="on" data-v="mapv"><span data-ic="map"></span>Mapa</button>
-    <button data-v="sbirkav"><span data-ic="collection"></span>Sbírka</button>
+    <button data-v="sbirkav"><span data-ic="collection"></span><em id="navCol">Sbírka</em></button>
     <button class="act" id="actBtn" aria-label="Akce"><i id="actIc"></i><span id="actLbl">Plánovat</span></button>
+    <button data-kid="games"><span data-ic="games"></span>Hry</button>
     <button data-v="atlasv"><span data-ic="atlas"></span>Atlas</button>
     <button data-v="jav"><span data-ic="me"></span>Já</button>
   </nav>
   <div id="modal"><div id="mbox"></div></div>
+  <div class="redlay" id="redlay"></div>
 </div>
 <noscript>Stopař potřebuje zapnutý JavaScript.</noscript>
 <script src="vendor/maplibre/maplibre-gl.js"></script>

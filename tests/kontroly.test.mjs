@@ -407,11 +407,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 26);
+  assert.equal(CHECKS.length, 34);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 26);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 34);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
@@ -747,8 +747,22 @@ test('bájní tvorové: 2 okna ročně (zima, léto), stejná pro všechny, tvor
   const winterNow = w[0].from + 3600000;
   assert.equal(mythFor(DEFAULTS, { window: w[0], now: winterNow, bio: 'louka', zone: 'nad_lesem', night: false }, 0.001), 'snezny');
   assert.equal(mythFor(DEFAULTS, { window: w[0], now: winterNow, bio: 'les', zone: 'nizina', night: false }, 0.001), '', 'hejkal jen v noci');
-  assert.equal(DEFAULTS.myths.length, 10);
+  assert.equal(DEFAULTS.myths.filter(t => !t.fest).length, 10);
   for (const t of DEFAULTS.myths) assert.ok(hasMythArt(t.id), t.id);
+});
+
+test('sváteční tvorové: Dušičky, Mikuláš, Vánoce a Velikonoce podle data, všude a jen sváteční; Velikonoce správně', async () => {
+  const { festWindows, activeWindow, mythFor, easter } = await import('../js/myths.js');
+  assert.equal(easter(2026).toDateString(), new Date(2026, 3, 5).toDateString());
+  assert.equal(easter(2027).toDateString(), new Date(2027, 2, 28).toDateString());
+  const nik = new Date(2026, 11, 5, 12).getTime(), w = activeWindow(DEFAULTS, nik);
+  assert.equal(w && w.fest, 'mikulas');
+  const got = new Set(); for (let h = 0; h < 0.05; h += 0.001) got.add(mythFor(DEFAULTS, { window: w, now: nik, bio: 'mesto', zone: 'nizina', night: false }, h));
+  assert.deepEqual([...got].sort(), ['andel', 'cert'], 'o Mikuláši jen čert a anděl, i ve městě');
+  assert.equal(activeWindow(DEFAULTS, new Date(2026, 3, 4, 12).getTime()).fest, 'velikonoce');
+  assert.equal(activeWindow({ ...DEFAULTS, world: { ...DEFAULTS.world, festivals: false } }, nik), null);
+  assert.equal(festWindows(2026).length, 4);
+  assert.ok(DEFAULTS.myths.filter(t => t.fest).every(t => t.easy));
 });
 
 test('poklady a krmítka: odkaz na poklad, přibližný kruh, krmítka u cílů a větších parků, park se pozná', async () => {
@@ -980,4 +994,47 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   const I = await import('../js/icons.js');
   assert.match(I.ic('map'), /class="ic ic-map"/); assert.match(I.ic('neznama'), /•/);
   I.ICON_FILES.add('atlas'); assert.match(I.ic('atlas'), /icons\/ui\/atlas\.svg/); I.ICON_FILES.delete('atlas');
+});
+
+test('farma: pomalá výroba se stropem skladu, chůze víc, pěstování spotřebuje semínka, stavba a kapacita příbytků', async () => {
+  const F = await import('../js/farm.js');
+  const t0 = Date.UTC(2026, 10, 21, 8);
+  const f = F.newFarm(['voliera', 'vybeh'], 12, t0);
+  assert.equal(f.lv.enc_voliera, 3, 'příbytek pojme, co už hráč má (12 → 3 × 5)');
+  assert.ok(F.encCap(f, 'voliera') >= 12);
+  const inv = {}; F.advance(f, t0 + 2 * 3600000, inv);
+  assert.ok(Math.abs(f.res.wood - 22) < 1e-9, 'dřevník 1/h → +2 za 2 h');
+  for (let i = 1; i <= 3; i++) F.advance(f, t0 + (2 + 72 * i) * 3600000, inv); // nejvýš 72 h naráz
+  assert.equal(f.res.wood, F.storeCap(f), 'sklad má strop, nic se neztratí ani nepřeteče');
+  assert.ok(inv.krmivo > 0, 'pole pěstuje krmivo');
+  const g = F.newFarm(['voliera'], 5, t0); g.res.seeds = 0; const inv2 = {};
+  F.advance(g, t0 + 10 * 3600000, inv2);
+  assert.ok((inv2.krmivo || 0) <= 10, 'bez semínek se pěstuje jen z toho, co semeniště dalo');
+  const w = F.newFarm([], 5, t0), before = w.res.wood; F.walkGain(w, 250, 'les');
+  assert.equal(w.res.wood - before, 4, '250 m lesem = 2× po 100 m = +4 dřeva'); assert.equal(w.walk, 50);
+  const b = F.newFarm(['voliera'], 5, t0); b.res.wood = 999; b.res.stone = 999;
+  assert.equal(F.startBuild(b, 'enc_voliera', 0, t0).err, 'Chybí suroviny.', 'bez šišek příbytek nejde');
+  const r = F.startBuild(b, 'enc_voliera', 100, t0); assert.ok(!r.err && r.cones > 0, 'příbytek stojí i šišky');
+  assert.equal(F.startBuild(b, 'store', 100, t0).err, 'Už se staví.');
+  F.advance(b, b.build.until + 1, {}); assert.equal(b.lv.enc_voliera, 2);
+  assert.equal(F.autoPick({ ...b, auto: true, build: null }, ['enc_voliera', 'store']), 'store', 'automatika příbytky nestaví');
+  assert.equal(F.cleanFarm({ lv: { zlo: 5, store: 99 }, res: { wood: -3 } }, ['voliera']).lv.store, 10);
+});
+
+test('úkoly podle místa, jízda autem a nové minihry', async () => {
+  const T = await import('../js/tasks.js');
+  assert.equal(T.placeKind({ at: 'park' }), 'park'); assert.equal(T.placeKind({ at: 'Kokořín', kind: 'Hrad nebo zámek' }), 'hrad');
+  assert.equal(T.placeKind({ at: 'X', kind: 'Pramen' }), 'voda'); assert.equal(T.placeKind({ at: 'X', kind: 'Neznámé' }), null);
+  const a = T.taskFor('park', 'f1', '2026-11-21'), b = T.taskFor('park', 'f1', '2026-11-21');
+  assert.deepEqual(a, b, 'stejná otázka pro všechny'); assert.equal(new Set(a.a).size, 3); assert.ok(a.c >= 0 && a.c < 3);
+  for (const list of Object.values(T.TASKS)) for (const q of list) assert.equal(q.a.length, 3);
+  const { stepKind } = await import('../js/mapui.js');
+  const gps = { maxSpeed: 8, vehicleSpeed: 3.3 };
+  assert.equal(stepKind(10, 10, gps), 'walk'); assert.equal(stepKind(50, 10, gps), 'ride'); assert.equal(stepKind(200, 10, gps), 'jump');
+  const M = await import('../js/minigames.js');
+  const t = [0, 1, 2, 3, 4, 5, 6, 7, 8]; M.shiftLine(t, 3, true, 0, 1); assert.deepEqual(t.slice(0, 3), [2, 0, 1]); M.shiftLine(t, 3, true, 0, -1); assert.ok(M.solved(t));
+  M.shiftLine(t, 3, false, 1, 1); assert.deepEqual([t[1], t[4], t[7]], [7, 1, 4]);
+  assert.equal(M.solved(M.rowsShuffle(4)), false);
+  const r = M.ringsShuffle(4); assert.equal(r.length, 4); assert.ok(r.some(Boolean));
+  assert.ok(['who', 'rows', 'rings'].every(id => M.PUZZLES.some(p => p.id === id)));
 });

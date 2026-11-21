@@ -61,7 +61,8 @@ export const DEFAULTS = {
   },
   gps: {
     maxAccuracy: 50,        // m – horší přesnost se nezapočítává do vzdálenosti
-    maxSpeed: 8,            // m/s – vyšší rychlost = auto/skok, nezapočítává se
+    maxSpeed: 8,            // m/s – vyšší rychlost = skok GPS, ignoruje se
+    vehicleSpeed: 3.3,      // m/s (~12 km/h) – rychleji = jízda (auto, MHD, kolo), km se nepočítají
     minStep: 5,             // m – menší posun se ignoruje (šum)
     highAccuracy: true
   },
@@ -74,11 +75,12 @@ export const DEFAULTS = {
     demUrl: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
     trailsUrl: 'https://tile.waymarkedtrails.org/{type}/{z}/{x}/{y}.png',
     attribution: '© přispěvatelé <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a>',
-    minZoom: 12,            // zoom MapLibre (o 1 menší než dřív v Leafletu pro stejné měřítko)
+    minZoom: 7,             // zoom MapLibre (7 = přehled ~200 km; zvířata a trasy se načítají jen kolem hráče) (o 1 menší než dřív v Leafletu pro stejné měřítko)
     maxZoom: 19,
     startZoom: 16,
     startLat: 50.2306,
     startLon: 12.8711,
+    classMarkers: true,     // na mapě jen obrázek třídy (pták, savec…), druh až při setkání
     autoFollow: 20,         // s – po kolika sekundách bez dotyku se mapa vrátí na hráče (0 = nikdy)
     muteSpeed: 1.0,         // m/s – nad touto rychlostí se mapa ztlumí („Zastav se a rozhlédni se“)
     stillSpeed: 0.6,        // m/s – děti chytají jen pod touto rychlostí
@@ -216,7 +218,8 @@ export const DEFAULTS = {
     size: 96,               // velikost v px
     lieMinutes: 2,          // po kolika minutách klidu si lehne (v noci za polovinu)
     sleepMinutes: 6,        // po kolika minutách klidu usne
-    sniffRadius: 200        // m – zvíře blízko, ale mimo dosah → čenichá
+    sniffRadius: 200,       // m – zvíře blízko, ale mimo dosah → čenichá
+    freeMinutes: 2          // jak dlouho se Aegon proběhne, když ho pustíš do boudy
   },
   family: {
     kidAge: 8,              // režim pro malé děti „podle věku“: do kolika let
@@ -242,6 +245,9 @@ export const DEFAULTS = {
     feederName: 'Krmítko', feederRadius: 30, feederMinPark: 80, feederCones: 15, feederXp: 10, feederItem: 'krmivo', feederItemChance: 0.5,
     parkCells: 12, parkCones: 30, parkXp: 25, // prochození parku: tolik různých míst (~30 m) za den
     treasureRadius: 15, treasureCircle: 60, treasureXp: 40, treasureCones: 30, // poklad: najde se do X m, na mapě kruh Y m
+    placeTasks: true,       // u krmítek otázka podle místa (park, hrad, pramen, vyhlídka, jeskyně) → surovina na farmu
+    festivals: true,        // sváteční tvorové (Dušičky, Mikuláš, Vánoce, Velikonoce) – lehčí, pro děti
+    festChance: 0.05,       // šance během svátků
     mythDays: 3,            // bájné dny: 2× ročně (zima, léto) na tolik dní
     mythChance: 0.02,       // jak často je během bájných dnů místo zvířete bájný tvor (u jeho biotopu)
     mythMinQuality: 90, mythSeconds: 2, xpMyth: 200, // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
@@ -249,6 +255,12 @@ export const DEFAULTS = {
   },
   // Tajná sekce – bájní tvorové: bio = biotopy nebo výšková pásma, months = měsíce, night = jen v noci
   myths: [
+    { id: 'dynacek', name: 'Dýňáček', fest: 'dusicky', easy: true, bio: '', months: '', night: false, active: true, fact: 'Veselá dýně, která o Dušičkách svítí cestu. Lidé dlabou dýně a zapalují svíčky na památku blízkých.' },
+    { id: 'strasidylko', name: 'Strašidýlko', fest: 'dusicky', easy: true, bio: '', months: '', night: false, active: true, fact: 'Hodné strašidýlko, které se samo bojí tmy. Ráno se schová do půdy na hradě.' },
+    { id: 'cert', name: 'Čertík', fest: 'mikulas', easy: true, bio: '', months: '', night: false, active: true, fact: 'S Mikulášem chodí 5. prosince. Zlobivým nosí uhlí – ale tenhle je spíš rošťák než zlý.' },
+    { id: 'andel', name: 'Anděl', fest: 'mikulas', easy: true, bio: '', months: '', night: false, active: true, fact: 'Mikulášův pomocník, který zapisuje dobré skutky a nosí dětem dárky.' },
+    { id: 'skritek', name: 'Vánoční skřítek', fest: 'vanoce', easy: true, bio: '', months: '', night: false, active: true, fact: 'Pomáhá balit dárky a v zimě sype ptáčkům do krmítek. Zkus to taky!' },
+    { id: 'zajicek', name: 'Velikonoční zajíček', fest: 'velikonoce', easy: true, bio: '', months: '', night: false, active: true, fact: 'Schovává barevná vajíčka. Skuteční zajíci mají na jaře mláďata – nechte je v klidu.' },
     { id: 'snezny', name: 'Sněžný muž', bio: 'hory, nad_lesem', months: '12-2', night: false, active: true, fact: 'Chlupatý obr z hor. Viděli ho jen ti nejtrpělivější – a nikdo mu nevěří.' },
     { id: 'vila', name: 'Víla', bio: 'louka, park', months: '6-8', night: false, active: true, fact: 'Tančí na rozkvetlých loukách za letních dnů. Kdo ji vyfotí, má prý štěstí celý rok.' },
     { id: 'hejkal', name: 'Hejkal', bio: 'les', months: '', night: true, active: true, fact: 'Lesní skřítek, který v noci houká a straší pocestné. Ve skutečnosti je to možná jen výr.' },
@@ -286,6 +298,10 @@ export const DEFAULTS = {
   offline: {
     radii: '2000,5000,10000', // nabídka poloměrů (m)
     defaultRadius: 5000, maxRadius: 10000
+  },
+  farm: {
+    enabled: true,          // Moje farma: kapacitu zvířat určují příbytky a spižírna (místo úrovně hráče)
+    maxCap: 60              // nejvíc míst pro jeden druh
   },
   games: {
     dailyCones: 40,         // denní strop šišek z miniher (ať nepřebijí chůzi)
@@ -396,7 +412,8 @@ export const SCHEMA = [
   ] },
   { sec: 'gps', title: 'GPS', fields: [
     ['maxAccuracy', 'Max. nepřesnost pro počítání vzdálenosti (m)', 'number', { min: 5, max: 500, step: 5 }],
-    ['maxSpeed', 'Max. rychlost chůze (m/s)', 'number', { min: 1, max: 50, step: 0.5 }],
+    ['maxSpeed', 'Skok GPS nad (m/s)', 'number', { min: 1, max: 50, step: 0.5 }],
+    ['vehicleSpeed', 'Jízda (auto, MHD) nad (m/s) – km se nepočítají', 'number', { min: 1, max: 20, step: 0.1 }],
     ['minStep', 'Min. krok (m)', 'number', { min: 0, max: 100, step: 1 }],
     ['highAccuracy', 'Vysoká přesnost GPS', 'bool']
   ] },
@@ -415,6 +432,7 @@ export const SCHEMA = [
     ['startLat', 'Výchozí šířka', 'number', { step: 0.0001 }],
     ['startLon', 'Výchozí délka', 'number', { step: 0.0001 }],
     ['autoFollow', 'Návrat mapy na hráče po (s bez dotyku, 0 = nikdy)', 'number', { min: 0, max: 600, step: 5 }],
+    ['classMarkers', 'Na mapě jen obrázek třídy (druh až při setkání)', 'bool'],
     ['muteSpeed', 'Ztlumení při chůzi nad (m/s)', 'number', { min: 0.3, max: 5, step: 0.1 }],
     ['stillSpeed', 'Děti chytají jen pod (m/s)', 'number', { min: 0.1, max: 3, step: 0.1 }],
     ['tileCacheMax', 'Max. dlaždic v offline cache', 'number', { min: 0, max: 20000, step: 100 }]
@@ -468,6 +486,9 @@ export const SCHEMA = [
     ['radii', 'Nabídka poloměrů (m, čárkou)', 'text'], ['defaultRadius', 'Výchozí poloměr (m)', 'number', { min: 500, max: 20000, step: 500 }],
     ['maxRadius', 'Největší poloměr (m)', 'number', { min: 1000, max: 20000, step: 500 }]
   ] },
+  { sec: 'farm', title: 'Moje farma', fields: [
+    ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }]
+  ] },
   { sec: 'games', title: 'Minihry', fields: [
     ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
     ['conesEasy', 'Odměna: lehká', 'number', { min: 0, step: 1 }], ['conesMid', 'Odměna: střední', 'number', { min: 0, step: 1 }], ['conesHard', 'Odměna: těžká', 'number', { min: 0, step: 1 }]
@@ -496,6 +517,8 @@ export const SCHEMA = [
     ['parkCells', 'Prochození parku: míst za den', 'number', { min: 2, max: 200, step: 1 }], ['parkCones', 'Prochození parku: šišky', 'number', { min: 0, step: 1 }], ['parkXp', 'Prochození parku: XP', 'number', { min: 0, step: 1 }],
     ['treasureRadius', 'Poklad: najde se do (m)', 'number', { min: 5, max: 100, step: 1 }], ['treasureCircle', 'Poklad: kruh na mapě (m)', 'number', { min: 20, max: 500, step: 10 }],
     ['treasureXp', 'Poklad: XP', 'number', { min: 0, step: 1 }], ['treasureCones', 'Poklad: šišky', 'number', { min: 0, step: 1 }],
+    ['placeTasks', 'Úkoly podle místa u krmítek (odměna na farmu)', 'bool'],
+    ['festivals', 'Sváteční tvorové (Dušičky, Mikuláš, Vánoce, Velikonoce)', 'bool'], ['festChance', 'Sváteční tvorové: šance', 'number', { min: 0, max: 1, step: 0.005 }],
     ['mythDays', 'Bájné dny: počet dní (2× ročně)', 'number', { min: 1, max: 14, step: 1 }], ['mythChance', 'Bájní tvorové: šance místo zvířete', 'number', { min: 0, max: 1, step: 0.005 }],
     ['mythMinQuality', 'Bájní tvorové: min. ostrost (%)', 'number', { min: 50, max: 100, step: 1 }], ['mythSeconds', 'Bájní tvorové: čas na fotku (s)', 'number', { min: 1, max: 10, step: 0.5 }],
     ['xpMyth', 'Bájní tvorové: XP', 'number', { min: 0, step: 10 }], ['mythTest', 'Test: bájné dny hned', 'bool'],
@@ -580,7 +603,7 @@ export const LISTS = [
   ] },
   { sec: 'myths', title: 'Bájní tvorové (tajná sekce)', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['active', 'Aktivní', 'bool'], ['bio', 'Biotopy nebo výšková pásma (id, …)', 'text'],
-    ['months', 'Měsíce (prázdné = celý rok)', 'text'], ['night', 'Jen v noci', 'bool'], ['fact', 'Pověst / zajímavost', 'textarea']
+    ['months', 'Měsíce (prázdné = celý rok)', 'text'], ['night', 'Jen v noci', 'bool'], ['fest', 'Svátek (dusicky, mikulas, vanoce, velikonoce; prázdné = bájný tvor)', 'text'], ['easy', 'Lehčí chytání (pro děti)', 'bool'], ['fact', 'Pověst / zajímavost', 'textarea']
   ] },
   { sec: 'events', title: 'Sezónní události', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['from', 'Od (MM-DD)', 'text'], ['to', 'Do (MM-DD)', 'text'],

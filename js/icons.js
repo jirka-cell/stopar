@@ -18,6 +18,12 @@ export const IC = {
   // Já – Rodina a nastavení
   parent: '🛡️', pin: '🔒', backup: '💾', restore: '📂', install: '📲', about: 'ℹ️', legal: '📄', wipe: '🗑️',
   // karty na mapě
+  // třídy zvířat na mapě (druh se ukáže až při setkání)
+  clBird: '🐦', clMammal: '🦌', clAmph: '🐸', clRept: '🦎', clFish: '🐟', clInsect: '🦋', clSpider: '🕷️', clMollusc: '🐌', clOther: '🐾',
+  // biotopy a roční období pro třídění
+  bio_voda: '🌊', bio_mokrad: '🌾', bio_skaly: '🪨', bio_park: '🌳', bio_sad: '🍎', bio_les: '🌲', bio_vesnice: '🏡', bio_mesto: '🏙️', bio_pole: '🌻', bio_louka: '🌼',
+  s_jaro: '🌸', s_leto: '☀️', s_podzim: '🍂', s_zima: '❄️',
+  night: '🌙', kennel: '🏠', injured: '🩹', farm: '🏡', filter: '🔎',
   feeder: '🏠', myth: '✨', reward: '🎁', finish: '🏁', dog: '🐕', cone: '🌰', level: '⭐'
 };
 // HTML ikony; cls = další třída (velikost řeší CSS .ic)
@@ -28,3 +34,5 @@ export function ic(name, cls = '') {
 }
 // Doplní ikony do prvků s data-ic v HTML (index.html)
 export function fillIcons(root = document) { root.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = ic(el.dataset.ic); }); }
+const CLASS = { 'Ptáci': 'clBird', 'Savci': 'clMammal', 'Obojživelníci': 'clAmph', 'Plazi': 'clRept', 'Ryby': 'clFish', 'Hmyz': 'clInsect', 'Pavoukovci': 'clSpider', 'Měkkýši': 'clMollusc' };
+export const classIcon = group => CLASS[group] || 'clOther';

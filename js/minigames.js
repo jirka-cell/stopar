@@ -7,10 +7,13 @@ export const PUZZLES = [
   { id: 'slide', name: 'Posouvačka', icon: '🔢', need: 1, desc: 'Posouvej dílky do prázdného místa, až složíš obrázek.' },
   { id: 'pexeso', name: 'Pexeso', icon: '🃏', need: 2, desc: 'Najdi dvojice stejných zvířat.' },
   { id: 'rotate', name: 'Otáčení', icon: '🔄', need: 4, desc: 'Ťukáním natoč všechny dílky správně.' },
-  { id: 'swap', name: 'Skládačka', icon: '🧩', need: 6, desc: 'Přetáhni dílek na jiný (nebo ťukni na dva) a prohodí se.' }
+  { id: 'swap', name: 'Skládačka', icon: '🧩', need: 6, desc: 'Přetáhni dílek na jiný (nebo ťukni na dva) a prohodí se.' },
+  { id: 'who', name: 'Kdo to byl?', icon: '🐾', need: 3, desc: 'Podle stop a pobytových znamení poznej zvíře. 5 otázek.' },
+  { id: 'rows', name: 'Řady', icon: '↔️', need: 8, desc: 'Táhni prstem po řádku nebo sloupci – celá řada se posune dokola.' },
+  { id: 'rings', name: 'Kruhy', icon: '🎯', need: 10, desc: 'Ťukáním otáčej kruhy obrázku, až do sebe zapadnou.' }
 ];
 export const LEVELS = [['easy', 'Lehká'], ['mid', 'Střední'], ['hard', 'Těžká']];
-export const SIZES = { slide: [3, 4, 5], swap: [3, 4, 6], rotate: [3, 4, 5], pexeso: [4, 6, 8] }; // pexeso = počet dvojic
+export const SIZES = { slide: [3, 4, 5], swap: [3, 4, 6], rotate: [3, 4, 5], pexeso: [4, 6, 8], who: [3, 3, 4], rows: [3, 4, 5], rings: [3, 4, 5] }; // pexeso = dvojice, who = možnosti, rings = počet kruhů
 
 /* ---------- logika (bez DOM, testuje se) ---------- */
 export const solved = t => t.every((v, i) => v === i);
@@ -155,4 +158,80 @@ export function playPexeso(el, cards, urlOf, nameOf, info, onWin) {
   el.addEventListener('click', onClick);
   draw();
   return () => { clearTimeout(timer); el.removeEventListener('click', onClick); };
+}
+
+/* ---------- Řady: posun řádku nebo sloupce dokola ---------- */
+export function shiftLine(t, n, isRow, k, dir) {
+  const idx = Array.from({ length: n }, (_, j) => isRow ? k * n + j : j * n + k), vals = idx.map(i => t[i]);
+  const moved = dir > 0 ? [vals[n - 1], ...vals.slice(0, n - 1)] : [...vals.slice(1), vals[0]];
+  idx.forEach((i, j) => { t[i] = moved[j]; });
+}
+export function rowsShuffle(n, rnd = Math.random, steps = n * 6) {
+  const t = [...Array(n * n).keys()];
+  do for (let s = 0; s < steps; s++) shiftLine(t, n, rnd() < .5, Math.floor(rnd() * n), rnd() < .5 ? 1 : -1); while (solved(t));
+  return t;
+}
+export function playRows(el, n, img, info, onWin) {
+  const start = Date.now(); let t = rowsShuffle(n), moves = 0, st = null, done = false;
+  el.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  const draw = () => { el.innerHTML = t.map((v, i) => `<div class="mgp" data-i="${i}" style="${piece(img, n, v)}"></div>`).join(''); info.textContent = done ? '' : `Tahů: ${moves}`; };
+  const down = e => { const p = e.target.closest('.mgp'); if (!p || done) return; st = { i: Number(p.dataset.i), x: e.clientX, y: e.clientY }; try { el.setPointerCapture(e.pointerId); } catch (x) {} };
+  const up = e => {
+    if (!st) return; const dx = e.clientX - st.x, dy = e.clientY - st.y, i = st.i; st = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 12) return;
+    const row = Math.abs(dx) > Math.abs(dy);
+    shiftLine(t, n, row, row ? Math.floor(i / n) : i % n, row ? Math.sign(dx) : Math.sign(dy));
+    moves++; if (solved(t)) { done = true; el.classList.add('won'); draw(); onWin(moves, Math.round((Date.now() - start) / 1000)); } else draw();
+  };
+  el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up);
+  draw();
+  return () => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointerup', up); };
+}
+
+/* ---------- Kruhy: soustředné kruhy obrázku se otáčejí po 45° ---------- */
+export function ringsShuffle(k, rnd = Math.random) {
+  let r; do r = Array.from({ length: k }, () => Math.floor(rnd() * 8)); while (r.every(v => v === 0) || r.filter(Boolean).length < Math.ceil(k / 2));
+  return r;
+}
+export function playRings(el, k, img, info, onWin) {
+  const start = Date.now(); let r = ringsShuffle(k), moves = 0, done = false;
+  el.classList.add('rings'); el.style.gridTemplateColumns = '';
+  const draw = () => {
+    // vnější kruh první (vespod), každý další menší nad ním
+    el.innerHTML = r.map((v, i) => { const s = 100 * (k - i) / k; return `<div class="ring" data-i="${i}" style="width:${s}%;height:${s}%;transform:translate(-50%,-50%) rotate(${v * 45}deg)"><div style="background-image:url(&quot;${esc(img)}&quot;);width:${10000 / s}%;height:${10000 / s}%"></div></div>`; }).join('');
+    info.textContent = done ? '' : `Tahů: ${moves} · ťukni na kruh`;
+  };
+  const click = e => {
+    if (done) return;
+    const b = el.getBoundingClientRect(), d = Math.hypot(e.clientX - b.left - b.width / 2, e.clientY - b.top - b.height / 2) / (b.width / 2);
+    if (d > 1) return;
+    const i = Math.min(k - 1, Math.floor((1 - d) * k)); // 0 = vnější
+    r[i] = (r[i] + 1) % 8; moves++;
+    if (r.every(v => v === 0)) { done = true; el.classList.add('won'); draw(); onWin(moves, Math.round((Date.now() - start) / 1000)); } else draw();
+  };
+  el.addEventListener('click', click);
+  draw();
+  return () => el.removeEventListener('click', click);
+}
+
+/* ---------- Kdo to byl? 5 otázek podle stop a znamení ---------- */
+export function playWho(el, rounds, info, onWin) {
+  const start = Date.now(); let i = 0, ok = 0, moves = 0, lock = false;
+  el.classList.add('pex'); el.style.gridTemplateColumns = '';
+  const draw = () => {
+    const q = rounds[i];
+    el.innerHTML = `<div class="who"><div class="fact">${esc(q.sign)}</div><div class="grid">${q.opts.map((o, j) => `<button class="acard" data-j="${j}"><div class="im"><img src="${o.url}" alt=""></div><div class="nm">${esc(o.name)}</div></button>`).join('')}</div></div>`;
+    info.textContent = `Otázka ${i + 1} z ${rounds.length} · správně ${ok}`;
+  };
+  const click = e => {
+    const b = e.target.closest('[data-j]'); if (!b || lock) return;
+    const q = rounds[i], j = Number(b.dataset.j); moves++;
+    b.classList.add(j === q.correct ? 'right' : 'wrong'); if (j === q.correct) ok++;
+    else el.querySelector(`[data-j="${q.correct}"]`).classList.add('right');
+    lock = true;
+    setTimeout(() => { lock = false; i++; if (i < rounds.length) draw(); else onWin(Math.max(1, rounds.length * 2 - ok), Math.round((Date.now() - start) / 1000), ok); }, 1100);
+  };
+  el.addEventListener('click', click);
+  draw();
+  return () => el.removeEventListener('click', click);
 }
