@@ -698,3 +698,17 @@ test('soutěže: hodnocení šikovnosti, skóre půl na půl se zvířetem, kód
   assert.deepEqual(Object.keys(cleanRecords({ sprint: { score: 5000, sp: 'kos', date: 1 }, nic: { score: 1 } })), ['sprint']);
   assert.equal(cleanRecords({ sprint: { score: 5000 } }).sprint.score, 1000);
 });
+
+test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, odpočinek) a kresby všech póz', async () => {
+  const { dogPose, POSES, dogURL } = await import('../js/dog.js');
+  const base = { now: 1000, eventUntil: 0, event: '', inRange: false, near: false, walking: false, idleMs: 0, night: false, dir: 1, sleepMs: 360000, lieMs: 120000 };
+  assert.equal(dogPose(base).pose, 'sit');
+  assert.equal(dogPose({ ...base, walking: true }).pose, 'walk');
+  assert.equal(dogPose({ ...base, walking: true, near: true, dir: -1 }).pose, 'sniff');
+  assert.deepEqual(dogPose({ ...base, near: true, inRange: true, dir: -1 }), { pose: 'point', dir: -1 });
+  assert.equal(dogPose({ ...base, inRange: true, event: 'joy', eventUntil: 2000 }).pose, 'joy', 'událost má přednost');
+  assert.equal(dogPose({ ...base, event: 'joy', eventUntil: 500 }).pose, 'sit', 'po události zase sedne');
+  assert.equal(dogPose({ ...base, idleMs: 130000 }).pose, 'lie');
+  assert.equal(dogPose({ ...base, idleMs: 200000, night: true }).pose, 'sleep', 'v noci usne dřív');
+  for (const p of POSES) { const u = decodeURIComponent(dogURL(p)); assert.ok(u.includes('<svg') && u.includes('</svg>') && !/undefined|NaN/.test(u), p); }
+});

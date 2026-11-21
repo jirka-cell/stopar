@@ -184,3 +184,11 @@ body.kid .bmk,body.kid .bmk img{width:60px;height:52px}
 .drum.beat{transform:scale(1.15);background:var(--acc2)}
 .arena svg{position:absolute;inset:0}
 .code{font-size:24px;letter-spacing:2px;font-family:ui-monospace,Menlo,monospace}
+.dog{position:absolute;left:6px;bottom:calc(40px + var(--sab));z-index:500;width:var(--dog,96px);height:calc(var(--dog,96px) * .86);padding:0;border:0;background:none;cursor:pointer}
+.dog img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.2))}
+.dog.flip img{transform:scaleX(-1)}
+.dog.hop{animation:hop .35s ease-out}
+@keyframes hop{40%{transform:translateY(-6px)}}
+.dog[data-pose="jump"]{animation:jump .7s ease-out}
+@keyframes jump{40%{transform:translateY(-22px)}}
+body.kid .dog{--dog:120px}

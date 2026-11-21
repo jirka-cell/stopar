@@ -15,6 +15,7 @@ import { evolve, train, release, buy, useItem, invOf, cleanInv, isMaster, stageN
 import { isTrack, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
+import { Dog } from './dog.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -93,7 +94,30 @@ function start() {
   setInterval(saveState, 10000);
   tick();
   if (location.hash === '#admin') askAdmin();
-  applyKidMode(); checkEventLink();
+  applyKidMode(); checkEventLink(); initDog();
+}
+/* ---------- pes Aegon ---------- */
+let dog = null, lastMove = Date.now(), dogPrev = null;
+function initDog() {
+  const el = $('dog'); if (!el) return;
+  el.hidden = !cfg.dog.enabled; el.style.setProperty('--dog', cfg.dog.size + 'px');
+  if (!cfg.dog.enabled) { if (dog) { dog.stop(); dog = null; } return; }
+  if (!dog) { dog = new Dog(el, cfg); dog.start(); el.onclick = dogTip; }
+  dog.cfg = cfg; updateDog();
+}
+// Co pes vidí: zvíře v dosahu (vystaví), blízko (čenichá), chůze hráče, jak dlouho je klid
+function updateDog() {
+  if (!dog || pos.lat == null) return;
+  if (dogPrev && dist(dogPrev.lat, dogPrev.lon, pos.lat, pos.lon) > 3) lastMove = Date.now();
+  const walking = dogPrev && dist(dogPrev.lat, dogPrev.lon, pos.lat, pos.lon) > 3;
+  dogPrev = { lat: pos.lat, lon: pos.lon };
+  const live = birds.filter(b => SP[b.sp] && !speciesLocked(SP[b.sp])).map(b => ({ b, d: dist(pos.lat, pos.lon, b.lat, b.lon) })).sort((x, y) => x.d - y.d)[0];
+  dog.update({ inRange: !!live && live.d <= catchRadius(), near: !!live && live.d <= cfg.dog.sniffRadius, dir: live && live.b.lon < pos.lon ? -1 : 1, walking, idleMs: Date.now() - lastMove, night: isNight() });
+}
+function dogTip() {
+  const n = birds.filter(b => SP[b.sp]).length, inR = birds.filter(b => SP[b.sp] && dist(pos.lat, pos.lon, b.lat, b.lon) <= catchRadius()).length;
+  toast('Aegon: ' + (inR ? 'Haf! Něco je v dosahu – ťukni na to!' : n ? 'V okolí cítím ' + n + ' ' + (n === 1 ? 'zvíře' : n < 5 ? 'zvířata' : 'zvířat') + '. Pojďme!' : 'Tady nic necítím, zkusíme jinde?'));
+  if (dog) dog.react('joy', 1500);
 }
 /* ---------- rodina ---------- */
 function applyKidMode() { document.body.classList.toggle('kid', kidModeOn(parentCfg, consentRec)); }
@@ -277,6 +301,7 @@ function applyConfig(first) {
   }
   updateCompassBtn();
   swConfig();
+  if (!first) initDog();
 }
 
 async function saveConfig(newCfg) {
@@ -542,7 +567,7 @@ function tick() {
   applyMapStyle(false); // přepnutí den/noc
   if (pos.lat == null) { hudGPS(); return; }
   ensureArea(pos.lat, pos.lon, cfg.spawn.radius + cfg.spawn.cellSize);
-  checkHide(); loadWeather(); checkStamps(); announceEvents(); checkBound();
+  checkHide(); loadWeather(); checkStamps(); announceEvents(); checkBound(); updateDog();
   refreshBirds();
   hudBio(); hudDist(); hudGPS();
 }
@@ -918,7 +943,7 @@ function pickFood(f) {
   const hit = Math.random() < ch;
   if (hit && kidMode()) { doCatch(cfg.family.kidQuality); return; }
   if (hit) { enc.step = 'photo'; enc.msg = m >= 1 ? approach(enc.sp) + ' Cvakni, až je značka v zelené.' : 'Opatrně se přiblížil. Rychle fotku!'; renderEnc(); return; }
-  if ((m === 0 && Math.random() < C.fleeWrong) || enc.tries >= C.maxFoodTries) { gone(); enc.step = 'fled'; enc.msg = m === 0 ? (FN[f] || f) + ' ho nezajímá. ' + cap(fled(enc.sp)) + '.' : 'Vyplašil se a ' + fled(enc.sp) + '.'; renderEnc(); return; }
+  if ((m === 0 && Math.random() < C.fleeWrong) || enc.tries >= C.maxFoodTries) { gone(); if (dog) dog.react('sad', 3000); enc.step = 'fled'; enc.msg = m === 0 ? (FN[f] || f) + ' ho nezajímá. ' + cap(fled(enc.sp)) + '.' : 'Vyplašil se a ' + fled(enc.sp) + '.'; renderEnc(); return; }
   const main = Object.keys(food).sort((a, b) => food[b] - food[a])[0];
   enc.msg = (m === 0 ? (FN[f] || f) + ' ho nezajímá.' : 'Váhá…') + (enc.tries >= C.hintAfter && main ? ' Tip: zkus ' + String(FN[main] || main).toLowerCase() + '.' : ' Zkus jinou potravu.');
   renderEnc();
@@ -928,7 +953,7 @@ function shoot() {
   const q = d <= h ? Math.round(100 - (d / h) * 40) : Math.max(0, Math.round(55 - (d - h) * 200));
   enc.shots++;
   if (q >= C.minQuality) { doCatch(q); return; }
-  if (enc.shots >= C.shots) { gone(); enc.step = 'fled'; enc.msg = 'Samé rozmazané fotky. ' + cap(fled(enc.sp)) + '.'; renderEnc(); return; }
+  if (enc.shots >= C.shots) { gone(); if (dog) dog.react('sad', 3000); enc.step = 'fled'; enc.msg = 'Samé rozmazané fotky. ' + cap(fled(enc.sp)) + '.'; renderEnc(); return; }
   enc.msg = 'Rozmazané (' + q + ' %). Zkus znovu.'; renderEnc();
 }
 function doCatch(q) {
@@ -947,6 +972,7 @@ function doCatch(q) {
   enc.added = addAnimal(state, animal, maxPerSpecies());
   enc.uid = enc.added.kept ? animal.uid : null;
   gone(); enc.step = 'done'; renderEnc();
+  if (dog) dog.react(enc.isNew ? 'jump' : 'joy', enc.isNew ? 3500 : 2500);
   state.counters.catches++; if (enc.isNew) state.counters.newSpecies++;
   gainXP(cfg.game.xpCatch + (enc.isNew ? cfg.game.xpNew : 0));
   progressEvent({ kind: 'catch', group: sp.group, bio: enc.b.bio });

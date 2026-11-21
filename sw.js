@@ -6,7 +6,7 @@ const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma 
 const META = 'stopar-meta';        // drobná nastavení SW, která musí přežít jeho uspání prohlížečem
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js',
+  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];

@@ -215,6 +215,13 @@ export const DEFAULTS = {
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5,
     xpContest: 10           // XP za odehranou soutěž
   },
+  dog: {
+    enabled: true,          // pes Aegon v rohu mapy
+    size: 96,               // velikost v px
+    lieMinutes: 2,          // po kolika minutách klidu si lehne (v noci za polovinu)
+    sleepMinutes: 6,        // po kolika minutách klidu usne
+    sniffRadius: 200        // m – zvíře blízko, ale mimo dosah → čenichá
+  },
   family: {
     kidAge: 8,              // režim pro malé děti „podle věku“: do kolika let
     kidQuality: 80,         // ostrost fotky v režimu pro malé děti (bez minihry)
@@ -404,6 +411,11 @@ export const SCHEMA = [
     ['sunAltitude', 'Noc pod výškou slunce (°)', 'number', { min: -18, max: 5, step: 0.5 }],
     ['nightFrom', 'Noc od (h)', 'number', { min: 0, max: 23, step: 1 }],
     ['nightTo', 'Noc do (h)', 'number', { min: 0, max: 23, step: 1 }]
+  ] },
+  { sec: 'dog', title: 'Pes Aegon', fields: [
+    ['enabled', 'Zobrazit psa v rohu mapy', 'bool'], ['size', 'Velikost (px)', 'number', { min: 48, max: 200, step: 4 }],
+    ['lieMinutes', 'Lehne si po (min klidu)', 'number', { min: 1, max: 60, step: 1 }], ['sleepMinutes', 'Usne po (min klidu)', 'number', { min: 1, max: 120, step: 1 }],
+    ['sniffRadius', 'Čenichá, když je zvíře do (m)', 'number', { min: 50, max: 1000, step: 10 }]
   ] },
   { sec: 'family', title: 'Rodina a malé děti', fields: [
     ['kidAge', 'Režim pro malé děti do věku (let)', 'number', { min: 3, max: 14, step: 1 }],
