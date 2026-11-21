@@ -407,11 +407,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 42);
+  assert.equal(CHECKS.length, 43);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 42);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 43);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
