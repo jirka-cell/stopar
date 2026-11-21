@@ -641,3 +641,37 @@ test('poznávání: stopy jen u druhů se znameními, kvíz má správný druh, 
   const j = cleanJournal([{ id: 'a', sp: 'kos', date: 5, note: 'x'.repeat(900), lat: 50.123456, lon: 14.98765, photo: '3' }, null, 'bad']);
   assert.equal(j.length, 1); assert.equal(j[0].note.length, 500); assert.equal(j[0].lat, 50.123); assert.equal(j[0].photo, 3);
 });
+
+test('QR kód: oprava chyb a formátové bity podle normy, matice má správnou velikost a vyhledávací vzory', async () => {
+  const { rsEcc, formatBits, versionBits, qrMatrix } = await import('../js/qr.js');
+  // příklad „HELLO WORLD“ 1-M z návodů k normě ISO/IEC 18004
+  assert.deepEqual(rsEcc([32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17], 10), [196, 35, 39, 119, 235, 215, 231, 226, 93, 23]);
+  assert.equal(formatBits(0).toString(2).padStart(15, '0'), '101010000010010');
+  assert.equal(formatBits(5).toString(2).padStart(15, '0'), '100000011001110');
+  assert.equal(versionBits(7).toString(2).padStart(18, '0'), '000111110010010100');
+  const m = qrMatrix('https://jirka-cell.github.io/stopar/');
+  assert.equal(m.length, 29, '36 bajtů → verze 3 (29 × 29)');
+  const finder = (x, y) => [0, 1, 2, 3, 4, 5, 6].every(i => m[y][x + i] && m[y + 6][x + i] && m[y + i][x] && m[y + i][x + 6]) && m[y + 3][x + 3] && !m[y + 1][x + 1];
+  assert.ok(finder(0, 0) && finder(22, 0) && finder(0, 22));
+  assert.throws(() => qrMatrix('x'.repeat(600)));
+});
+
+test('události od rodičů: odkaz se zakóduje a dekóduje, cíle se počítají jen v čase a místě události', async () => {
+  const { cleanEvent, encodeEvent, decodeEvent, eventProgress, insideBound, cleanParent } = await import('../js/family.js');
+  const e = cleanEvent({ id: 'x', n: 'Výprava k rybníku 🐸', m: 'Hodně štěstí!', f: 1000, t: 1e13, la: 50, lo: 14, r: 1000, g: [['catchGroup', 'Ptáci', 2], ['walk', '', 1000], ['bad', '', 1]] });
+  assert.equal(e.g.length, 2, 'neznámý cíl se zahodí');
+  const d = decodeEvent(encodeEvent(e));
+  assert.equal(d.n, 'Výprava k rybníku 🐸'); assert.deepEqual(d.g, e.g);
+  assert.equal(decodeEvent('nesmysl!!'), null);
+  assert.equal(cleanEvent({ n: '', g: [['catch', '', 1]], f: 1, t: 2 }), null);
+  const evs = [d], here = { lat: 50.001, lon: 14 }, far = { lat: 51, lon: 14 };
+  assert.equal(eventProgress(evs, { kind: 'catch', group: 'Ptáci' }, far, 5000).length, 0);
+  assert.deepEqual(d.p, [0, 0], 'mimo oblast se nepočítá');
+  eventProgress(evs, { kind: 'catch', group: 'Ptáci' }, here, 5000);
+  eventProgress(evs, { kind: 'catch', group: 'Ptáci' }, here, 5000);
+  assert.equal(eventProgress(evs, { kind: 'walk', n: 1200 }, here, 5000).length, 1, 'splněno');
+  assert.equal(eventProgress(evs, { kind: 'walk', n: 1200 }, here, 5000).length, 0, 'jen jednou');
+  const p = cleanParent({ kidMode: 'zzz', bound: { lat: 50, lon: 14, r: 1000 } });
+  assert.equal(p.kidMode, 'auto');
+  assert.equal(insideBound(p, 50.005, 14), true); assert.equal(insideBound(p, 50.02, 14), false);
+});

@@ -214,6 +214,11 @@ export const DEFAULTS = {
     releaseBase: 10, releaseRarity: '1:1, 2:2.5, 3:6', // body za vypuštění = základ × vzácnost × (stádium + 1)
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5
   },
+  family: {
+    kidAge: 8,              // režim pro malé děti „podle věku“: do kolika let
+    kidQuality: 80,         // ostrost fotky v režimu pro malé děti (bez minihry)
+    vibrate: true           // krátká vibrace, když je v dosahu druh, který hráč ještě nemá
+  },
   field: {
     trackChance: 0.25,      // jak často je místo zvířete jen jeho stopa (u druhů s popsanými znameními)
     xpTrack: 10             // XP za správně určenou stopu
@@ -398,6 +403,11 @@ export const SCHEMA = [
     ['sunAltitude', 'Noc pod výškou slunce (°)', 'number', { min: -18, max: 5, step: 0.5 }],
     ['nightFrom', 'Noc od (h)', 'number', { min: 0, max: 23, step: 1 }],
     ['nightTo', 'Noc do (h)', 'number', { min: 0, max: 23, step: 1 }]
+  ] },
+  { sec: 'family', title: 'Rodina a malé děti', fields: [
+    ['kidAge', 'Režim pro malé děti do věku (let)', 'number', { min: 3, max: 14, step: 1 }],
+    ['kidQuality', 'Ostrost fotky bez minihry (%)', 'number', { min: 30, max: 100, step: 1 }],
+    ['vibrate', 'Vibrace u nového druhu v dosahu', 'bool']
   ] },
   { sec: 'field', title: 'Stopy a poznávání', fields: [
     ['trackChance', 'Stopa místo zvířete: šance (0–1)', 'number', { min: 0, max: 1, step: 0.05 }],
