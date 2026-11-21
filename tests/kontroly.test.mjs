@@ -829,3 +829,37 @@ test('plánovač: graf pěšin, nejkratší cesta, okruh dané délky, zjednodu�
   assert.equal(cps.length, 3); assert.ok(Math.abs(cps[1][1] - 14.005) < 1e-9, 'prostřední v polovině');
   assert.equal(P.cleanRoute({ p: enc, n: 'X' }).n, 'X'); assert.equal(P.cleanRoute({ p: '_p~' }), null);
 });
+
+test('offline: dlaždice pokrývají kruh, odhad odpovídá tabulce variant, adresy jsou úplné', async () => {
+  const { tileRange, planUrls, estimate } = await import('../js/offline.js');
+  const t14 = tileRange(50.0755, 14.4378, 2000, 14);
+  assert.ok(t14.length >= 9 && t14.length <= 20, 'z14, 2 km: ' + t14.length);
+  assert.equal(tileRange(50.0755, 14.4378, 2000, 8).length, 1, 'z8 = jedna dlaždice');
+  const e2 = estimate(50.0755, 14.4378, 2000, 0.01), e5 = estimate(50.0755, 14.4378, 5000, 0.01), e10 = estimate(50.0755, 14.4378, 10000, 0.01);
+  assert.ok(e2.mb < e5.mb && e5.mb < e10.mb);
+  assert.ok(e2.chunks >= 25 && e2.chunks <= 45, '2 km čtverce: ' + e2.chunks);
+  assert.ok(e10.chunks >= 450 && e10.chunks <= 650, '10 km čtverce: ' + e10.chunks);
+  assert.ok(e5.mb > 3 && e5.mb < 20, '5 km MB: ' + e5.mb);
+  const urls = planUrls('https://t/p/{z}/{x}/{y}.pbf', 'https://d/{z}/{x}/{y}.png', 'https://f/{fontstack}/{range}.pbf', 50.0755, 14.4378, 2000);
+  assert.ok(urls.every(u => !/[{}]/.test(u)), 'žádné nedosazené {}');
+  assert.equal(new Set(urls).size, urls.length, 'bez duplicit');
+  assert.ok(urls.some(u => u.includes('Noto%20Sans%20Bold/256-511')));
+});
+
+test('app.js: žádné jméno se nedováží dvakrát a každý dovoz existuje v modulu (jinak aplikace nenaběhne)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const names = [], re = /import\s*\{([^}]+)\}\s*from\s*'\.\/([\w-]+\.js)'/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const mod = await import('../js/' + m[2]);
+    for (const part of m[1].split(',').map(s => s.trim()).filter(Boolean)) {
+      const [orig, alias] = part.split(/\s+as\s+/).map(s => s.trim());
+      assert.ok(orig in mod, `${m[2]} nemá export ${orig}`);
+      names.push(alias || orig);
+    }
+  }
+  const dup = names.filter((n, i) => names.indexOf(n) !== i);
+  assert.deepEqual(dup, [], 'dvakrát dovezené: ' + dup.join(', '));
+  for (const n of names) assert.ok(!new RegExp('^(?:function|let|const|class)\s+' + n + '\b', 'm').test(src), `${n} je dovezené i deklarované v app.js`);
+});

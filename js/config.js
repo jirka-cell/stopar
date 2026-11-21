@@ -290,6 +290,10 @@ export const DEFAULTS = {
     { id: '11', text: 'Ježci, netopýři a plši usínají zimním spánkem. Přilétají zimní hosté ze severu.' },
     { id: '12', text: 'Zima: stopy ve sněhu, ptáci na krmítkách. Vyvěs lojovou kouli a pozoruj, kdo přiletí.' }
   ],
+  offline: {
+    radii: '2000,5000,10000', // nabídka poloměrů (m)
+    defaultRadius: 5000, maxRadius: 10000
+  },
   planner: {
     kmh: 3.5,               // rychlost chůze pro odhad času (s dětmi)
     cpCones: 10, cpXp: 10,  // odměna na trase
@@ -459,6 +463,10 @@ export const SCHEMA = [
   { sec: 'field', title: 'Stopy a poznávání', fields: [
     ['trackChance', 'Stopa místo zvířete: šance (0–1)', 'number', { min: 0, max: 1, step: 0.05 }],
     ['xpTrack', 'XP za určenou stopu', 'number', { min: 0, step: 1 }]
+  ] },
+  { sec: 'offline', title: 'Offline mapy', fields: [
+    ['radii', 'Nabídka poloměrů (m, čárkou)', 'text'], ['defaultRadius', 'Výchozí poloměr (m)', 'number', { min: 500, max: 20000, step: 500 }],
+    ['maxRadius', 'Největší poloměr (m)', 'number', { min: 1000, max: 20000, step: 500 }]
   ] },
   { sec: 'planner', title: 'Plánovač procházek', fields: [
     ['kmh', 'Rychlost pro odhad času (km/h)', 'number', { min: 1, max: 8, step: 0.5 }],

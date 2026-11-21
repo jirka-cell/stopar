@@ -1,7 +1,7 @@
 import { esc, DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths, compactConfig } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
-import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt, overpassQuery } from './osm.js';
+import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt, overpassQuery, chunkProgress } from './osm.js';
 import { refreshWeather, weatherCond, WEATHER_ICON, WEATHER_NAME, activeEvents, speciesMult, inQuietMonths, variantFor, protectedHTML, protectedType, wikiSummary, calendarHTML, cleanStamps, stampsHTML } from './world.js';
 import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
@@ -18,6 +18,7 @@ import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { Dog } from './dog.js';
+import { planUrls, estimate, download as offlineDownload, removeUrls, cleanAreas, offlineHTML, OFFLINE_CACHE } from './offline.js';
 import { buildGraph, graphQuery, suggestLoops, loopThrough, nearestNode, simplify, encodePolyline, decodePolyline, checkpointsAlong, cleanRoute, pathLength, plannerHTML, choiceHTML, ROUTE_COLORS } from './planner.js';
 import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './trails.js';
 import { cleanTreasure, treasureLink, decodeTreasure, searchCircle, treasuresHTML, treasureFormHTML, feedersNear, feederReward, parkCell, cleanPlaces, distM } from './treasure.js';
@@ -280,7 +281,7 @@ async function wipeAll() {
   try { await Promise.all(['kv', 'photos', 'osm'].map(s => store.clear(s))); } catch (e) { wiping = false; toast('Smazání se nepovedlo.'); return; }
   stopGPS(); stopSim();
   // mapové dlaždice prozrazují, kde se hrálo; soubory aplikace zůstanou kvůli offline
-  try { for (const k of await caches.keys()) if (k.startsWith('stopar-tiles') || k === 'stopar-static') await caches.delete(k); } catch (e) {}
+  try { for (const k of await caches.keys()) if (k.startsWith('stopar-tiles') || k === 'stopar-static' || k === OFFLINE_CACHE) await caches.delete(k); } catch (e) {}
   location.reload();
 }
 
@@ -993,6 +994,59 @@ async function shareRouteLink() {
   try { if (navigator.share) { await navigator.share({ title: shareRt.n, text: 'Trasa ve hře Stopař: ' + shareRt.n, url: shareRt.url }); return; } } catch (e) { if (e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(shareRt.url); toast('Odkaz zkopírován.'); } catch (e) { prompt('Zkopíruj odkaz:', shareRt.url); }
 }
+/* ---------- offline mapy ---------- */
+const off = { r: 0, prog: null, ctrl: null, areas: [] };
+async function openOffline() {
+  off.areas = cleanAreas(await store.get('offline').catch(() => null));
+  off.r = off.r || cfg.offline.defaultRadius;
+  renderOffline();
+}
+function renderOffline() {
+  const est = pos.lat != null ? estimate(pos.lat, pos.lon, off.r, cfg.osm.chunkDeg) : null;
+  openM(offlineHTML(cfg, off.areas, off.r, est, off.prog));
+}
+let offT = 0;
+const offShow = (p, text) => { off.prog = { p: Math.round(p), text }; if (Date.now() - offT > 300) { offT = Date.now(); if ($('mbox').querySelector('[data-act=offStop]')) renderOffline(); } };
+async function offlineGo() {
+  if (pos.lat == null || off.ctrl) return;
+  const lat = pos.lat, lon = pos.lon, r = off.r, ctrl = new AbortController(); off.ctrl = ctrl;
+  try {
+    offShow(0, 'Připravuji…'); renderOffline();
+    const tj = await (await fetch(cfg.map.vectorUrl, { signal: ctrl.signal })).json(), tpl = (tj.tiles || [])[0] || '';
+    const urls = planUrls(tpl, cfg.map.demUrl, cfg.map.glyphsUrl, lat, lon, r);
+    const fail = await offlineDownload(urls, (d, t) => offShow(d / t * 60, `Mapa a výškopis: ${d} / ${t}`), ctrl.signal);
+    if (ctrl.signal.aborted) throw new Error('stop');
+    // biotopy: stejná fronta jako při hře (servery Overpass postupně)
+    ensureArea(lat, lon, r);
+    let last = -1, since = Date.now(), partial = false;
+    for (;;) {
+      const p = chunkProgress(lat, lon, r);
+      offShow(60 + p.loaded / Math.max(1, p.total) * 35, `Biotopy: ${p.loaded} / ${p.total}`);
+      if (p.loaded >= p.total || ctrl.signal.aborted) break;
+      if (p.loaded !== last) { last = p.loaded; since = Date.now(); } else if (Date.now() - since > 60000) { partial = true; break; } // servery biotopů neodpovídají
+
+      await new Promise(res => setTimeout(res, 1500)); ensureArea(lat, lon, r);
+    }
+    if (ctrl.signal.aborted) throw new Error('stop');
+    offShow(97, 'Turistické trasy…');
+    const dLat = r / 111320, dLon = r / (111320 * Math.cos(lat * Math.PI / 180));
+    await loadTrails(tilesFor([lat - dLat, lon - dLon, lat + dLat, lon + dLon], 200), overpassQuery, cfg.osm.cacheDays, () => { kctPending = true; flushMap(); });
+    const est = estimate(lat, lon, r, cfg.osm.chunkDeg);
+    off.areas.push({ id: Date.now().toString(36), n: 'Okolí ' + new Date().toLocaleDateString('cs-CZ'), lat, lon, r, d: Date.now(), mb: est.mb, tpl });
+    await store.set('offline', off.areas).catch(() => {});
+    off.prog = null; off.ctrl = null; renderOffline();
+    toast(partial ? 'Mapa stažena, biotopy jen zčásti (servery neodpovídají) – zkus to později znovu.' : fail ? `Staženo, ${fail} dlaždic se nepovedlo (zkus znovu).` : 'Okolí je staženo pro offline.');
+  } catch (e) {
+    off.prog = null; off.ctrl = null; renderOffline();
+    toast(ctrl.signal.aborted ? 'Stahování zastaveno (co je staženo, zůstává).' : 'Stahování se nepovedlo – jsi online?');
+  }
+}
+async function offlineDel(id) {
+  const a = off.areas.find(x => x.id === id); if (!a) return;
+  await removeUrls(planUrls(a.tpl, cfg.map.demUrl, '', a.lat, a.lon, a.r)).catch(() => {});
+  off.areas = off.areas.filter(x => x.id !== id); await store.set('offline', off.areas).catch(() => {});
+  renderOffline(); toast('Oblast smazána.');
+}
 const buzzed = new Set();
 function removeMarker(id) { const m = markers.get(id); if (m) { m.mk.remove(); markers.delete(id); } }
 function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
@@ -1346,6 +1400,11 @@ function onModalClick(e) {
   else if (act === 'card') shareCard($('animalActs')?.dataset.uid);
   else if (act === 'contests') openContests();
   else if (act === 'planner') openPlanner();
+  else if (act === 'offline') openOffline();
+  else if (act === 'offR') { off.r = Number(a.dataset.v); renderOffline(); }
+  else if (act === 'offGo') offlineGo();
+  else if (act === 'offStop') { if (off.ctrl) off.ctrl.abort(); }
+  else if (act === 'offDel') offlineDel(a.dataset.id);
   else if (act === 'plSearch') plSearch();
   else if (act === 'plPick') { const r = pl.results[Number(a.dataset.i)]; if (r) { pl.start = [r.lat, r.lon]; pl.startName = r.name; pl.results = []; openPlanner(); } }
   else if (act === 'plHere') { e.preventDefault(); pl.start = null; pl.startName = ''; openPlanner(); }
@@ -1555,6 +1614,7 @@ function openMenu() {
   <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b><br>Před společnou procházkou ho porovnejte – stejný kód = stejná zvířata na stejném místě.</p>
   <label class="fld row">Ztlumit mapu při chůzi (bezpečnost)<input type="checkbox" data-pref="muteWalk"${muteOn() ? ' checked' : ''}${kidMode() ? ' disabled' : ''}></label>
   <button class="btn full" data-act="planner">Naplánovat procházku</button>
+  <button class="btn full" data-act="offline">Offline mapy</button>
   ${state.walk && !state.walk.done ? '<button class="btn full" data-act="walkEnd">Ukončit trasu „' + esc(state.walk.n) + '“</button>' : ''}
   <button class="btn full" data-act="contests">Soutěže</button>
   <button class="btn full" data-act="treasures">Poklady</button>

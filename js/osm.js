@@ -327,3 +327,11 @@ export function parkAt(lat, lon) {
 
 // Libovolný dotaz Overpass přes stejné servery a časové limity (turistické trasy, offline balíček)
 export const overpassQuery = q => fetchOverpass('data=' + encodeURIComponent(q));
+
+// Kolik čtverců biotopů v okruhu už je načtených (pro průběh offline stahování)
+export function chunkProgress(lat, lon, radius) {
+  const dLat = radius / mPerDegLat, dLon = radius / mPerDegLon(lat), d = CFG.osm.chunkDeg;
+  let total = 0, loaded = 0;
+  for (let a = Math.floor((lat - dLat) / d); a <= Math.floor((lat + dLat) / d); a++) for (let b = Math.floor((lon - dLon) / d); b <= Math.floor((lon + dLon) / d); b++) { total++; if (chunks.has(a + '_' + b)) loaded++; }
+  return { total, loaded };
+}
