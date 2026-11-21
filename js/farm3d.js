@@ -13,11 +13,24 @@ function ring(n) {
 const hash = (q, r, s = 0) => { let h = (q * 374761393 + r * 668265263 + s * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 // Rozmístění: statek uprostřed, cesty v 1. kruhu, budovy ve 2. kruhu (a dál), okolí podle sousední budovy
 export const SLOT_ORDER = ['enc_voliera', 'enc_vybeh', 'enc_rybnik', 'enc_terarium', 'enc_insektarium', 'pantry', 'store', 'field', 'orchard', 'worms', 'nursery', 'lumber', 'quarry'];
-export function layout(ids) {
+export const MAX_RING = 5;
+export const hexDist = (q, r) => (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2;
+// Kam smí budova: 2. až 5. kruh (střed je statek, 1. kruh cesty)
+export const placeable = (q, r) => { const d = hexDist(q, r); return d >= 2 && d <= MAX_RING; };
+export function layout(ids, custom = {}) {
   const order = [...SLOT_ORDER.filter(i => ids.includes(i)), ...ids.filter(i => !SLOT_ORDER.includes(i))];
-  const slots = [...ring(2), ...ring(3).filter((_, i) => i % 3 === 0)], pos = {};
-  order.forEach((id, i) => { if (slots[i]) pos[id] = slots[i]; });
+  const slots = [...ring(2), ...ring(3).filter((_, i) => i % 3 === 0), ...ring(3), ...ring(4)], pos = {}, used = new Set();
+  for (const id of order) { const c = custom[id]; if (c && placeable(c[0], c[1]) && !used.has(c.join())) { pos[id] = [c[0], c[1]]; used.add(c.join()); } }
+  for (const id of order) { if (pos[id]) continue; const s = slots.find(p => !used.has(p.join())); if (s) { pos[id] = s; used.add(s.join()); } }
   return pos;
+}
+// Bod na zemi → políčko (šestiúhelník špičkou nahoru, zaokrouhlení v kubických souřadnicích)
+export function hexAt(x, z) {
+  const q = (SQ3 / 3 * x - z / 3) / HEX, r = (2 / 3 * z) / HEX, s = -q - r;
+  let rq = Math.round(q), rr = Math.round(r); const rs = Math.round(s);
+  const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
+  if (dq > dr && dq > ds) rq = -rr - rs; else if (dr > ds) rr = -rq - rs;
+  return [rq + 0, rr + 0]; // + 0: bez záporné nuly
 }
 const NEAR = { lumber: 'forest', nursery: 'meadow', field: 'crop', orchard: 'orchard', quarry: 'rock', enc_rybnik: 'water', worms: 'soil' };
 export function terrainAt(q, r, pos) {
@@ -34,7 +47,7 @@ export function terrainAt(q, r, pos) {
 }
 const TCOL = { yard: 0xc9b58a, path: 0xd8c79f, base: 0x9ccf7a, meadow: 0x8cc66a, forest: 0x5f9a4c, crop: 0xd9c25a, orchard: 0x86bd62, rock: 0x9a958a, water: 0x5aa6d6, soil: 0x7a5a3a };
 
-export async function mountFarm(el, items, onPick) {
+export async function mountFarm(el, items, onPick, opts = {}) {
   const THREE = await import('../vendor/three/three.module.min.js');
   const R = 6;
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -53,9 +66,9 @@ export async function mountFarm(el, items, onPick) {
   const mat = c => mats[c] || (mats[c] = M(c));
 
   /* krajina z šestiúhelníků (InstancedMesh na typ terénu) */
-  const ids = items.map(i => i.id), pos = layout(ids), tiles = {};
+  const ids = items.map(i => i.id), pos = layout(ids, opts.pos || {}), tiles = {};
   for (let n = 0; n <= R; n++) for (const [q, r] of ring(n)) { const t = terrainAt(q, r, pos); (tiles[t] ||= []).push([q, r]); }
-  const hexGeo = new THREE.CylinderGeometry(HEX * 0.98, HEX * 0.98, 0.3, 6); hexGeo.rotateY(Math.PI / 6);
+  const hexGeo = new THREE.CylinderGeometry(HEX * 0.98, HEX * 0.98, 0.3, 6); // špička k ±z = stejně jako axial() → sousedé sdílí stranu
   const dummy = new THREE.Object3D(), deco = new THREE.Group(); scene.add(deco);
   for (const [t, list] of Object.entries(tiles)) {
     const im = new THREE.InstancedMesh(hexGeo, mat(TCOL[t]), list.length); im.receiveShadow = true;
@@ -79,7 +92,7 @@ export async function mountFarm(el, items, onPick) {
     if (t === 'rock') for (let i = 0; i < 2; i++) { const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + hash(q, r, 40 + i) * 0.15), mat(0x8a857a)); s.position.set(x + (hash(q, r, 50 + i) - .5), 0.25, z + (hash(q, r, 60 + i) - .5)); s.castShadow = true; deco.add(s); }
     if (t === 'crop') for (let i = -2; i <= 2; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.14), mat(0xc9a83a)); b.position.set(x, 0.2, z + i * 0.3); deco.add(b); }
     if (t === 'orchard') deco.add(tree(x, z, 0.8, 0x6aa84a));
-    if (t === 'water') { const w = new THREE.Mesh(new THREE.CylinderGeometry(HEX * 0.9, HEX * 0.9, 0.05, 6), new THREE.MeshStandardMaterial({ color: 0x6ab8e8, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.9 })); w.rotation.y = Math.PI / 6; w.position.set(x, 0.1, z); deco.add(w); }
+    if (t === 'water') { const w = new THREE.Mesh(new THREE.CylinderGeometry(HEX * 0.9, HEX * 0.9, 0.05, 6), new THREE.MeshStandardMaterial({ color: 0x6ab8e8, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.9 })); w.position.set(x, 0.1, z); deco.add(w); }
   }
   // statek uprostřed (dekorace)
   scene.add(model('home', 2, ...axial(0, 0)));
@@ -160,7 +173,9 @@ export async function mountFarm(el, items, onPick) {
     const r = cv.getBoundingClientRect(); v2.set((cx - r.left) / r.width * 2 - 1, -(cy - r.top) / r.height * 2 + 1);
     ray.setFromCamera(v2, cam);
     const hit = ray.intersectObjects(bgroup.children, true)[0];
-    if (hit && hit.object.userData.id) onPick(hit.object.userData.id);
+    if (hit && hit.object.userData.id && !opts.moving) { onPick(hit.object.userData.id); return; }
+    // ťuk na políčko (přesouvání budovy): průsečík se zemí → šestiúhelník
+    if (opts.onTile && ray.ray.direction.y < 0) { const t = (0.15 - ray.ray.origin.y) / ray.ray.direction.y, x = ray.ray.origin.x + ray.ray.direction.x * t, z = ray.ray.origin.z + ray.ray.direction.z * t; opts.onTile(...hexAt(x, z)); }
   }
 
   /* vykreslení jen při změně; štítky sledují budovy */
@@ -183,6 +198,7 @@ export async function mountFarm(el, items, onPick) {
   place(); frame();
   return {
     update: list => build(list),
+    setMoving: v => { opts.moving = v; },
     focus: id => { const p = pos[id]; if (!p) return; [st.tx, st.tz] = axial(...p); st.d = Math.min(st.d, 9); place(); dirty = true; },
     destroy: () => { alive = false; cancelAnimationFrame(raf); renderer.dispose(); el.innerHTML = ''; }
   };

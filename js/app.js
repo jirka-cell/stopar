@@ -20,8 +20,8 @@ import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scor
 import { Dog, dogURL } from './dog.js';
 import { ic, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
-import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC } from './farm.js';
-import { mountFarm } from './farm3d.js';
+import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding } from './farm.js';
+import { mountFarm, layout as farmLayout } from './farm3d.js';
 import { createMeter, ingest, tickMeter, addDay, cleanDay, chipHTML, dataHTML } from './datamon.js';
 import { PUZZLES, SIZES, boardHTML, squareImage, playPuzzle, playPexeso, pexesoDeck, gameReward, cleanGames, playRows, playRings, playWho } from './minigames.js';
 import { foodIcon, tripCardBlob, weekCode, readWeekCode, weekNumber, familyHTML } from './extras.js';
@@ -120,7 +120,7 @@ function initDog() {
   const el = $('dog'); if (!el) return;
   el.hidden = !cfg.dog.enabled; el.style.setProperty('--dog', cfg.dog.size + 'px');
   if (!cfg.dog.enabled) { if (dog) { dog.stop(); dog = null; } return; }
-  if (!dog) { dog = new Dog(el, cfg); dog.start(); el.onclick = () => { if (Date.now() - dogDragged > 400) dogTip(); }; bindDogDrag(); placeDog(); }
+  if (!dog) { dog = new Dog(el, cfg); dog.start(); bindDogDrag(); placeDog(); }
   dog.cfg = cfg; updateDog();
 }
 // Co pes vidí: zvíře v dosahu (vystaví), blízko (čenichá), chůze hráče, jak dlouho je klid
@@ -133,7 +133,7 @@ function updateDog() {
   dog.update({ inRange: !!live && live.d <= catchRadius(), near: !!live && live.d <= cfg.dog.sniffRadius, dir: live && live.b.lon < pos.lon ? -1 : 1, walking, idleMs: Date.now() - lastMove, night: isNight() });
 }
 // Aegon jde posouvat prstem (jako nálepka); puštění na boudu = proběhne se a za chvíli se vrátí
-let dogDragged = 0, dogAway = 0, plBusy = false;
+let dogAway = 0, plBusy = false;
 function placeDog() {
   const el = $('dog'), p = prefs.dogPos;
   if (p && Number.isFinite(p.l) && Number.isFinite(p.t)) { const m = $('mapv').getBoundingClientRect(); el.style.left = Math.min(p.l, Math.max(0, m.width - 60)) + 'px'; el.style.top = Math.min(p.t, Math.max(0, m.height - 60)) + 'px'; el.style.bottom = 'auto'; }
@@ -141,7 +141,10 @@ function placeDog() {
 }
 function bindDogDrag() {
   const el = $('dog'), ken = $('kennel'); let st = null, moved = false;
-  const over = e => { const r = ken.getBoundingClientRect(); return e.clientX >= r.left - 10 && e.clientX <= r.right + 10 && e.clientY >= r.top - 10 && e.clientY <= r.bottom + 10; };
+  const over = e => { const r = ken.getBoundingClientRect(); return r.width > 0 && e.clientX >= r.left - 40 && e.clientX <= r.right + 40 && e.clientY >= r.top - 50 && e.clientY <= r.bottom + 30; };
+  // dotyk: bez tohohle si telefon gesto převezme (posun stránky, dlouhé podržení) a puštění na boudu nedojde
+  el.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  el.addEventListener('contextmenu', e => e.preventDefault());
   el.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, r: el.getBoundingClientRect(), p: $('mapv').getBoundingClientRect() }; moved = false; try { el.setPointerCapture(e.pointerId); } catch (x) {} });
   el.addEventListener('pointermove', e => {
     if (!st) return;
@@ -154,10 +157,11 @@ function bindDogDrag() {
   });
   const end = e => {
     if (!st) return;
-    st = null; ken.hidden = true; el.classList.remove('drag');
-    if (!moved) return;
-    dogDragged = Date.now();
-    if (over(e)) dogFree();
+    st = null; ken.classList.remove('over'); el.classList.remove('drag');
+    if (!moved) { ken.hidden = true; if (e.type === 'pointerup') dogTip(); return; }
+    const free = over(e); ken.hidden = true;
+
+    if (free) dogFree();
     else { prefs.dogPos = { l: parseFloat(el.style.left), t: parseFloat(el.style.top) }; savePrefs(); }
   };
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
@@ -1410,7 +1414,7 @@ async function initDataMon() {
     nmRate = tickMeter(meter);
     const d = $('dog'); if (d) d.classList.toggle('busy', nmRate > 0 || queueSize() > 0 || plBusy || !!off.ctrl);
     drawNetmon();
-    if ($('mbox').querySelector('[data-act=dataClearOsm]') && !$('mbox').querySelector('[data-armed]')) openDataMgr(true);
+    if (modal.classList.contains('on') && $('mbox').querySelector('[data-act=dataClearOsm]') && !$('mbox').querySelector('[data-armed]')) openDataMgr(true);
   }, 1000);
   setInterval(() => { if (nmDirty && !wiping) { nmDirty = false; store.set('netDay', nmDay).catch(() => {}); } }, 15000);
   const el = $('netmon');
@@ -1428,7 +1432,7 @@ function drawNetmon() {
 async function openDataMgr(refresh) {
   const st = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => null) : null;
   const y = mbox.scrollTop;
-  if (refresh && !$('mbox').querySelector('[data-act=dataClearOsm]')) return;
+  if (refresh && (!modal.classList.contains('on') || !$('mbox').querySelector('[data-act=dataClearOsm]'))) return;
   openM(dataHTML(meter, nmDay && nmDay.day === dayStr(new Date()) ? nmDay : null, st, nmRate));
   if (refresh) mbox.scrollTop = y;
 }
@@ -1624,11 +1628,19 @@ function farmTick(quiet) {
   const f = ensureFarm(), got = farmAdvance(f, Date.now(), state.inv);
   const pick = autoPick(f, BUILDINGS.map(b => b.id)); if (pick) startBuild(f, pick, state.cones);
   if (got.built && !quiet) { const b = BUILDINGS.find(x => x.id === got.built), e = cfg.enclosures.find(x => 'enc_' + x.id === got.built); toast('🏡 Farma: hotovo – ' + (b ? b.name : e ? e.name : got.built) + ' úr. ' + f.lv[got.built]); }
-  if ($('mbox').querySelector('.fres')) openFarm(true);
+  if (modal.classList.contains('on') && $('mbox').querySelector('.fres')) openFarm(true);
   if ($('farmv').classList.contains('on')) refreshFarmView();
 }
 /* ---------- 3D farma (hlavní záložka) ---------- */
-let farm3 = null, farmSel = '', farmSide = false;
+let farm3 = null, farmSel = '', farmSide = false, farmMove = '';
+// Přesouvání: v panelu budovy „Přesunout“ → ťuk na políčko (obsazené = výměna)
+function farmTile(q, r) {
+  if (!farmMove) return;
+  const f = ensureFarm(), id = farmMove, pos = farmLayout(farmItems().map(i => i.id), f.pos);
+  const res = moveBuilding(f, id, q, r, pos, Number(cfg.farm.moveDays) || 0);
+  if (res.err) { toast(res.err); return; }
+  farmMove = ''; saveState(); toast(res.swapped ? 'Budovy si vyměnily místo.' : 'Přesunuto.'); farmSel = id; renderFarmView();
+}
 const encOcc = id => { const c = {}; state.animals.forEach(a => { const sp = SP[a.sp]; if (sp && enclosureOf(cfg, sp.group).id === id) c[a.sp] = (c[a.sp] || 0) + 1; }); return Math.max(0, ...Object.values(c)); };
 const fbName = id => { const b = BUILDINGS.find(x => x.id === id), e = cfg.enclosures.find(x => 'enc_' + x.id === id); return b ? [b.icon, b.name, b.desc] : e ? [e.icon, e.name, ENC_DESC] : ['🏠', id, '']; };
 // Stav nad budovou: ok = stačí, warn = blíží se limitu, bad = nestačí / stojí, build = staví se
@@ -1680,7 +1692,9 @@ function farmSheetHTML(id) {
   }
   const up = b ? `<p class="msg small">Staví se – hotovo za ${Math.max(1, Math.ceil((f.build.until - Date.now()) / 60000))} min</p>`
     : lv >= 10 ? '<p class="msg small">Nejvyšší úroveň.</p>' : `<button class="btn full${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-act="farmBuild" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${lv ? 'Vylepšit na úr. ' + (lv + 1) : 'Postavit'}: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${buildMinutes(lv)} min</button>${f.build ? '<p class="msg small">Najednou se staví jen jedna budova.</p>' : ''}`;
-  return `<div class="fsh-h"><b>${icon} ${esc(name)} <small>úr. ${lv}</small></b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">${esc(desc)}</p>${up}${body}`;
+  const md = Number(cfg.farm.moveDays) || 0, wait = md && f.moved ? Math.ceil((f.moved + md * 86400000 - Date.now()) / 86400000) : 0;
+  const mv = farmMove === id ? '<button class="btn full primary" data-fv="moveCancel">Ťukni na políčko, kam budovu dát · Zrušit</button>' : `<button class="btn full ghost" data-fv="move"${wait > 0 ? ' disabled' : ''}>↔ Přesunout${wait > 0 ? ' (za ' + wait + ' dní)' : md ? ' (jednou za ' + md + ' dní)' : ''}</button>`;
+  return `<div class="fsh-h"><b>${icon} ${esc(name)} <small>úr. ${lv}</small></b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">${esc(desc)}</p>${up}${mv}${body}`;
 }
 async function renderFarmView() {
   const v = $('farmv');
@@ -1689,7 +1703,7 @@ async function renderFarmView() {
   if (!webgl()) { v.innerHTML = '<div class="ja">' + farmHTML(ensureFarm(), cfg, state.cones) + '</div>'; return; }
   v.innerHTML = `<div class="fv"><div class="f3d" id="f3d"></div><div id="ftopw">${farmTopHTML()}</div><div class="fside" id="fside"${farmSide ? '' : ' hidden'}>${farmSideHTML()}</div><div class="fsheet" id="fsheet" hidden></div></div>`;
   if (farm3) { farm3.destroy(); farm3 = null; }
-  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmSel = id; showFarmSheet(); }); }
+  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { pos: ensureFarm().pos, onTile: farmTile, moving: !!farmMove }); }
   catch (e) { v.innerHTML = '<div class="ja">' + farmHTML(ensureFarm(), cfg, state.cones) + '</div>'; return; }
   if (farmSel) showFarmSheet();
 }
@@ -1706,9 +1720,11 @@ function onFarmClick(e) {
   if (fv) {
     const k = fv.dataset.fv;
     if (k === 'side') { farmSide = !farmSide; const sd = $('fside'); sd.hidden = !farmSide; if (farmSide) sd.innerHTML = farmSideHTML(); }
-    else if (k === 'animals') { farmSel = 'enc_' + cfg.enclosures[0].id; showFarmSheet(); }
+    else if (k === 'animals') { farmSel = !$('fsheet').hidden && farmSel.startsWith('enc_') ? '' : 'enc_' + cfg.enclosures[0].id; showFarmSheet(); }
     else if (k === 'atlas') show('atlasv');
-    else if (k === 'close') { farmSel = ''; showFarmSheet(); }
+    else if (k === 'close') { farmSel = ''; farmMove = ''; if (farm3) farm3.setMoving(false); showFarmSheet(); }
+    else if (k === 'move') { farmMove = farmSel; if (farm3) farm3.setMoving(true); showFarmSheet(); toast('Ťukni na políčko, kam budovu přesunout.'); }
+    else if (k === 'moveCancel') { farmMove = ''; if (farm3) farm3.setMoving(false); showFarmSheet(); }
     return;
   }
   const sel = e.target.closest('[data-fsel]'); if (sel) { farmSel = sel.dataset.fsel; showFarmSheet(); if (farm3) farm3.focus(farmSel); return; }

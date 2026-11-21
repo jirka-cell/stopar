@@ -1070,3 +1070,18 @@ test('3D farma: každá budova má své místo, krajina je pro všechny stejná,
   const r = F.rates(F.newFarm(['voliera'], 5, 0));
   assert.equal(r.wood, 1); assert.ok(r.items.krmivo > 0); assert.equal(r.items.pamlsek, undefined, 'sad úr. 0 nevyrábí');
 });
+
+test('farma: přesun budovy na políčko, výměna místa, limit jednou za X dní, ťuk najde správné políčko', async () => {
+  const D = await import('../js/farm3d.js'), F = await import('../js/farm.js');
+  const ids = ['enc_voliera', 'lumber', 'quarry'];
+  for (const [q, r] of [[0, 0], [2, -1], [-3, 2], [1, 3]]) { const x = Math.sqrt(3) * (q + r / 2), z = 1.5 * r; assert.deepEqual(D.hexAt(x + 0.2, z - 0.2), [q, r]); }
+  const f = F.newFarm(['voliera'], 5, 0); let pos = D.layout(ids, f.pos);
+  assert.ok(F.moveBuilding(f, 'lumber', 0, 1, pos).err, 'u statku (1. kruh) ne');
+  assert.ok(F.moveBuilding(f, 'lumber', 6, 0, pos).err, 'moc daleko ne');
+  const r1 = F.moveBuilding(f, 'lumber', 3, 0, pos, 0, 1000); assert.ok(!r1.err); pos = D.layout(ids, f.pos);
+  assert.deepEqual(pos.lumber, [3, 0], 'nové místo platí');
+  const target = pos.quarry, r2 = F.moveBuilding(f, 'lumber', target[0], target[1], pos, 0, 2000); pos = D.layout(ids, f.pos);
+  assert.equal(r2.swapped, 'quarry'); assert.deepEqual(pos.lumber, target); assert.deepEqual(pos.quarry, [3, 0], 'výměna míst');
+  assert.match(F.moveBuilding(f, 'quarry', 4, 0, pos, 30, 3000).err, /za 30 dní/, 'jednou za měsíc');
+  assert.deepEqual(F.cleanFarm({ lv: { lumber: 1 }, pos: { lumber: [3, 0], zlo: [1, 1], quarry: 'x' }, moved: 5 }, []).pos, { lumber: [3, 0] });
+});

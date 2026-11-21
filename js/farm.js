@@ -36,7 +36,7 @@ export const canAfford = (f, c, cones) => f.res.wood >= c.wood && f.res.stone >=
 export function newFarm(encIds, need = 5, now = Date.now()) {
   const lv = { lumber: 1, quarry: 1, nursery: 1, field: 1, orchard: 0, worms: 0, store: 1, pantry: 0 };
   for (const id of encIds) lv['enc_' + id] = Math.max(1, Math.ceil(need / 5));
-  return { t: now, res: { wood: 20, stone: 10, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {} };
+  return { t: now, res: { wood: 20, stone: 10, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0 };
 }
 export function cleanFarm(f, encIds) {
   if (!f || typeof f !== 'object' || !f.lv) return null;
@@ -46,6 +46,8 @@ export function cleanFarm(f, encIds) {
   out.build = f.build && typeof f.build.id === 'string' && (f.build.id in out.lv) ? { id: f.build.id, until: num(f.build.until) } : null;
   out.auto = f.auto !== false; out.walk = Math.max(0, num(f.walk));
   out.frac = Object.fromEntries(Object.entries(f.frac || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.min(1, num(v)))]));
+  out.pos = Object.fromEntries(Object.entries(f.pos && typeof f.pos === 'object' ? f.pos : {}).filter(([k, v]) => k in out.lv && Array.isArray(v) && v.length === 2 && v.every(Number.isInteger)).map(([k, v]) => [k, [v[0], v[1]]]));
+  out.moved = Math.max(0, num(f.moved));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
   return out;
 }
@@ -120,4 +122,15 @@ export function rates(f) {
   const out = { wood: 0, stone: 0, seeds: 0, items: {} };
   for (const b of BUILDINGS) { const lv = f.lv[b.id] || 0; if (!lv) continue; if (b.kind === 'res') out[b.res] += b.rate * lv; if (b.kind === 'item') out.items[b.item] = (out.items[b.item] || 0) + b.rate * lv; }
   return out;
+}
+
+// Přesun budovy na políčko; obsazené políčko = výměna míst. moveDays: 0 = kdykoli, jinak jednou za tolik dní
+export function moveBuilding(f, id, q, r, pos, moveDays = 0, now = Date.now()) {
+  if (moveDays > 0 && f.moved && now - f.moved < moveDays * 86400000) return { err: 'Další přesun za ' + Math.ceil((f.moved + moveDays * 86400000 - now) / 86400000) + ' dní.' };
+  const d = (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2;
+  if (d < 2 || d > 5) return { err: 'Sem stavět nejde (u statku jsou cesty, dál už je les).' };
+  const other = Object.keys(pos).find(k => k !== id && pos[k][0] === q && pos[k][1] === r);
+  if (other) f.pos[other] = pos[id].slice();
+  f.pos[id] = [q, r]; f.moved = now;
+  return { swapped: other || '' };
 }

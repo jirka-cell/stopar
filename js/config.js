@@ -301,7 +301,8 @@ export const DEFAULTS = {
   },
   farm: {
     enabled: true,          // Moje farma: kapacitu zvířat určují příbytky a spižírna (místo úrovně hráče)
-    maxCap: 60              // nejvíc míst pro jeden druh
+    maxCap: 60,             // nejvíc míst pro jeden druh
+    moveDays: 0             // přesouvání budov: 0 = kdykoli (testování), později 30 = jednou za měsíc
   },
   games: {
     dailyCones: 40,         // denní strop šišek z miniher (ať nepřebijí chůzi)
@@ -487,7 +488,7 @@ export const SCHEMA = [
     ['maxRadius', 'Největší poloměr (m)', 'number', { min: 1000, max: 20000, step: 500 }]
   ] },
   { sec: 'farm', title: 'Moje farma', fields: [
-    ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }]
+    ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }], ['moveDays', 'Přesun budov jednou za (dní, 0 = kdykoli)', 'number', { min: 0, max: 365, step: 1 }]
   ] },
   { sec: 'games', title: 'Minihry', fields: [
     ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
