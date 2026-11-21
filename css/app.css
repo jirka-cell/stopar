@@ -202,3 +202,6 @@ body.muted .bmk,body.muted .tgmk{display:none}
 .bmk.myth img{animation:bob 1.2s ease-in-out infinite,glow 1.6s ease-in-out infinite alternate}
 @keyframes glow{from{filter:drop-shadow(0 0 4px #fff59d)}to{filter:drop-shadow(0 0 12px #b388ff)}}
 .acard.myth{border-color:#b388ff}
+.fdmk,.trmk{width:30px;height:30px;border-radius:9px;background:#fff;border:2px solid #9a6a3a;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}
+.fdmk.done{opacity:.5;border-color:var(--acc)}
+.trmk{border-radius:50%;border-color:#4fa3d8;animation:bob 2s ease-in-out infinite}

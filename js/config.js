@@ -246,6 +246,9 @@ export const DEFAULTS = {
     quietMonths: '4-7', quietBiotopes: 'mokrad, skaly', // klidová pásma: v chráněném území v době hnízdění nic v rákosí a na skalách
     variantChance: 0.003, albinGroups: 'Ptáci, Savci, Obojživelníci, Plazi, Ryby', melanGroups: 'Savci, Plazi', melanSpecies: 'zmije:0.08, veverka:0.05',
     stampRadius: 40, xpStamp: 15,
+    feederName: 'Krmítko', feederRadius: 30, feederMinPark: 80, feederCones: 15, feederXp: 10, feederItem: 'krmivo', feederItemChance: 0.5,
+    parkCells: 12, parkCones: 30, parkXp: 25, // prochození parku: tolik různých míst (~30 m) za den
+    treasureRadius: 15, treasureCircle: 60, treasureXp: 40, treasureCones: 30, // poklad: najde se do X m, na mapě kruh Y m
     mythDays: 3,            // bájné dny: 2× ročně (zima, léto) na tolik dní
     mythChance: 0.02,       // jak často je během bájných dnů místo zvířete bájný tvor (u jeho biotopu)
     mythMinQuality: 90, mythSeconds: 2, xpMyth: 200, // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
@@ -462,6 +465,13 @@ export const SCHEMA = [
     ['quietMonths', 'Klidová pásma: měsíce', 'text'], ['quietBiotopes', 'Klidová pásma: biotopy (v chráněném území)', 'text'],
     ['variantChance', 'Barevné varianty: šance (0–1)', 'number', { min: 0, max: 1, step: 0.001 }],
     ['albinGroups', 'Albíni: skupiny', 'text'], ['melanGroups', 'Tmavá forma: skupiny', 'text'], ['melanSpecies', 'Tmavá forma: druhy se šancí (druh:šance)', 'text'],
+    ['feederName', 'Bonusová místa: název', 'text'], ['feederRadius', 'Krmítko: vzdálenost (m)', 'number', { min: 5, max: 200, step: 5 }],
+    ['feederMinPark', 'Krmítko v parku od velikosti (m)', 'number', { min: 20, max: 1000, step: 10 }],
+    ['feederCones', 'Krmítko: šišky', 'number', { min: 0, step: 1 }], ['feederXp', 'Krmítko: XP', 'number', { min: 0, step: 1 }],
+    ['feederItem', 'Krmítko: předmět (id z obchodu)', 'text'], ['feederItemChance', 'Krmítko: šance na předmět', 'number', { min: 0, max: 1, step: 0.05 }],
+    ['parkCells', 'Prochození parku: míst za den', 'number', { min: 2, max: 200, step: 1 }], ['parkCones', 'Prochození parku: šišky', 'number', { min: 0, step: 1 }], ['parkXp', 'Prochození parku: XP', 'number', { min: 0, step: 1 }],
+    ['treasureRadius', 'Poklad: najde se do (m)', 'number', { min: 5, max: 100, step: 1 }], ['treasureCircle', 'Poklad: kruh na mapě (m)', 'number', { min: 20, max: 500, step: 10 }],
+    ['treasureXp', 'Poklad: XP', 'number', { min: 0, step: 1 }], ['treasureCones', 'Poklad: šišky', 'number', { min: 0, step: 1 }],
     ['mythDays', 'Bájné dny: počet dní (2× ročně)', 'number', { min: 1, max: 14, step: 1 }], ['mythChance', 'Bájní tvorové: šance místo zvířete', 'number', { min: 0, max: 1, step: 0.005 }],
     ['mythMinQuality', 'Bájní tvorové: min. ostrost (%)', 'number', { min: 50, max: 100, step: 1 }], ['mythSeconds', 'Bájní tvorové: čas na fotku (s)', 'number', { min: 1, max: 10, step: 0.5 }],
     ['xpMyth', 'Bájní tvorové: XP', 'number', { min: 0, step: 10 }], ['mythTest', 'Test: bájné dny hned', 'bool'],

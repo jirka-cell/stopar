@@ -48,19 +48,16 @@ export function cleanEvent(e) {
   };
 }
 // Událost do odkazu: JSON → UTF-8 → base64url (bez průběžného stavu)
-export function encodeEvent(e) {
-  const { id, n, m, f, t, la, lo, r, g } = e;
-  const bytes = new TextEncoder().encode(JSON.stringify({ v: 1, id, n, m, f, t, la, lo, r, g }));
-  let s = ''; bytes.forEach(b => { s += String.fromCharCode(b); });
+// Objekt do odkazu: JSON → UTF-8 → base64url (a zpět; poškozený kód = null)
+export function toCode(obj) {
+  let s = ''; new TextEncoder().encode(JSON.stringify(obj)).forEach(b => { s += String.fromCharCode(b); });
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-export function decodeEvent(code) {
-  try {
-    const s = atob(String(code).replace(/-/g, '+').replace(/_/g, '/'));
-    const e = cleanEvent(JSON.parse(new TextDecoder().decode(Uint8Array.from(s, c => c.charCodeAt(0)))));
-    return e && { ...e, p: e.g.map(() => 0), done: false };
-  } catch (err) { return null; }
+export function fromCode(code) {
+  try { return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(String(code).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)))); } catch (err) { return null; }
 }
+export function encodeEvent(e) { const { id, n, m, f, t, la, lo, r, g } = e; return toCode({ v: 1, id, n, m, f, t, la, lo, r, g }); }
+export function decodeEvent(code) { const e = cleanEvent(fromCode(code)); return e && { ...e, p: e.g.map(() => 0), done: false }; }
 export const eventLink = (base, e) => base + '#akce=' + encodeEvent(e);
 // Posune cíle aktivních událostí; vrátí nově splněné události
 export function eventProgress(events, ev, pos, now = Date.now()) {

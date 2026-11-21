@@ -306,3 +306,21 @@ export function targetsNear(lat, lon, r) {
   chunks.forEach(f => { for (const x of f) if (x.tg && !seen.has(x.id)) { seen.add(x.id); const d = Math.hypot((x.lat - lat) * mPerDegLat, (x.lon - lon) * mPerDegLon(lat)); if (d <= r) out.push({ ...x, d }); } });
   return out.sort((a, b) => a.d - b.d);
 }
+
+// Parky (plochy s biotopem park) v načtených čtvercích: střed a velikost – pro krmítka a odměnu za prochození
+export function parksNear(lat, lon, r) {
+  const out = [], seen = new Set();
+  chunks.forEach(f => { for (const x of f) if (x.b === 'park' && !x.line) {
+    const id = 'p' + x.bb.map(v => v.toFixed(4)).join('_'); if (seen.has(id)) continue; seen.add(id);
+    const c = [(x.bb[0] + x.bb[2]) / 2, (x.bb[1] + x.bb[3]) / 2], size = Math.min((x.bb[2] - x.bb[0]) * mPerDegLat, (x.bb[3] - x.bb[1]) * mPerDegLon(c[0]));
+    const d = Math.hypot((c[0] - lat) * mPerDegLat, (c[1] - lon) * mPerDegLon(lat));
+    if (d <= r) out.push({ id, lat: c[0], lon: c[1], size, d });
+  } });
+  return out;
+}
+// Park, ve kterém hráč stojí (id), nebo null
+export function parkAt(lat, lon) {
+  const feats = chunks.get(chunkKey(lat, lon)); if (!feats) return null;
+  const f = feats.find(x => x.b === 'park' && !x.line && lat >= x.bb[0] && lat <= x.bb[2] && lon >= x.bb[1] && lon <= x.bb[3] && x.outer.some(r => inRing(lat, lon, r)) && !x.inner.some(r => inRing(lat, lon, r)));
+  return f ? 'p' + f.bb.map(v => v.toFixed(4)).join('_') : null;
+}

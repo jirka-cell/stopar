@@ -746,3 +746,31 @@ test('bájní tvorové: 2 okna ročně (zima, léto), stejná pro všechny, tvor
   assert.equal(DEFAULTS.myths.length, 10);
   for (const t of DEFAULTS.myths) assert.ok(hasMythArt(t.id), t.id);
 });
+
+test('poklady a krmítka: odkaz na poklad, přibližný kruh, krmítka u cílů a větších parků, park se pozná', async () => {
+  const { cleanTreasure, treasureLink, decodeTreasure, searchCircle, distM, feedersNear, feederReward, parkCell } = await import('../js/treasure.js');
+  const t = cleanTreasure({ id: 'a1', n: 'Poklad u lípy 🌳', h: 'Kde dub objímá kámen', la: 50.123456789, lo: 14.5, c: 5, own: true });
+  assert.equal(t.la, 50.12346);
+  const link = treasureLink('https://x/stopar/', t), back = decodeTreasure(link.split('#poklad=')[1]);
+  assert.equal(back.n, t.n); assert.equal(back.h, t.h); assert.equal(back.own, false, 'u příjemce není vlastní');
+  assert.equal(decodeTreasure('xx!'), null); assert.equal(cleanTreasure({ n: 'bez polohy' }), null);
+  const c = searchCircle(t, 60);
+  assert.deepEqual(c, searchCircle(t, 60), 'stejný kruh pro všechny');
+  assert.ok(distM({ lat: c.lat, lon: c.lon }, { lat: t.la, lon: t.lo }) <= 40.01, 'poklad je uvnitř kruhu');
+  const f = feedersNear([{ id: 'n9', lat: 1, lon: 2, name: 'Rozhledna' }], [{ id: 'p1', lat: 3, lon: 4, size: 200 }, { id: 'p2', lat: 5, lon: 6, size: 30 }], 80);
+  assert.deepEqual(f.map(x => x.id), ['fn9', 'fp1'], 'malý park krmítko nemá');
+  assert.deepEqual(feederReward(DEFAULTS, 'fn9', '2026-11-21'), feederReward(DEFAULTS, 'fn9', '2026-11-21'));
+  assert.equal(parkCell(50, 14), parkCell(50, 14), 'stejné místo'); assert.equal(new Set([0, 1, 2, 3].map(i => parkCell(50 + i * 0.00002, 14))).size <= 2, true, 'pár metrů = nejvýš sousední políčko');
+  assert.notEqual(parkCell(50, 14), parkCell(50.001, 14));
+  // park z dat OSM
+  const { parksNear, parkAt } = await import('../js/osm.js');
+  osmSetConfig(clone(DEFAULTS)); try { await clearOsmCache(); } catch (e) {}
+  const realFetch = globalThis.fetch;
+  const sq = (a, b, s) => [[a, b], [a, b + s], [a + s, b + s], [a + s, b], [a, b]].map(([lat, lon]) => ({ lat, lon }));
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ elements: [{ type: 'way', id: 3, tags: { leisure: 'park' }, geometry: sq(48.5001, 17.0001, 0.004) }] }) });
+  try {
+    ensureArea(48.502, 17.002, 10); await new Promise(r => setTimeout(r, 80));
+    assert.ok(parkAt(48.502, 17.002)); assert.equal(parkAt(48.4999, 16.9999), null);
+    const p = parksNear(48.502, 17.002, 500); assert.equal(p.length, 1); assert.ok(p[0].size > 250);
+  } finally { globalThis.fetch = realFetch; }
+});
