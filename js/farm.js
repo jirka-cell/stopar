@@ -37,7 +37,7 @@ export const canAfford = (f, c, cones) => f.res.wood >= c.wood && f.res.stone >=
 export function newFarm(encIds, need = 5, now = Date.now(), seed = 1 + Math.floor(Math.random() * 99999)) {
   const lv = Object.fromEntries(BUILDINGS.map(b => [b.id, 0]));
   for (const id of encIds) lv['enc_' + id] = 0;
-  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [] };
+  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [], decor: {} };
 }
 export const isEmpty = f => Object.values(f.lv).every(v => !v) && !f.build;
 export function cleanFarm(f, encIds) {
@@ -54,12 +54,26 @@ export function cleanFarm(f, encIds) {
   out.guests = Object.fromEntries(Object.entries(f.guests || {}).map(([k, v]) => [String(k).slice(0, 30), (Array.isArray(v) ? v : []).map(String).slice(0, 8)]));
   out.guestDay = String(f.guestDay || '').slice(0, 10);
   out.tiles = Object.fromEntries(Object.entries(f.tiles && typeof f.tiles === 'object' ? f.tiles : {}).filter(([k, v]) => /^-?\d+,-?\d+$/.test(k) && TILE_TYPES.includes(v)).slice(0, 200));
+  out.decor = Object.fromEntries(Object.entries(f.decor && typeof f.decor === 'object' ? f.decor : {}).filter(([k, v]) => /^-?\d+,-?\d+$/.test(k) && DECOR.some(d => d[0] === v)).slice(0, 120));
   out.roads = (Array.isArray(f.roads) ? f.roads : []).filter(k => typeof k === 'string' && /^-?\d+,-?\d+\|-?\d+,-?\d+$/.test(k)).slice(0, 400);
   out.breedDay = String(f.breedDay || '').slice(0, 10);
   out.deeds = Object.fromEntries(Object.entries(f.deeds || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, num(v))]));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
   return out;
 }
+
+/* ---------- ozdoby: nic nevyrábí, jen vzhled; na jedno políčko jedna ---------- */
+export const DECOR = [['barn', '🏚️', 'Stodola', { wood: 6, stone: 2 }], ['mill', '🌬️', 'Větrný mlýn', { wood: 6, stone: 4 }], ['well', '🪣', 'Studna', { stone: 4 }], ['chapel', '⛪', 'Kaplička', { stone: 6 }],
+  ['beehive', '🐝', 'Včelín', { wood: 3 }], ['scarecrow', '🧑‍🌾', 'Strašák', { wood: 1 }], ['bench', '🪑', 'Lavička', { wood: 2 }], ['hay', '🌾', 'Kupka sena', { seeds: 2 }]];
+export const takenTiles = (f, except = '') => new Set([...Object.entries(f.pos).filter(([k]) => k !== except).map(([, p]) => p.join()), ...Object.keys(f.decor || {})]);
+export function placeDecor(f, W, q, r, type) {
+  const d = DECOR.find(x => x[0] === type); if (!d) return { err: 'Neznámá ozdoba.' };
+  if (!canPlace(W, q, r, takenTiles(f))) return { err: 'Sem ji dát nejde – vyber volné políčko.' };
+  if (Object.entries(d[3]).some(([res, n]) => f.res[res] < n)) return { err: 'Chybí suroviny.' };
+  Object.entries(d[3]).forEach(([res, n]) => { f.res[res] -= n; });
+  f.decor[q + ',' + r] = type; return {};
+}
+export const removeDecor = (f, q, r) => { delete f.decor[q + ',' + r]; };
 
 /* ---------- políčka farmy ---------- */
 export const TILE_TYPES = ['meadow', 'field', 'forest', 'pond'];
@@ -74,7 +88,7 @@ export function farmBonus(f, W) {
 export function setTile(f, W, q, r, type) {
   const k = q + ',' + r, c = (W.cells || W).get(k);
   if (!c || c.t === 'yard' || !TILE_TYPES.includes(type)) return { err: 'Tohle políčko upravit nejde.' };
-  if (Object.values(f.pos).some(p => p[0] === q && p[1] === r)) return { err: 'Na políčku stojí budova.' };
+  if (Object.values(f.pos).some(p => p[0] === q && p[1] === r) || (f.decor || {})[k]) return { err: 'Na políčku něco stojí.' };
   if (tileType(W, f.tiles, q, r) === type) return { err: 'Už je to ' + TILE_INFO[type][1].toLowerCase() + '.' };
   const cost = TILE_INFO[type][2];
   if (Object.entries(cost).some(([res, n]) => f.res[res] < n)) return { err: 'Chybí suroviny.' };
@@ -161,7 +175,7 @@ export function rates(f) {
 export function moveBuilding(f, id, q, r, T, moveDays = 0, now = Date.now()) {
   if (moveDays > 0 && f.moved && now - f.moved < moveDays * 86400000) return { err: 'Další přesun za ' + Math.ceil((f.moved + moveDays * 86400000 - now) / 86400000) + ' dní.' };
   const other = Object.keys(f.pos).find(k => k !== id && f.pos[k][0] === q && f.pos[k][1] === r);
-  const taken = new Set(Object.entries(f.pos).filter(([k]) => k !== id && k !== other).map(([, p]) => p.join()));
+  const taken = new Set([...Object.entries(f.pos).filter(([k]) => k !== id && k !== other).map(([, p]) => p.join()), ...Object.keys(f.decor || {})]);
   if (!other && !canPlace(T, q, r, taken)) return { err: 'Sem stavět nejde – budova potřebuje volné políčko u cesty (ne na vodě).' };
   if (other) f.pos[other] = f.pos[id].slice();
   f.pos[id] = [q, r]; f.moved = now;
@@ -170,8 +184,7 @@ export function moveBuilding(f, id, q, r, T, moveDays = 0, now = Date.now()) {
 // Nová budova: místo u cesty + zahájení stavby úrovně 1
 export function placeBuilding(f, id, q, r, T, cones, now = Date.now()) {
   if ((f.lv[id] || 0) > 0 || f.pos[id]) return { err: 'Už stojí.' };
-  const taken = new Set(Object.values(f.pos).map(p => p.join()));
-  if (!canPlace(T, q, r, taken)) return { err: 'Sem stavět nejde – vyber zvýrazněné políčko u cesty.' };
+  if (!canPlace(T, q, r, takenTiles(f))) return { err: 'Sem stavět nejde – vyber volné zvýrazněné políčko.' };
   const res = startBuild(f, id, cones, now); if (res.err) return res;
   f.pos[id] = [q, r];
   return res;

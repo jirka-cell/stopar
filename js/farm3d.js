@@ -44,7 +44,7 @@ export function genWorld(seed, must = []) {
   // farma: roste od statku mezi překážkami; prodloužení podél náhodné osy = nepravidelný tvar
   const mustK = new Set(must.map(p => K(...p))), axis = R() * Math.PI, stretch = R() * 0.25;
   let lim = 0.4, maxD = 9; // když se farma nevejde, druhé kolo dovolí mírné svahy a větší dosah
-  const blocked = (q, r) => { if (mustK.has(K(q, r)) || (!q && !r)) return false; const [x, z] = axial(q, r); return hexDist(q, r) > maxD || lineDist(river, x, z) < 1.3 || rawH(x, z) > lim; };
+  const blocked = (q, r) => { if (mustK.has(K(q, r)) || (!q && !r)) return false; const [x, z] = axial(q, r); return hexDist(q, r) > maxD || lineDist(river, x, z) < 2.0 || rawH(x, z) > lim; };
   const cells = new Map([[K(0, 0), { q: 0, r: 0, t: 'yard' }]]), front = new Map();
   const push = (q, r) => { const k = K(q, r); if (!cells.has(k) && !front.has(k) && !blocked(q, r)) front.set(k, [q, r]); };
   DIRS.forEach(([a, b]) => push(a, b));
@@ -63,29 +63,57 @@ export function genWorld(seed, must = []) {
   for (const [q, r] of must) if (!cells.has(K(q, r))) cells.set(K(q, r), { q, r, t: 'meadow' }); // budovy zůstanou na farmě i po nové krajině
   const centers = [...cells.values()].map(c => axial(c.q, c.r));
   const farmDist = (x, z) => { let m = Infinity; for (const [a, b] of centers) { const d = (x - a) ** 2 + (z - b) ** 2; if (d < m) m = d; } return Math.sqrt(m); };
-  // železnice: z okraje na okraj mapy mimo farmu; přes kopce tunelem
-  const ra = R() * Math.PI * 2, rOff = 13 + R() * 3, rdx = Math.cos(ra), rdz = Math.sin(ra), rcx = -rdz * rOff, rcz = rdx * rOff, rw = R() * 6;
-  const rail = [];
-  for (let i = 0; i <= 200; i++) { const t = i / 200 * 2 - 1, w = Math.sin(t * 2.2 + rw) * 2.5; rail.push([rcx + rdx * t * 32 - rdz * w, rcz + rdz * t * 32 + rdx * w]); }
-  // cesty v krajině: z okraje farmy k okraji mapy (2–4), přes řeku po mostech
-  const roads = [], nR = 2 + Math.floor(R() * 3);
+  // trasy jako plynulé esovité křivky (Bézier); přes řeku kolmo po mostě
+  const bridges = [], EDGE = 25;
+  const cubic = (a, b, c, d, n, out) => { for (let i = out.length ? 1 : 0; i <= n; i++) { const t = i / n, u = 1 - t; out.push([u * u * u * a[0] + 3 * u * u * t * b[0] + 3 * u * t * t * c[0] + t * t * t * d[0], u * u * u * a[1] + 3 * u * u * t * b[1] + 3 * u * t * t * c[1] + t * t * t * d[1]]); } };
+  const cross = (P, Q) => { for (let i = 1; i < river.length; i++) { const [ax, az] = river[i - 1], [bx, bz] = river[i], rx = bx - ax, rz = bz - az, sx = Q[0] - P[0], sz = Q[1] - P[1], den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) continue; const t = ((P[0] - ax) * sz - (P[1] - az) * sx) / den, u = ((P[0] - ax) * rz - (P[1] - az) * rx) / den; if (t >= 0 && t <= 1 && u >= 0 && u <= 1) { const l = Math.hypot(rx, rz); return { p: [ax + rx * t, az + rz * t], n: [-rz / l, rx / l] }; } } return null; };
+  const route = (P0, d0, P3, d3, n1 = 40) => {
+    const out = [], c = cross(P0, P3), L = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!c) { const k = L(P0, P3) / 3; cubic(P0, [P0[0] + d0[0] * k, P0[1] + d0[1] * k], [P3[0] - d3[0] * k, P3[1] - d3[1] * k], P3, n1, out); return out; }
+    let n = c.n; if ((P3[0] - P0[0]) * n[0] + (P3[1] - P0[1]) * n[1] < 0) n = [-n[0], -n[1]]; // most kolmo k řece, směrem k cíli
+    const B = c.p, k1 = L(P0, B) / 2.6, k2 = L(B, P3) / 2.6;
+    cubic(P0, [P0[0] + d0[0] * k1, P0[1] + d0[1] * k1], [B[0] - n[0] * k1 * 0.8, B[1] - n[1] * k1 * 0.8], B, n1, out);
+    cubic(B, [B[0] + n[0] * k2 * 0.8, B[1] + n[1] * k2 * 0.8], [P3[0] - d3[0] * k2, P3[1] - d3[1] * k2], P3, n1, out);
+    if (!bridges.some(b => Math.hypot(b[0] - B[0], b[1] - B[1]) < 2)) bridges.push([B[0], B[1], Math.atan2(n[0], n[1])]);
+    return out;
+  };
+  // železnice: z okraje na okraj mapy mimo farmu
+  const ra = R() * Math.PI * 2, rOff = 13 + R() * 3, rdx = Math.cos(ra), rdz = Math.sin(ra), rcx = -rdz * rOff, rcz = rdx * rOff, bendR = (R() - 0.5) * 0.6;
+  const rd0 = [Math.cos(ra + bendR), Math.sin(ra + bendR)], rd1 = [Math.cos(ra - bendR), Math.sin(ra - bendR)];
+  const rail = route([rcx - rdx * EDGE, rcz - rdz * EDGE], rd0, [rcx + rdx * EDGE, rcz + rdz * EDGE], rd1, 90);
+  // cesty v krajině: kolmo ze středu hrany na okraji farmy k okraji mapy (2–4)
+  const roads = [], nR = 2 + Math.floor(R() * 3), used = new Set();
   for (let k = 0; k < nR; k++) {
-    const a = R() * Math.PI * 2, edge = [...cells.values()].map(c => [c, axial(c.q, c.r)]).sort((p, q2) => (q2[1][0] * Math.cos(a) + q2[1][1] * Math.sin(a)) - (p[1][0] * Math.cos(a) + p[1][1] * Math.sin(a)))[0][1];
-    const pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, d = t * 30, bend = Math.sin(t * 3 + k + seed) * 1.5 * t; pts.push([edge[0] + Math.cos(a) * d - Math.sin(a) * bend, edge[1] + Math.sin(a) * d + Math.cos(a) * bend]); }
-    roads.push(pts);
+    const a = R() * Math.PI * 2, da = [Math.cos(a), Math.sin(a)];
+    let best = null, bv = -Infinity;
+    for (const c of cells.values()) DIRS.forEach(([dq, dr]) => { if (cells.has(K(c.q + dq, c.r + dr))) return; const [x, z] = axial(c.q, c.r), [nx, nz] = axial(c.q + dq, c.r + dr), dn = [(nx - x) / SQ3, (nz - z) / SQ3], v = x * da[0] + z * da[1] + (dn[0] * da[0] + dn[1] * da[1]) * 3; if (v > bv && !used.has(K(c.q, c.r))) { bv = v; best = { c, x, z, dn, nx, nz }; } });
+    if (!best) continue;
+    used.add(K(best.c.q, best.c.r));
+    const P0 = [(best.x + best.nx) / 2, (best.z + best.nz) / 2], P3 = [da[0] * EDGE, da[1] * EDGE];
+    roads.push(route(P0, best.dn, P3, da));
   }
-  const bridges = [];
-  for (const line of [rail, ...roads]) for (let i = 1; i < line.length; i++) { const [x, z] = line[i]; if (lineDist(river, x, z) < 0.4 && !bridges.some(b => Math.hypot(b[0] - x, b[1] - z) < 2)) bridges.push([x, z, Math.atan2(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1])]); }
   const inRegion = (x, z) => cells.has(K(...hexAt(x, z)));
-  const H = (x, z) => {
+  const nearest = (pts, x, z) => { let m = Infinity, mi = 0; for (let i = 1; i < pts.length; i++) { const d = segDist(x, z, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]); if (d < m) { m = d; mi = i; } } return [m, mi]; };
+  const H0 = (x, z) => {
     if (inRegion(x, z)) return 0;
     let h = rawH(x, z);
     const fd = farmDist(x, z); if (fd < 2.6) { const t = Math.max(0, (fd - 0.95) / 1.65); h *= t * t * (3 - 2 * t); } // svahy plynule dolů k farmě
     const d = lineDist(river, x, z); if (d < 1.8) h = h * (d / 1.8) ** 2 - 0.25 * (1 - d / 1.8);
-    const dr = lineDist(rail, x, z); if (dr < 0.9 && rawH(x, z) < 1.1) h = Math.min(h, 0.6) * (1 - dr / 0.9) + h * (dr / 0.9); // zářez, v kopci tunel
     return h;
   };
-  return { seed, cells, river, rail, roads, bridges, peaks, H, rawH };
+  // niveleta železnice: plynulý sklon (vyhlazení), na řece most, v kopci tunel (lineárně mezi portály)
+  const railTun = rail.map(([x, z]) => rawH(x, z) >= 1.1 && lineDist(river, x, z) > 1.4);
+  let prof = rail.map(([x, z]) => lineDist(river, x, z) < 1.4 ? 0.6 : Math.max(0.1, H0(x, z)) + 0.08);
+  for (let i = 0; i < rail.length; i++) if (railTun[i]) { let a = i; while (a > 0 && railTun[a]) a--; let b = i; while (b < rail.length - 1 && railTun[b]) b++; const t = (i - a) / Math.max(1, b - a); prof[i] = prof[a] + (prof[b] - prof[a]) * t; }
+  for (let pass = 0; pass < 6; pass++) prof = prof.map((v, i) => { let s2 = 0, n = 0; for (let j = Math.max(0, i - 4); j <= Math.min(prof.length - 1, i + 4); j++) { s2 += prof[j]; n++; } return lineDist(river, rail[i][0], rail[i][1]) < 0.9 ? 0.6 : s2 / n; });
+  const H = (x, z) => {
+    let h = H0(x, z);
+    if (inRegion(x, z)) return h;
+    const [dr, i] = nearest(rail, x, z);
+    if (dr < 1.6 && !railTun[i]) { const y = prof[i] - 0.08, t = Math.max(0, Math.min(1, (dr - 0.45) / 1.15)), w = t * t * (3 - 2 * t); h = y * (1 - w) + h * w; } // násyp nebo zářez
+    return h;
+  };
+  return { seed, cells, river, rail, railProf: prof, railTun, roads, bridges, peaks, H, rawH };
 }
 // Kam smí budova: políčko farmy, ne rybníček ani statek, volné
 export function canPlace(W, q, r, taken) {
@@ -147,26 +175,25 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   ribbon(W.river, 1.1, -0.06, 0x4fa3d8);
 
   // železnice: pražce a kolejnice (InstancedMesh), přes řeku most s pilíři
-  const inTunnel = (x, z) => W.rawH(x, z) >= 1.1 && lineDist(W.river, x, z) > 1.4;
-  const railY = (x, z) => lineDist(W.river, x, z) < 1.4 ? 0.55 : inTunnel(x, z) ? 0.6 : Math.max(0.05, W.H(x, z)) + 0.05;
+  const PR = W.railProf, TN = W.railTun;
   const R = W.rail, dummy = new THREE.Object3D();
   const sleepers = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.05, 0.12), mat(0x6a4a2a), R.length * 2), rails = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04, 0.05, 1), mat(0x9aa0a6, { metalness: 0.6, roughness: 0.4 }), (R.length - 1) * 2);
   let si = 0, ri = 0;
+  function portal(x, y, z, ang) { const p = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.12, 6, 12, Math.PI), mat(0x7a756e)); p.position.set(x, y - 0.05, z); p.rotation.y = ang + Math.PI / 2; p.castShadow = true; scene.add(p); }
   for (let i = 1; i < R.length; i++) {
-    const [ax, az] = R[i - 1], [bx, bz] = R[i], len = Math.hypot(bx - ax, bz - az), ang = Math.atan2(bx - ax, bz - az), ya = railY(ax, az), yb = railY(bx, bz);
-    if (!(inTunnel(ax, az) && inTunnel(bx, bz))) for (const f of [0.25, 0.75]) { dummy.position.set(ax + (bx - ax) * f, ya + (yb - ya) * f, az + (bz - az) * f); dummy.rotation.set(0, ang, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); sleepers.setMatrixAt(si++, dummy.matrix); }
-    if (inTunnel(ax, az) && inTunnel(bx, bz)) { if (i > 1 && !inTunnel(...R[i - 2])) portal(ax, az, ang); continue; }
-    if (inTunnel(bx, bz) && !inTunnel(ax, az)) portal(bx, bz, ang);
-    for (const s of [-0.16, 0.16]) { const nx = Math.cos(ang) * s, nz = -Math.sin(ang) * s; dummy.position.set((ax + bx) / 2 + nx, (ya + yb) / 2 + 0.04, (az + bz) / 2 + nz); dummy.rotation.set(Math.atan2(ya - yb, len), ang, 0); dummy.scale.set(1, 1, len); dummy.updateMatrix(); rails.setMatrixAt(ri++, dummy.matrix); }
+    const [ax, az] = R[i - 1], [bx, bz] = R[i], len = Math.hypot(bx - ax, bz - az), ang = Math.atan2(bx - ax, bz - az), ya = PR[i - 1], yb = PR[i], pitch = Math.atan2(ya - yb, len);
+    if (TN[i - 1] && TN[i]) continue;
+    if (TN[i] !== TN[i - 1]) portal(TN[i] ? bx : ax, TN[i] ? yb : ya, TN[i] ? bz : az, ang);
+    for (const f of [0.25, 0.75]) { dummy.position.set(ax + (bx - ax) * f, ya + (yb - ya) * f, az + (bz - az) * f); dummy.rotation.set(pitch, ang, 0, 'YXZ'); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); sleepers.setMatrixAt(si++, dummy.matrix); }
+    for (const s3 of [-0.16, 0.16]) { const nx = Math.cos(ang) * s3, nz = -Math.sin(ang) * s3; dummy.position.set((ax + bx) / 2 + nx, (ya + yb) / 2 + 0.04, (az + bz) / 2 + nz); dummy.rotation.set(pitch, ang, 0, 'YXZ'); dummy.scale.set(1, 1, len + 0.02); dummy.updateMatrix(); rails.setMatrixAt(ri++, dummy.matrix); }
   }
-  function portal(x, z, ang) { const p = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.12, 6, 12, Math.PI), mat(0x7a756e)); p.position.set(x, railY(x, z) - 0.05, z); p.rotation.y = ang + Math.PI / 2; p.castShadow = true; scene.add(p); }
   sleepers.count = si; rails.count = ri; scene.add(sleepers, rails);
   // mosty přes řeku (předem dané: železnice a cesty)
   for (const [x, z, a] of W.bridges) { const deck = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 3.2), mat(0x8a6a44)); deck.position.set(x, 0.5, z); deck.rotation.y = a; deck.castShadow = true; scene.add(deck); for (const s2 of [-1, 1]) { const rl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 3.2), mat(0x5a4028)); rl.position.set(x + Math.cos(a) * 0.42 * s2, 0.62, z - Math.sin(a) * 0.42 * s2); rl.rotation.y = a; scene.add(rl); } for (const t2 of [-1.2, 0, 1.2]) { const pil = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), mat(0x8a8580)); pil.position.set(x + Math.sin(a) * t2, 0.15, z + Math.cos(a) * t2); scene.add(pil); } }
   // cesty v krajině (kostra), po terénu
   for (const pts of W.roads) {
     const v = [], idx = [], w2 = 0.32;
-    pts.forEach(([x, z], i) => { const [ax, az] = pts[Math.max(0, i - 1)], [bx, bz] = pts[Math.min(pts.length - 1, i + 1)], l = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / l * w2 / 2, nz = (bx - ax) / l * w2 / 2, y = lineDist(W.river, x, z) < 0.5 ? 0.56 : W.H(x, z) + 0.03;
+    pts.forEach(([x, z], i) => { const [ax, az] = pts[Math.max(0, i - 1)], [bx, bz] = pts[Math.min(pts.length - 1, i + 1)], l = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / l * w2 / 2, nz = (bx - ax) / l * w2 / 2, y = lineDist(W.river, x, z) < 0.9 ? 0.56 : Math.max(W.H(x, z), 0) + 0.03;
       v.push(x + nx, y, z + nz, x - nx, y, z - nz); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xd8c59a, roughness: 0.9, side: THREE.DoubleSide })); m.receiveShadow = true; scene.add(m);
@@ -175,9 +202,9 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   const cars = [];
   [[0xc0392b, 0.62], [0x2f7d4f, 0.55], [0xe0a82e, 0.55]].forEach(([c, l], i) => { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, l), mat(c)); b.position.y = 0.24; b.castShadow = true; g.add(b); if (!i) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), mat(0x2b2b2b)); ch.position.set(0, 0.48, 0.18); g.add(ch); } cars.push(g); scene.add(g); });
   const railLen = []; let acc = 0; R.forEach((p, i) => { if (i) acc += Math.hypot(p[0] - R[i - 1][0], p[1] - R[i - 1][1]); railLen.push(acc); });
-  const railAt = s => { s = Math.max(0, Math.min(acc, s)); let i = 1; while (i < railLen.length - 1 && railLen[i] < s) i++; const t = (s - railLen[i - 1]) / (railLen[i] - railLen[i - 1] || 1), [ax, az] = R[i - 1], [bx, bz] = R[i], x = ax + (bx - ax) * t, z = az + (bz - az) * t; return [x, railY(x, z), z, Math.atan2(bx - ax, bz - az)]; };
+  const railAt = s => { s = Math.max(0, Math.min(acc, s)); let i = 1; while (i < railLen.length - 1 && railLen[i] < s) i++; const seg = railLen[i] - railLen[i - 1] || 1, t = (s - railLen[i - 1]) / seg, [ax, az] = R[i - 1], [bx, bz] = R[i], x = ax + (bx - ax) * t, z = az + (bz - az) * t; return [x, PR[i - 1] + (PR[i] - PR[i - 1]) * t, z, Math.atan2(bx - ax, bz - az), Math.atan2(PR[i - 1] - PR[i], seg)]; };
   let trainS = 0;
-  const placeTrain = () => cars.forEach((c, i) => { const [x, y, z, a] = railAt(trainS - i * 0.7); c.position.set(x, y, z); c.rotation.y = a; });
+  const placeTrain = () => cars.forEach((c, i) => { const [x, y, z, a, p] = railAt(trainS - i * 0.7); c.position.set(x, y, z); c.rotation.set(p, a, 0, 'YXZ'); });
   placeTrain();
 
   // lesy a chalupy v krajině
@@ -257,6 +284,22 @@ export async function mountFarm(el, items, onPick, opts = {}) {
     g.scale.setScalar(s); g.position.set(x, y, z); return g;
   }
   scene.add(model('home', 2, ...axial(0, 0)));
+  // ozdoby (jen vzhled)
+  const decoG = new THREE.Group(); scene.add(decoG);
+  function decoModel(t, x, z) {
+    const g = new THREE.Group(), box = (w, h, d, c, y = h / 2, ox = 0, oz = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(ox, y, oz); m.castShadow = true; g.add(m); return m; };
+    if (t === 'barn') { box(0.8, 0.45, 0.55, 0x9a3a2a); const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.62, 0.35, 4), mat(0x5a3a2a)); rf.rotation.y = Math.PI / 4; rf.scale.set(1, 1, 0.75); rf.position.y = 0.62; g.add(rf); box(0.25, 0.3, 0.02, 0xe8d6a8, 0.15, 0, 0.29); }
+    else if (t === 'mill') { box(0.35, 0.8, 0.35, 0xf2e6cc, 0.4); const hub = new THREE.Group(); hub.position.set(0, 0.72, 0.2); for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.02), mat(0x8a6a44)); b.position.y = 0.27; const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; arm.add(b); hub.add(arm); } g.add(hub); }
+    else if (t === 'well') { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.22, 10), mat(0x8f8a80)); c.position.y = 0.11; g.add(c); box(0.04, 0.4, 0.04, 0x7a5232, 0.32, -0.18); box(0.04, 0.4, 0.04, 0x7a5232, 0.32, 0.18); box(0.5, 0.04, 0.3, 0x6a3a22, 0.54); }
+    else if (t === 'chapel') { box(0.35, 0.5, 0.35, 0xf6f2e6, 0.25); const rf = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.45, 4), mat(0x3a5a8a)); rf.rotation.y = Math.PI / 4; rf.position.y = 0.72; g.add(rf); box(0.03, 0.18, 0.03, 0xd9b84a, 1.02); box(0.12, 0.03, 0.03, 0xd9b84a, 1.04); }
+    else if (t === 'beehive') { for (let i = 0; i < 3; i++) box(0.22, 0.22, 0.22, [0xe9b84a, 0xd9a03a, 0xf2c95a][i], 0.11, (i - 1) * 0.3); }
+    else if (t === 'scarecrow') { box(0.04, 0.6, 0.04, 0x7a5232, 0.3); box(0.45, 0.04, 0.04, 0x7a5232, 0.45); box(0.22, 0.25, 0.12, 0x3a6aa8, 0.42); const h = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), mat(0xe8c890)); h.position.y = 0.65; g.add(h); const hat = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.1, 8), mat(0x8a6a2a)); hat.position.y = 0.76; g.add(hat); }
+    else if (t === 'bench') { box(0.55, 0.04, 0.16, 0x8a6a44, 0.18); box(0.55, 0.14, 0.03, 0x8a6a44, 0.3, 0, -0.07); box(0.04, 0.18, 0.14, 0x4a4a4a, 0.09, -0.24); box(0.04, 0.18, 0.14, 0x4a4a4a, 0.09, 0.24); }
+    else if (t === 'hay') { for (const [ox, oz, s] of [[-0.18, 0, 1], [0.2, 0.1, 0.85], [0, -0.22, 0.75]]) { const hb = new THREE.Mesh(new THREE.SphereGeometry(0.2 * s, 8, 6), mat(0xe0c24a)); hb.scale.y = 0.75; hb.position.set(ox, 0.13 * s, oz); hb.castShadow = true; g.add(hb); } }
+    g.position.set(x, TILE_H, z); return g;
+  }
+  function drawDecor(map2) { decoG.clear(); for (const [k, t] of Object.entries(map2 || {})) { const [q, r] = k.split(',').map(Number); if (!W.cells.has(k)) continue; decoG.add(decoModel(t, ...axial(q, r))); } dirty = true; }
+  drawDecor(opts.decor);
   function build(list) {
     bgroup.clear(); labels.innerHTML = '';
     for (const it of list) {
@@ -340,6 +383,7 @@ export async function mountFarm(el, items, onPick, opts = {}) {
     update: list => build(list),
     setMoving: v => { opts.moving = v; },
     setRoadMode: v => { opts.roadMode = v; },
+    setDecor: d => drawDecor(d),
     setRoads: list => { roads.clear(); (list || []).forEach(k => roads.add(k)); drawRoads(); },
     highlight,
     focus: id => { const p = pos[id]; if (!p) return; [st.tx, st.tz] = axial(...p); st.d = Math.min(st.d, 10); place(); dirty = true; },

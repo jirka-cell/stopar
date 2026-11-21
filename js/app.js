@@ -20,7 +20,7 @@ import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scor
 import { Dog, dogURL } from './dog.js';
 import { ic, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
-import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty, setTile, toggleRoad, farmBonus, TILE_INFO, BONUS_TILE } from './farm.js';
+import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty, setTile, toggleRoad, farmBonus, TILE_INFO, BONUS_TILE, DECOR, placeDecor, removeDecor, takenTiles } from './farm.js';
 import { mountFarm, genWorld, validTiles, autoPlace, tileType } from './farm3d.js';
 import { createMeter, ingest, tickMeter, addDay, cleanDay, chipHTML, dataHTML } from './datamon.js';
 import { PUZZLES, SIZES, boardHTML, squareImage, playPuzzle, playPexeso, pexesoDeck, gameReward, cleanGames, playRows, playRings, playWho } from './minigames.js';
@@ -1676,9 +1676,14 @@ let farm3 = null, farmSel = '', farmSide = false, farmMove = '';
 let farmT = null, farmPlace = '', farmTileSel = null, farmRoads = false;
 const farmCam = {}; // pohled kamery přežije překreslení farmy
 function farmTerrain() { const f = ensureFarm(), key = f.seed + '|' + Object.values(f.pos).map(p => p.join()).sort().join(';'); if (!farmT || farmT.key !== key) farmT = { key, W: genWorld(f.seed, Object.values(f.pos)) }; return farmT.W; }
-const farmTaken = (except = '') => new Set(Object.entries(ensureFarm().pos).filter(([k]) => k !== except).map(([, p]) => p.join()));
+const farmTaken = (except = '') => takenTiles(ensureFarm(), except);
 function farmTile(q, r) {
   const f = ensureFarm();
+  if (farmPlace && farmPlace.startsWith('decor:')) {
+    const t = farmPlace.slice(6), res = placeDecor(f, farmTerrain(), q, r, t);
+    if (res.err) { toast(res.err); return; }
+    farmPlace = ''; saveState(); toast((DECOR.find(d => d[0] === t) || [])[1] + ' Hotovo.'); renderFarmView(); return;
+  }
   if (farmPlace) {
     const id = farmPlace, res = placeBuilding(f, id, q, r, farmTerrain(), state.cones);
     if (res.err) { toast(res.err); return; }
@@ -1688,6 +1693,8 @@ function farmTile(q, r) {
   if (!farmMove) {
     const occ = Object.entries(f.pos).find(([, p]) => p[0] === q && p[1] === r);
     if (occ) { farmSel = occ[0]; showFarmSheet(); return; }
+    const dk = q + ',' + r, dt = (f.decor || {})[dk];
+    if (dt) { const d = DECOR.find(x => x[0] === dt) || ['', '•', 'Ozdoba']; farmSel = ''; farmTileSel = [q, r]; const s2 = $('fsheet'); s2.innerHTML = `<div class="fsh-h"><b>${d[1]} ${esc(d[2])}</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">Ozdoba – jen pro krásu farmy, nic nevyrábí.</p><button class="btn full ghost" data-fv="decorDel">Odstranit (suroviny se nevrátí)</button>`; s2.hidden = false; return; }
     if (!q && !r) return;
     farmTileSel = farmTileSel && farmTileSel[0] === q && farmTileSel[1] === r && !$('fsheet').hidden ? null : [q, r]; farmSel = '';
     if (farmTileSel) showTileSheet(); else { $('fsheet').hidden = true; if (farm3) farm3.highlight([]); }
@@ -1713,6 +1720,7 @@ function openFarmCatalog() {
   ${encs.length ? `<h3>🏠 Příbytky zvířat</h3><div class="bgrid">${encs.map(card).join('')}</div>` : ''}
   ${econ.length ? `<h3>🌾 Hospodářství</h3><div class="bgrid">${econ.map(card).join('')}</div>` : ''}
   ${!encs.length && !econ.length ? '<p class="msg">Všechno už stojí – vylepšuj budovy ťuknutím na ně.</p>' : ''}
+  <h3>🏡 Ozdoby (jen vzhled)</h3><div class="bgrid">${DECOR.map(([t, i, n, c]) => `<button class="bcard" data-fv="decor" data-t="${t}"><span class="bico">${i}</span><b>${n}</b><small>${Object.entries(c).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' · ')}</small></button>`).join('')}</div>
   <h3>🌳 Krajina</h3><div class="bgrid">
     <button class="bcard${farmRoads ? ' on' : ''}" data-fv="roads"><span class="bico">🛤️</span><b>${farmRoads ? 'Kreslím cesty' : 'Kreslit cesty'}</b><small>ťuk na hranu políčka</small></button>
     <button class="bcard" data-fv="tilehint"><span class="bico">🌾</span><b>Pole, les, rybníček</b><small>ťuk na volné políčko</small></button>
@@ -1812,7 +1820,7 @@ async function renderFarmView() {
   if (farm3) { farm3.destroy(); farm3 = null; }
   const f = ensureFarm(), T = farmTerrain();
   autoPlace(T, f.pos, [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => (f.lv[id] || 0) > 0 || (f.build && f.build.id === id)));
-  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmTileSel = null; farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { world: T, tiles: f.tiles, roads: f.roads, pos: f.pos, cam: farmCam, onTile: farmTile, moving: !!(farmMove || farmPlace), roadMode: farmRoads, onEdge: key => { const on = toggleRoad(ensureFarm(), key); saveState(); farm3.setRoads(ensureFarm().roads); toast(on ? '🛤️ Cesta přidána' : 'Cesta smazána'); } }); }
+  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmTileSel = null; farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { world: T, tiles: f.tiles, roads: f.roads, decor: f.decor, pos: f.pos, cam: farmCam, onTile: farmTile, moving: !!(farmMove || farmPlace), roadMode: farmRoads, onEdge: key => { const on = toggleRoad(ensureFarm(), key); saveState(); farm3.setRoads(ensureFarm().roads); toast(on ? '🛤️ Cesta přidána' : 'Cesta smazána'); } }); }
   catch (e) { v.innerHTML = '<div class="ja">' + farmHTML(ensureFarm(), cfg, state.cones) + '</div>'; return; }
   if (farmSel) showFarmSheet();
   if (farmPlace || farmMove) farm3.highlight(validTiles(T, farmTaken(farmMove)));
@@ -1836,6 +1844,8 @@ function onFarmClick(e) {
     else if (k === 'close') { farmSel = ''; farmMove = ''; farmPlace = ''; farmTileSel = null; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
     else if (k === 'move') { farmMove = farmSel; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken(farmMove))); } $('fsheet').hidden = true; toast('Ťukni na políčko, kam budovu přesunout. Zrušíš ťuknutím zpět na budovu.'); }
     else if (k === 'roads') { farmRoads = !farmRoads; if (farm3) farm3.setRoadMode(farmRoads); $('fsheet').hidden = true; toast(farmRoads ? 'Ťukej na hrany políček – přidáš nebo smažeš cestu se stromořadím. Konec: Stavět → Kreslím cesty.' : 'Kreslení cest vypnuto.'); }
+    else if (k === 'decor') { farmPlace = 'decor:' + fv.dataset.t; $('fsheet').hidden = true; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken())); } toast('Ťukni na zvýrazněné políčko, kam ozdobu dát.'); }
+    else if (k === 'decorDel') { if (farmTileSel) { removeDecor(ensureFarm(), ...farmTileSel); saveState(); farmTileSel = null; toast('Odstraněno.'); renderFarmView(); } }
     else if (k === 'tilehint') { $('fsheet').hidden = true; toast('Ťukni na volné políčko na farmě a vyber pole, les nebo rybníček.'); }
     else if (k === 'tile') { const res = setTile(ensureFarm(), farmTerrain(), ...farmTileSel, fv.dataset.t); if (res.err) toast(res.err); else { saveState(); toast(TILE_INFO[fv.dataset.t][0] + ' Hotovo.'); renderFarmView(); } }
     else if (k === 'buildHere') { const f = ensureFarm(), id = fv.dataset.id, res = placeBuilding(f, id, ...farmTileSel, farmTerrain(), state.cones); if (res.err) { toast(res.err); return; } if (res.cones) { state.cones -= res.cones; hudCones(); } farmTileSel = null; farmSel = id; saveState(); toast('🔨 Stavba začala.'); renderFarmView(); }

@@ -1063,7 +1063,7 @@ test('3D farma: svět ze seedu (hory, řeka, železnice), nepravidelná farma me
   assert.equal(W.cells.get('0,0').t, 'yard');
   for (const c of W.cells.values()) { const x = Math.sqrt(3) * (c.q + c.r / 2), z = 1.5 * c.r; let m = Infinity; for (let i = 1; i < W.river.length; i++) { const [ax, az] = W.river[i - 1]; m = Math.min(m, Math.hypot(x - ax, z - az)); } assert.ok(m > 0.8 || (!c.q && !c.r), 'farma neleží na řece'); }
   const ring = [...W.cells.values()].map(c => D.hexDist(c.q, c.r)); assert.ok(Math.max(...ring) >= 3, 'tvar není jen kruh kolem statku');
-  assert.ok(W.peaks.some(p => p.h > 3), 'vysoké hory'); assert.ok(W.rail.length > 100);
+  assert.ok(W.peaks.some(p => p.h > 3), 'vysoké hory'); assert.ok(W.rail.length > 80 && W.railProf.length === W.rail.length, 'železnice s niveletou');
   assert.ok(W.H(30, 30) !== undefined && W.H(0, 0) === 0, 'farma je rovná');
   const W4 = D.genWorld(123, [[9, 0]]); assert.ok(W4.cells.has('9,0'), 'budova zůstane na farmě i po nové krajině');
   for (const [q, r] of [[0, 0], [2, -1], [-3, 2], [1, 3]]) { const x = Math.sqrt(3) * (q + r / 2), z = 1.5 * r; assert.deepEqual(D.hexAt(x + 0.2, z - 0.2), [q, r]); }
@@ -1086,4 +1086,34 @@ test('3D farma: svět ze seedu (hory, řeka, železnice), nepravidelná farma me
   const inv = {}; const g = F.newFarm([], 5, 0, 1); g.lv.lumber = 1; F.advance(g, 3600000, inv, { lumber: 1.5 }); assert.ok(Math.abs(g.res.wood - 41.5) < 1e-9, 'bonus násobí výrobu');
   assert.deepEqual(F.cleanFarm({ lv: {}, tiles: { '1,0': 'field', '2,0': 'lava', x: 'field' }, roads: ['0,0|1,0', 'zlo'] }, []).tiles, { '1,0': 'field' });
   const pos = D.autoPlace(W, {}, ['store', 'pantry']); assert.ok(pos.store && pos.pantry && pos.store.join() !== pos.pantry.join());
+});
+
+test('krajina farmy: železnice má plynulý sklon, mosty jsou kolmo k řece, cesty začínají na hraně farmy', async () => {
+  const D = await import('../js/farm3d.js');
+  let bridges = 0;
+  for (const seed of [3, 17, 58, 99, 123, 777]) {
+    const W = D.genWorld(seed);
+    for (let i = 1; i < W.rail.length; i++) { const l = Math.hypot(W.rail[i][0] - W.rail[i - 1][0], W.rail[i][1] - W.rail[i - 1][1]); assert.ok(Math.abs(W.railProf[i] - W.railProf[i - 1]) / Math.max(l, 0.05) < 0.9, 'bez skoků v niveletě'); }
+    for (const [x, z, a] of W.bridges) {
+      bridges++;
+      let best = null, bd = Infinity; for (let i = 1; i < W.river.length; i++) { const [ax, az] = W.river[i - 1], [bx, bz] = W.river[i], d = Math.hypot((ax + bx) / 2 - x, (az + bz) / 2 - z); if (d < bd) { bd = d; best = [bx - ax, bz - az]; } }
+      const dir = [Math.sin(a), Math.cos(a)], cos = Math.abs(dir[0] * best[0] + dir[1] * best[1]) / Math.hypot(...best);
+      assert.ok(cos < 0.35, 'most téměř kolmo k řece');
+    }
+    for (const rd of W.roads) { const [x, z] = rd[0], [q, r] = D.hexAt(x, z); const inside = W.cells.has(q + ',' + r); const out = D.hexAt(x + (rd[1][0] - x) * 4, z + (rd[1][1] - z) * 4); assert.ok(inside || W.cells.has(out.join()) === false, 'cesta vychází z okraje farmy'); }
+  }
+  assert.ok(bridges > 0, 'aspoň někde most');
+});
+
+test('farma: ozdoby jen pro vzhled – stojí suroviny, zaberou políčko, jdou odstranit', async () => {
+  const D = await import('../js/farm3d.js'), F = await import('../js/farm.js');
+  const W = D.genWorld(123), f = F.newFarm([], 5, 0, 123); f.res.wood = 50; f.res.stone = 50;
+  const [a, b] = D.validTiles(W, new Set());
+  assert.ok(!F.placeDecor(f, W, a[0], a[1], 'barn').err); assert.equal(f.decor[a.join()], 'barn'); assert.equal(f.res.wood, 44);
+  assert.ok(F.placeDecor(f, W, a[0], a[1], 'well').err, 'jedna věc na políčko');
+  assert.ok(F.placeBuilding(f, 'lumber', a[0], a[1], W, 0).err, 'budova ne na ozdobu');
+  assert.ok(F.setTile(f, W, a[0], a[1], 'field').err, 'pod ozdobou se políčko nemění');
+  assert.ok(F.placeDecor(f, W, 0, 0, 'well').err, 'statek ne'); assert.ok(F.placeDecor(f, W, b[0], b[1], 'raketa').err);
+  F.removeDecor(f, ...a); assert.equal(f.decor[a.join()], undefined);
+  assert.deepEqual(F.cleanFarm({ lv: {}, decor: { '1,0': 'mill', '2,0': 'zlo' } }, []).decor, { '1,0': 'mill' });
 });
