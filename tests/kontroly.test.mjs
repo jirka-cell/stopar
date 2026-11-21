@@ -407,11 +407,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 34);
+  assert.equal(CHECKS.length, 36);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 34);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 36);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
@@ -1037,4 +1037,36 @@ test('úkoly podle místa, jízda autem a nové minihry', async () => {
   assert.equal(M.solved(M.rowsShuffle(4)), false);
   const r = M.ringsShuffle(4); assert.equal(r.length, 4); assert.ok(r.some(Boolean));
   assert.ok(['who', 'rows', 'rings'].every(id => M.PUZZLES.some(p => p.id === id)));
+});
+
+test('závody: minihry jako závody se zvířetem, kód výsledku i pro nové hry, trénink zvedne vlastnost hry', async () => {
+  const K = await import('../js/contests.js');
+  assert.ok(['najdi', 'utek', 'hnizdo', 'rozhled', 'stopar', 'stado', 'vir'].every(id => K.GAMES.some(g => g.id === id && g.mini)));
+  assert.deepEqual(K.GAMES.slice(0, 4).map(g => g.id), ['sprint', 'tah', 'schovka', 'rytmus'], 'staré hry zůstávají na svých místech (staré kódy platí)');
+  const c = K.scoreCode('vir', 777, Date.UTC(2026, 10, 21)), r = K.readScoreCode(c);
+  assert.equal(r.game, 'vir'); assert.equal(r.score, 777);
+  assert.equal(K.miniSkill('who', 0, 5), 1); assert.equal(K.miniSkill('who', 0, 0), 0);
+  assert.ok(K.miniSkill('pexeso', 9) > K.miniSkill('pexeso', 30), 'méně tahů = lepší');
+  assert.ok(K.miniSkill('slide', 1) <= 1);
+  const { trainStat } = await import('../js/economy.js');
+  const cfg = { game: { trainPerDay: 2, trainXp: 10, trainGain: 3 } }, a = { stats: [50, 40, 30, 20], axp: 0 };
+  assert.equal(trainStat(cfg, a, 1, 0.3, 'd'), 'weak'); assert.equal(a.stats[1], 40);
+  assert.equal(trainStat(cfg, a, 1, 0.8, 'd'), 'ok'); assert.equal(a.stats[1], 43); assert.equal(a.axp, 10);
+  trainStat(cfg, a, 1, 0.8, 'd'); assert.equal(trainStat(cfg, a, 1, 0.8, 'd'), 'limit', 'denní limit');
+  assert.equal(trainStat(cfg, a, 1, 0.8, 'd2'), 'ok', 'další den znovu');
+  const b = { stats: [99, 0, 0, 0], axp: 0 }; trainStat(cfg, b, 0, 1, 'x', 100); assert.equal(b.stats[0], 100, 'strop vlastnosti');
+});
+
+test('3D farma: každá budova má své místo, krajina je pro všechny stejná, souhrn výroby', async () => {
+  const D = await import('../js/farm3d.js');
+  const ids = ['enc_voliera', 'enc_vybeh', 'enc_rybnik', 'enc_terarium', 'enc_insektarium', 'lumber', 'quarry', 'nursery', 'field', 'orchard', 'worms', 'store', 'pantry'];
+  const pos = D.layout(ids);
+  assert.equal(Object.keys(pos).length, ids.length);
+  assert.equal(new Set(Object.values(pos).map(p => p.join())).size, ids.length, 'žádné dvě budovy na stejném políčku');
+  assert.equal(D.terrainAt(0, 0, pos), 'yard'); assert.equal(D.terrainAt(1, 0, pos), 'path');
+  assert.equal(D.terrainAt(...pos.lumber, pos), 'base');
+  assert.equal(D.terrainAt(4, -1, pos), D.terrainAt(4, -1, D.layout(ids)), 'stejné rozložení');
+  const F = await import('../js/farm.js');
+  const r = F.rates(F.newFarm(['voliera'], 5, 0));
+  assert.equal(r.wood, 1); assert.ok(r.items.krmivo > 0); assert.equal(r.items.pamlsek, undefined, 'sad úr. 0 nevyrábí');
 });

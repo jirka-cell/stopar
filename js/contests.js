@@ -9,8 +9,21 @@ export const GAMES = [
   { id: 'sprint', name: 'Sprint', stat: 'rychlost', icon: '⚡', desc: 'Ťukej co nejrychleji na kruhy, jak se objevují.' },
   { id: 'tah', name: 'Přetahování', stat: 'sila', icon: '💪', desc: 'Obtáhni prstem ležatou osmičku – přesně a rychle.' },
   { id: 'schovka', name: 'Schovávaná', stat: 'maskovani', icon: '🌿', desc: 'Zapamatuj si, za kterým keřem se zvíře schovalo.' },
-  { id: 'rytmus', name: 'Rytmus', stat: 'vydrz', icon: '🥁', desc: 'Ťukej přesně do rytmu bubínku.' }
+  { id: 'rytmus', name: 'Rytmus', stat: 'vydrz', icon: '🥁', desc: 'Ťukej přesně do rytmu bubínku.' },
+  { id: 'najdi', mini: 'pexeso', need: 2, name: 'Najdi mě', stat: 'maskovani', icon: '🃏', desc: 'Najdi dvojice schovaných zvířat co nejméně tahy.' },
+  { id: 'utek', mini: 'slide', need: 1, name: 'Útěk', stat: 'rychlost', icon: '🔢', desc: 'Posouvej dílky a pomoz zvířeti utéct – složit obrázek.' },
+  { id: 'hnizdo', mini: 'swap', need: 6, name: 'Stavba hnízda', stat: 'vydrz', icon: '🧩', desc: 'Poskládej obrázek prohazováním dílků.' },
+  { id: 'rozhled', mini: 'rotate', need: 4, name: 'Rozhled', stat: 'maskovani', icon: '🔄', desc: 'Natoč dílky, ať je krajina zase celá.' },
+  { id: 'stopar', mini: 'who', need: 3, name: 'Stopař', stat: 'vydrz', icon: '🐾', desc: 'Poznej zvíře podle stop a znamení.' },
+  { id: 'stado', mini: 'rows', need: 8, name: 'Stádo', stat: 'sila', icon: '↔️', desc: 'Posouvej řady, až se stádo seřadí.' },
+  { id: 'vir', mini: 'rings', need: 10, name: 'Vír', stat: 'rychlost', icon: '🎯', desc: 'Otáčej kruhy, až obrázek zapadne.' }
 ];
+// Šikovnost v minihře (0–1) podle počtu tahů proti rozumnému počtu pro střední obtížnost
+export function miniSkill(mini, moves, score) {
+  if (mini === 'who') return clamp(num(score) / 5);
+  const par = { pexeso: 9, slide: 70, swap: 14, rotate: 22, rows: 26, rings: 14 }[mini] || 20;
+  return clamp(par / Math.max(1, num(moves)) * 0.85 + 0.15 * (num(moves) <= par ? 1 : 0));
+}
 
 /* ---------- hodnocení (čisté funkce, testované) ---------- */
 // Sprint: průměrná reakce 250 ms = 1, 1000 ms a víc = 0; každé minutí −10 %
@@ -63,18 +76,19 @@ export function cleanRecords(r) {
 
 /* ---------- obrazovky ---------- */
 export function contestsHTML(cfg, st, SP) {
-  return `<h2>Soutěže</h2><p class="msg small">Výsledek je půl tvoje šikovnost a půl vlastnost zvířete, které vybereš.</p>
-  ${GAMES.map(g => { const r = st.records[g.id]; return `<div class="shopit"><span class="aic" aria-hidden="true">${g.icon}</span><span><b>${g.name}</b> <small>(${esc((cfg.stats.find(s => s.id === g.stat) || {}).name || g.stat)})</small><br><small>${esc(g.desc)}</small>${r ? `<br><small>Rekord: <b>${r.score}</b>${SP[r.sp] ? ' · ' + esc(SP[r.sp].name) : ''}</small>` : ''}</span><button class="btn sm primary" data-act="cPick" data-g="${g.id}">Hrát</button></div>`; }).join('')}
+  const caught = Object.keys(st.caught || {}).filter(id => SP[id] && st.caught[id].count > 0).length;
+  return `<h2>🏁 Závody</h2><p class="msg small">Vyber hru a svoje zvíře. Výsledek je půl tvoje šikovnost a půl vlastnost zvířete. Výsledek pošleš ostatním kódem. Trénink zlepší zvířeti vlastnost, kterou hra měří.</p>
+  ${GAMES.map(g => { const r = st.records[g.id], open = !g.need || caught >= g.need; return `<div class="shopit${open ? '' : ' locked'}"><span class="aic" aria-hidden="true">${g.icon}</span><span><b>${g.name}</b> <small>(${esc((cfg.stats.find(s => s.id === g.stat) || {}).name || g.stat)})</small><br><small>${open ? esc(g.desc) : 'Otevře se po ' + g.need + ' chycených druzích (máš ' + caught + ').'}</small>${r ? `<br><small>Rekord: <b>${r.score}</b>${SP[r.sp] ? ' · ' + esc(SP[r.sp].name) : ''}</small>` : ''}</span>${open ? `<span class="rbtn"><button class="btn sm primary" data-act="cPick" data-g="${g.id}" data-mode="race">Závod</button><button class="btn sm" data-act="cPick" data-g="${g.id}" data-mode="train">Trénink</button></span>` : ''}</div>`; }).join('')}
   <h3>Porovnat s rodinou</h3><p class="msg small">Po hře dostaneš kód výsledku. Kód od ostatních zadej sem:</p>
   <div class="presetnew"><input type="text" id="cCode" maxlength="12" placeholder="např. S4KQ-9MZ7" aria-label="Kód výsledku"><button class="btn" data-act="cCompare">Porovnat</button></div>
   <p class="msg" id="cCmp"></p>
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
-export function pickHTML(cfg, st, SP, game) {
+export function pickHTML(cfg, st, SP, game, mode = 'race') {
   const g = GAMES.find(x => x.id === game), si = cfg.stats.findIndex(s => s.id === g.stat);
   const list = st.animals.filter(a => SP[a.sp]).sort((a, b) => (b.stats[si] || 0) - (a.stats[si] || 0)).slice(0, 30);
-  return `<h2>${g.icon} ${g.name}</h2><p class="msg small">Vyber zvíře – počítá se jeho ${esc((cfg.stats[si] || {}).name || '').toLowerCase()}.</p>
-  ${list.length ? `<div class="grid">${list.map(a => `<button class="acard" data-act="cStart" data-uid="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp])}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}</div><div class="rr">${esc((cfg.stats[si] || {}).name || '')} ${a.stats[si] || 0}</div></button>`).join('')}</div>` : '<p class="msg">Nejdřív chyť nějaké zvíře.</p>'}
+  return `<h2>${g.icon} ${g.name}${mode === 'train' ? ' – trénink' : ''}</h2><p class="msg small">${mode === 'train' ? 'Vyber zvíře, které chceš trénovat – zlepší se mu' : 'Vyber zvíře – počítá se jeho'} ${esc((cfg.stats[si] || {}).name || '').toLowerCase()}.</p>
+  ${list.length ? `<div class="grid">${list.map(a => `<button class="acard" data-act="cStart" data-mode="${mode}" data-uid="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp])}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}</div><div class="rr">${esc((cfg.stats[si] || {}).name || '')} ${a.stats[si] || 0}</div></button>`).join('')}</div>` : '<p class="msg">Nejdřív chyť nějaké zvíře.</p>'}
   <button class="btn full ghost" data-act="contests">Zpět</button>`;
 }
 export function compareText(code, st) {

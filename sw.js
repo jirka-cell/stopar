@@ -1,5 +1,5 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v3.4.0';
+const VERSION = 'stopar-v3.5.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
@@ -7,7 +7,7 @@ const META = 'stopar-meta';
 const OFFLINE = 'stopar-offline';   // stažené oblasti (offline mapy) – nepromazává se
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/planner.js', 'js/offline.js', 'js/extras.js', 'js/minigames.js', 'js/datamon.js', 'js/icons.js', 'js/farm.js', 'js/tasks.js',
+  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/planner.js', 'js/offline.js', 'js/extras.js', 'js/minigames.js', 'js/datamon.js', 'js/icons.js', 'js/farm.js', 'js/tasks.js', 'js/farm3d.js', 'vendor/three/three.module.min.js',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];

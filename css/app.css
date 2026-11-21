@@ -372,3 +372,29 @@ body.kid #menuBtn{font-weight:700}
 .who .fact{margin-bottom:8px}
 .who .acard.right{outline:3px solid var(--acc)}
 .who .acard.wrong{outline:3px solid #c0504a;opacity:.7}
+body:not(.kid) #menuBtn{display:none}
+.atabs{display:flex;gap:6px;overflow-x:auto;padding:10px 10px 2px;scrollbar-width:none}
+.atabs button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:16px;padding:6px 11px;font:inherit;font-size:13px;display:flex;gap:5px;align-items:center;cursor:pointer}
+.atabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.rbtn{display:flex;flex-direction:column;gap:4px;flex:none}
+.shopit.locked{opacity:.6}
+/* 3D farma */
+#farmv{overflow:hidden}
+.fv{position:absolute;inset:0}
+.f3d{position:absolute;inset:0}
+.f3d canvas{display:block;width:100%;height:100%}
+.flabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.flabel{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:3px;border:2px solid #fff;border-radius:12px;padding:2px 7px;font:inherit;font-size:12px;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;white-space:nowrap}
+.flabel small{font-size:10px;opacity:.95}
+.flabel.s-ok{background:#2f7d4f}.flabel.s-warn{background:#e2902a}.flabel.s-bad{background:#c0392b}.flabel.s-build{background:#2b7bb9}.flabel.s-off{background:#8a8f86}
+.ftop{position:absolute;left:8px;right:8px;top:8px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.ftop .fres{background:rgba(255,255,255,.94);border-radius:14px;padding:4px 10px;align-self:center;pointer-events:auto;margin:0}
+.fbtns{display:flex;gap:6px;justify-content:center;pointer-events:auto}
+.fbtns .btn{box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.fside{position:absolute;right:8px;top:86px;width:min(300px,calc(100% - 16px));max-height:calc(100% - 100px);overflow:auto;background:var(--card);border-radius:14px;padding:6px 12px 10px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.fside h3{margin:8px 0 4px;font-size:14px}
+.fsheet{position:absolute;left:0;right:0;bottom:0;max-height:62%;overflow:auto;background:var(--card);border-radius:18px 18px 0 0;padding:10px 14px 16px;box-shadow:0 -3px 14px rgba(0,0,0,.2)}
+.fsh-h{display:flex;justify-content:space-between;align-items:center}
+.fsh-h b{font-size:16px}.fsh-h small{color:var(--mut);font-weight:400}
+.fsheet .atabs{padding:6px 0}
+body.dark .ftop .fres{background:#1f251d;color:var(--ink)}

@@ -114,3 +114,10 @@ export function farmHTML(f, cfg, cones, now = Date.now()) {
   <h3>Hospodářství</h3>${BUILDINGS.map(b => card(b.id, b.name, b.icon, b.desc, b.kind === 'item' && f.made[b.item] ? `<small>Vypěstováno celkem: ${f.made[b.item]}</small>` : '')).join('')}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
+
+// Souhrn výroby za hodinu (bez chůze): suroviny a věci do batohu
+export function rates(f) {
+  const out = { wood: 0, stone: 0, seeds: 0, items: {} };
+  for (const b of BUILDINGS) { const lv = f.lv[b.id] || 0; if (!lv) continue; if (b.kind === 'res') out[b.res] += b.rate * lv; if (b.kind === 'item') out.items[b.item] = (out.items[b.item] || 0) + b.rate * lv; }
+  return out;
+}

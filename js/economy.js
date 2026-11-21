@@ -35,6 +35,16 @@ export function evolve(cfg, st, a, group) {
 }
 
 /* ---------- trénink a krmení ---------- */
+// Trénink v závodech: za dobrý výkon (šikovnost ≥ 50 %) +trainGain k vlastnosti hry, sdílí denní limit s tréninkem za šišky
+export function trainStat(cfg, a, si, skill, day, maxStat = 100) {
+  const G = cfg.game;
+  if (a.trainedOn !== day) { a.trainedOn = day; a.trainedToday = 0; }
+  if (a.trainedToday >= num(G.trainPerDay, 3)) return 'limit';
+  if (skill < 0.5) return 'weak';
+  a.trainedToday++; a.axp += num(G.trainXp, 10);
+  a.stats[si] = Math.min(maxStat, (a.stats[si] || 0) + num(G.trainGain, 2));
+  return 'ok';
+}
 // Trénink: za šišky, nejvýš trainPerDay× denně na jedince; přidá XP jedince a zvedne nejslabší vlastnost
 export function train(cfg, st, a, day) {
   const G = cfg.game;
