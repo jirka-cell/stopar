@@ -31,6 +31,12 @@ export function genWorld(seed, must = []) {
   // hory (počet, výška a rozložení podle seedu), kopce blíž
   const peaks = [], nP = 4 + Math.floor(R() * 6), side = R() * Math.PI * 2;
   for (let i = 0; i < nP; i++) { const a = side + (R() - 0.5) * (2.2 + R() * 3), d = 15 + R() * 9; peaks.push({ x: Math.cos(a) * d, z: Math.sin(a) * d, h: 3.2 + R() * 3.8, w: 2.4 + R() * 3 }); }
+  // souvislá pohoří: oblouk hřebenů (0–2 podle seedu), vrcholy těsně za sebou s kolísavou výškou
+  const nRange = R() < 0.75 ? 1 + (R() < 0.35 ? 1 : 0) : 0;
+  for (let k = 0; k < nRange; k++) {
+    const a0 = R() * Math.PI * 2, len = 1.0 + R() * 1.6, rad = 16 + R() * 6, base = 3.4 + R() * 1.5, ph = R() * 6;
+    for (let t = 0; t <= len; t += 0.11) { const rr2 = rad + Math.sin(t * 2.3 + ph) * 1.8; peaks.push({ x: Math.cos(a0 + t) * rr2, z: Math.sin(a0 + t) * rr2, h: base + Math.sin(t * 4.1 + ph) * 1.4 + R() * 1.2, w: 1.9 + R() * 0.9 }); }
+  }
   const nH = 2 + Math.floor(R() * 6);
   for (let i = 0; i < nH; i++) { const a = R() * Math.PI * 2, d = 10 + R() * 6; peaks.push({ x: Math.cos(a) * d, z: Math.sin(a) * d, h: 0.8 + R() * 1.2, w: 1.6 + R() * 1.6 }); }
   const rough = 0.06 + R() * 0.14;
@@ -108,7 +114,7 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   el.appendChild(renderer.domElement);
   const labels = document.createElement('div'); labels.className = 'flabels'; el.appendChild(labels);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbfe3f5); scene.fog = new THREE.Fog(0xbfe3f5, 26, 60);
+  scene.background = new THREE.Color(0xbfe3f5); scene.fog = new THREE.Fog(0xbfe3f5, 38, 95);
   const cam = new THREE.PerspectiveCamera(42, 1, 0.1, 160);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x6a8a4a, 0.9));
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.55); sun.position.set(12, 20, 8); sun.castShadow = true;
