@@ -863,3 +863,17 @@ test('app.js: žádné jméno se nedováží dvakrát a každý dovoz existuje v
   assert.deepEqual(dup, [], 'dvakrát dovezené: ' + dup.join(', '));
   for (const n of names) assert.ok(!new RegExp('^(?:function|let|const|class)\s+' + n + '\b', 'm').test(src), `${n} je dovezené i deklarované v app.js`);
 });
+
+test('drobnosti: každá potrava má obrázek, kód rodinné výpravy se přečte a pozná překlep', async () => {
+  const { hasFoodIcon, foodIcon, weekCode, readWeekCode, weekNumber } = await import('../js/extras.js');
+  for (const f of DEFAULTS.foods) { assert.ok(hasFoodIcon(f.id), 'obrázek potravy ' + f.id); assert.ok(!/undefined|NaN/.test(foodIcon(f.id))); }
+  const wk = weekNumber(new Date(2026, 10, 21));
+  assert.equal(wk, 45, 'týden od 5. 1. 2026');
+  const c = weekCode(wk, 12345, 17), r = readWeekCode(c);
+  assert.match(c, /^[2-9A-HJ-NP-Z]{3}-[2-9A-HJ-NP-Z]{3}-[2-9A-HJ-NP-Z]{3}$/);
+  assert.deepEqual(r, { week: 45, meters: 12350, species: 17 }, 'po 10 m, zaokrouhleno');
+  assert.deepEqual(readWeekCode(c.toLowerCase()), r);
+  const typo = (c[0] === '2' ? '3' : '2') + c.slice(1);
+  assert.equal(readWeekCode(typo), null);
+  assert.equal(readWeekCode('nesmysl'), null);
+});

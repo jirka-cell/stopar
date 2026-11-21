@@ -211,3 +211,5 @@ body.muted .bmk,body.muted .tgmk{display:none}
 .plchoice .chip.on{background:var(--acc2)}
 .plpt{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid #e2602a;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .cpmk{font-size:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));animation:bob 1.8s ease-in-out infinite}
+.foods button{display:flex;align-items:center;gap:8px;text-align:left}
+.ficon{width:34px;height:34px;flex:none}

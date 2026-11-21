@@ -18,6 +18,7 @@ import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { Dog } from './dog.js';
+import { foodIcon, tripCardBlob, weekCode, readWeekCode, weekNumber, familyHTML } from './extras.js';
 import { planUrls, estimate, download as offlineDownload, removeUrls, cleanAreas, offlineHTML, OFFLINE_CACHE } from './offline.js';
 import { buildGraph, graphQuery, suggestLoops, loopThrough, nearestNode, simplify, encodePolyline, decodePolyline, checkpointsAlong, cleanRoute, pathLength, plannerHTML, choiceHTML, ROUTE_COLORS } from './planner.js';
 import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './trails.js';
@@ -47,7 +48,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] } });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -62,7 +63,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: (Array.isArray(s.routes) ? s.routes : []).map(cleanRoute).filter(Boolean).slice(-30), walk: cleanWalk(s.walk) });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: (Array.isArray(s.routes) ? s.routes : []).map(cleanRoute).filter(Boolean).slice(-30), walk: cleanWalk(s.walk), fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] } });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -1047,6 +1048,33 @@ async function offlineDel(id) {
   off.areas = off.areas.filter(x => x.id !== id); await store.set('offline', off.areas).catch(() => {});
   renderOffline(); toast('Oblast smazána.');
 }
+/* ---------- karta výletu a rodinná výprava ---------- */
+async function shareTrip() {
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const todays = state.animals.filter(a => a.date >= d0.getTime() && SP[a.sp]);
+  const newSp = Object.values(state.caught).filter(c => c.best && c.best.date >= d0.getTime() && c.count === 1).length;
+  const blob = await tripCardBlob({ date: new Date().toLocaleDateString('cs-CZ'), km: ((state.walkDays[dayStr(new Date())] || 0) / 1000).toFixed(1).replace('.', ','),
+    catches: todays.length, newSp, stamps: Object.values(state.stamps).filter(s => s.d >= d0.getTime()).length,
+    shape: state.walk ? decodePolyline(state.walk.p) : null, animals: todays.map(a => ({ url: birdURL(SP[a.sp]), name: a.nick || SP[a.sp].name })) });
+  if (!blob) { toast('Kartu se nepodařilo vytvořit.'); return; }
+  const file = new File([blob], 'stopar-vylet.png', { type: 'image/png' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Můj výlet' }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  const u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = file.name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+  toast('Karta výletu uložena do stažených souborů.');
+}
+// Rodinná výprava: můj týden (skutečná chůze a nové druhy za týden) + kódy ostatních
+function famMine() {
+  const wk = weekNumber(), mon = new Date(Date.UTC(2026, 0, 5) + wk * 7 * 86400000);
+  const meters = Object.entries(state.walkDays).filter(([k]) => new Date(k) >= mon).reduce((a, [, v]) => a + v, 0);
+  const species = new Set(state.animals.filter(a => a.date >= mon.getTime()).map(a => a.sp)).size;
+  return { week: wk, meters, species, code: weekCode(wk, meters, species) };
+}
+function openFamily() { const wk = weekNumber(); if (state.fam.week !== wk) state.fam = { week: wk, codes: [] }; openM(familyHTML(famMine(), state.fam.codes, wk)); }
+async function shareFam() {
+  const m = famMine(), text = `Stopař – rodinná výprava: ${(m.meters / 1000).toFixed(1).replace('.', ',')} km, ${m.species} druhů. Můj kód: ${m.code}`;
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('Zkopírováno.'); } catch (e) { prompt('Zkopíruj:', text); }
+}
 const buzzed = new Set();
 function removeMarker(id) { const m = markers.get(id); if (m) { m.mk.remove(); markers.delete(id); } }
 function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
@@ -1179,7 +1207,7 @@ function renderEnc() {
   const sp = enc.sp;
   if (enc.step === 'food') {
     openM(`<div class="encimg${enc.b.variant ? ' var-' + esc(enc.b.variant) : ''}">${birdImg(sp)}</div><h2>${esc(sp.name)}</h2><div class="sub">${esc(sp.lat)}${enc.b.variant ? ' · vzácná forma: ' + esc(variantName(enc.b.variant)) : ''}</div>${chips(sp)}<p class="msg">${esc(enc.msg)}</p>
-    <div class="foods">${cfg.foods.map(f => `<button data-f="${esc(f.id)}">${esc(f.name)}</button>`).join('')}</div>
+    <div class="foods">${cfg.foods.map(f => `<button data-f="${esc(f.id)}">${foodIcon(f.id)}<span>${esc(f.name)}</span></button>`).join('')}</div>
     ${enc.lure ? '' : invOf(cfg, state, 'lure').map(it => `<button class="btn full" data-act="lure" data-item="${esc(it.id)}">Použít ${esc(it.icon)} ${esc(it.name)} (${state.inv[it.id]})</button>`).join('')}<button class="btn ghost full" data-act="close">Nechat být</button>`);
   } else if (enc.step === 'photo') {
     const g = gameFor(sp); enc.zone = Math.min(.95, Number(g.zone) * (enc.lens ? Number(cfg.game.lensMult) || 1 : 1) * (hidden ? Number(cfg.world.hideZone) || 1 : 1)); enc.speed = Number(g.speed);
@@ -1400,6 +1428,10 @@ function onModalClick(e) {
   else if (act === 'card') shareCard($('animalActs')?.dataset.uid);
   else if (act === 'contests') openContests();
   else if (act === 'planner') openPlanner();
+  else if (act === 'trip') shareTrip();
+  else if (act === 'family') openFamily();
+  else if (act === 'famShare') shareFam();
+  else if (act === 'famAdd') { const v = $('famCode').value, r = readWeekCode(v); if (!r) $('famErr').textContent = 'Kód nesedí – zkontroluj ho.'; else if (r.week !== weekNumber()) $('famErr').textContent = 'Tenhle kód je z jiného týdne.'; else { if (!state.fam.codes.includes(v.toUpperCase())) state.fam.codes.push(v.toUpperCase()); saveState(); openFamily(); } }
   else if (act === 'offline') openOffline();
   else if (act === 'offR') { off.r = Number(a.dataset.v); renderOffline(); }
   else if (act === 'offGo') offlineGo();
@@ -1617,6 +1649,8 @@ function openMenu() {
   <button class="btn full" data-act="offline">Offline mapy</button>
   ${state.walk && !state.walk.done ? '<button class="btn full" data-act="walkEnd">Ukončit trasu „' + esc(state.walk.n) + '“</button>' : ''}
   <button class="btn full" data-act="contests">Soutěže</button>
+  <button class="btn full" data-act="family">Rodinná výprava</button>
+  <button class="btn full" data-act="trip">Karta dnešního výletu</button>
   <button class="btn full" data-act="treasures">Poklady</button>
   <button class="btn full" data-act="journal">Deník pozorování</button>
   <button class="btn full" data-act="key">Určovací klíč</button>
