@@ -1,15 +1,16 @@
-import { DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths, compactConfig } from './config.js';
+import { esc, DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths, compactConfig } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
-import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache } from './osm.js';
+import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls } from './osm.js';
 import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
-import { openAdmin } from './admin.js';
+import { openAdmin, download } from './admin.js';
 import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
+import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
+import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Texty pro různé skupiny živočichů
 const APPROACH = { 'Ptáci': 'Přiletěl a zobe.', 'Ryby': 'Připlaval a bere.', 'Hmyz': 'Přiletěl na návnadu.', 'Měkkýši': 'Pomalu se připlazil a hoduje.' };
 const FLED = { 'Ptáci': 'odletěl', 'Hmyz': 'odletěl', 'Ryby': 'odplaval', 'Obojživelníci': 'odskákal', 'Plazi': 'zmizel v trávě', 'Měkkýši': 'zalezl do ulity' };
@@ -59,12 +60,19 @@ let follow = true, birds = [], markers = new Map(), enc = null, simTarget = null
 
 /* ---------- init ---------- */
 async function init() {
+  let consent = null;
   try {
     const c = await store.get('config');
     cfg = mergeDefaults(c);
     const s = await store.get('state');
     if (s) state = cleanState(s);
+    consent = await store.get('consent');
   } catch (e) { toast('Úložiště není dostupné, postup se neuloží.'); }
+  registerSW(); // jen vlastní soubory aplikace, nic cizího
+  if (consentValid(consent)) start(); else openConsent();
+}
+// Mapa, GPS a stahování dat se spustí až po souhlasu
+function start() {
   persist();
   applyConfig(true);
   initMap();
@@ -73,8 +81,117 @@ async function init() {
   setInterval(tick, 2000);
   setInterval(saveState, 10000);
   tick();
-  registerSW();
   if (location.hash === '#admin') askAdmin();
+}
+
+/* ---------- souhlas, zásady, smazání dat ---------- */
+let consentYear = '', locked = false, wiping = false;
+function openConsent() {
+  locked = true;
+  openM(consentHTML(cfg));
+  $('cYear').value = consentYear;
+  onConsentInput();
+}
+function onConsentInput() {
+  if (!$('cYear')) return;
+  consentYear = $('cYear').value;
+  const age = ageFrom(consentYear);
+  $('cParent').hidden = !(age != null && age < MIN_AGE);
+}
+async function consentOk() {
+  const age = ageFrom($('cYear').value);
+  const err = m => { $('cErr').textContent = m; };
+  if (age == null) return err('Zadej rok narození.');
+  if (!$('cOk').checked) return err('Potvrď souhlas s podmínkami a zásadami.');
+  const parent = age < MIN_AGE;
+  if (parent && !$('cParentOk').checked) return err('Souhlas musí potvrdit rodič nebo zákonný zástupce.');
+  const pin = parent ? $('cPin').value : '';
+  if (parent && !PIN_RE.test(pin)) return err('Rodič nastaví PIN o 4–8 číslicích.');
+  if (parent && pin !== $('cPin2').value) return err('PINy se neshodují.');
+  // rok narození se neukládá, jen verze podmínek a jestli souhlasil rodič
+  try {
+    if (parent) await store.set('parentPin', await newPin(pin));
+    await store.set('consent', { v: TERMS_VERSION, time: Date.now(), parent });
+  } catch (e) {}
+  locked = false; closeM(); start();
+}
+async function openPinSet() { openM(pinSetHTML(!!await store.get('parentPin').catch(() => null))); }
+async function savePin() {
+  const err = m => { $('pErr').textContent = m; };
+  const rec = await store.get('parentPin').catch(() => null);
+  if (rec && !await pinOk(rec, $('pOld').value, err)) return;
+  const pin = $('pNew').value;
+  if (!PIN_RE.test(pin)) return err('PIN musí mít 4–8 číslic.');
+  if (pin !== $('pNew2').value) return err('PINy se neshodují.');
+  try { await store.set('parentPin', await newPin(pin)); } catch (e) { return err('PIN se nepodařilo uložit.'); }
+  openMenu(); toast('Rodičovský PIN uložen.');
+}
+// Po 3 špatných pokusech 30 s pauza (proti zkoušení PINu dítětem)
+let pinFails = 0, pinWait = 0;
+async function pinOk(rec, pin, err) {
+  if (Date.now() < pinWait) { err('Moc pokusů, zkus to za chvíli.'); return false; }
+  if (await verifyPin(rec, pin)) { pinFails = 0; return true; }
+  if (++pinFails >= 3) { pinFails = 0; pinWait = Date.now() + 30000; }
+  err('Špatný PIN.'); return false;
+}
+// Obnova zálohy a Smazat postup v adminu přepisují data → chce rodičovský PIN, pokud je nastavený
+async function pinFieldIfSet() {
+  return await store.get('parentPin').catch(() => null)
+    ? '<div class="fld"><label for="gPin">Rodičovský PIN</label><input type="password" id="gPin" inputmode="numeric" autocomplete="current-password" maxlength="8"></div><p class="msg small" id="gErr"></p>' : '';
+}
+async function pinGate() {
+  const rec = await store.get('parentPin').catch(() => null);
+  return !rec || (!!$('gPin') && pinOk(rec, $('gPin').value, m => { $('gErr').textContent = m; }));
+}
+async function resetProgress() {
+  if (!await pinGate()) return;
+  state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last };
+  await store.clear('photos'); await store.set('state', state);
+  closeM(); hudDist(); toast('Postup smazán.');
+}
+async function openWipe() {
+  if (!await store.get('parentPin').catch(() => null)) {
+    openM(`<h2>Smazat všechna data</h2><p class="msg">Mazání chrání rodičovský PIN. Nejdřív ho nastav.</p>
+    <button class="btn primary full" data-act="pinSet">Nastavit rodičovský PIN</button><button class="btn full" data-act="menu">Zpět</button>`);
+    return;
+  }
+  openM(`<h2>Smazat všechna data?</h2><p class="msg">Smaže se postup, úlovky, fotky, nastavení, uložené mapy, souhlas i PIN. Vrátit to nejde, jedině ze zálohy.</p>
+  <div class="fld"><label for="wPin">Rodičovský PIN</label><input type="password" id="wPin" inputmode="numeric" autocomplete="current-password" maxlength="8"></div>
+  <p class="msg small" id="wErr"></p>
+  <button class="btn danger full" data-act="wipeOk">Ano, smazat vše</button><button class="btn full" data-act="menu">Zpět</button>`);
+}
+async function wipeAll() {
+  const rec = await store.get('parentPin').catch(() => null);
+  if (!rec || !await pinOk(rec, $('wPin').value, m => { $('wErr').textContent = m; })) return;
+  wiping = true; clearTimeout(clTimer); // čekající uložení by smazaná data vrátilo
+  try { await Promise.all(['kv', 'photos', 'osm'].map(s => store.clear(s))); } catch (e) { wiping = false; toast('Smazání se nepovedlo.'); return; }
+  stopGPS(); stopSim();
+  // mapové dlaždice prozrazují, kde se hrálo; soubory aplikace zůstanou kvůli offline
+  try { for (const k of await caches.keys()) if (k.startsWith('stopar-tiles') || k === 'stopar-static') await caches.delete(k); } catch (e) {}
+  location.reload();
+}
+
+/* ---------- kontrolní seznam pro testery ---------- */
+let checklist = null, clTimer = 0;
+async function openChecklist() {
+  if (!checklist) checklist = Object.assign(emptyChecklist(), await store.get('checklist').catch(() => null) || {});
+  const y = mbox.scrollTop;
+  openM(checklistHTML(checklist));
+  mbox.scrollTop = y;
+}
+function saveChecklist() { clearTimeout(clTimer); clTimer = setTimeout(() => { if (!wiping) store.set('checklist', checklist).catch(() => {}); }, 400); }
+function onChecklistInput(t) {
+  const k = t.dataset.cl; if (!k || !checklist) return;
+  if (k === 'item') (checklist.items[t.dataset.id] ||= {}).n = t.value;
+  else checklist[k] = t.value;
+  saveChecklist();
+}
+async function sendChecklist() {
+  const info = `Verze ${APP_VERSION} · kód rozmístění ${spawnCode(cfg)} · ${new Date().toLocaleString('cs-CZ')}\n${navigator.userAgent}`;
+  const text = checklistText(checklist, info);
+  try { if (navigator.share) { await navigator.share({ title: 'Stopař – výsledek testu', text }); return; } }
+  catch (e) { if (e.name === 'AbortError') return; }
+  location.href = 'mailto:' + encodeURIComponent(cfg.general.contact || '') + '?subject=' + encodeURIComponent('Stopař – výsledek testu') + '&body=' + encodeURIComponent(text);
 }
 
 function applyConfig(first) {
@@ -106,6 +223,7 @@ async function saveConfig(newCfg) {
 }
 
 function saveState() {
+  if (wiping) return;
   const now = Date.now(), keep = cfg.catch.gonePrune * 86400000;
   for (const k of Object.keys(state.gone)) if (now - state.gone[k] > keep) delete state.gone[k];
   if (pos.lat != null) state.last = { lat: pos.lat, lon: pos.lon };
@@ -407,7 +525,7 @@ function banner(m, btn) {
 const modal = $('modal'), mbox = $('mbox');
 function openM(h) { mbox.innerHTML = h; modal.classList.add('on'); mbox.scrollTop = 0; }
 function closeM() { modal.classList.remove('on'); enc = null; }
-modal.addEventListener('pointerdown', e => { if (e.target === modal && (!enc || enc.step !== 'photo')) closeM(); });
+modal.addEventListener('pointerdown', e => { if (e.target === modal && !locked && (!enc || enc.step !== 'photo')) closeM(); });
 
 function show(v) {
   document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === v));
@@ -417,6 +535,10 @@ function show(v) {
 }
 
 let logoTaps = 0, logoT = 0;
+// Modální okno funguje už před souhlasem (mapa a ostatní ovládání až po něm)
+mbox.addEventListener('click', e => onModalClick(e));
+mbox.addEventListener('change', e => onModalChange(e));
+mbox.addEventListener('input', e => { if (e.target.id === 'cYear') onConsentInput(); else onChecklistInput(e.target); });
 function bindUI() {
   document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
   $('centerBtn').onclick = () => { follow = true; if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); };
@@ -428,8 +550,6 @@ function bindUI() {
     logoT = setTimeout(() => { logoTaps = 0; }, 1500);
     if (logoTaps >= 5) { logoTaps = 0; askAdmin(); }
   });
-  mbox.addEventListener('click', onModalClick);
-  mbox.addEventListener('change', onModalChange);
   $('atlasv').addEventListener('click', e => { const c = e.target.closest('[data-sp]'); if (c) openDetail(c.dataset.sp); });
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
   window.addEventListener('hashchange', () => { if (location.hash === '#admin') askAdmin(); });
@@ -536,6 +656,21 @@ function onModalClick(e) {
   else if (act === 'pin') checkPin();
   else if (act === 'importOk') doImport();
   else if (act === 'menu') openMenu();
+  else if (act === 'legal') openM(privacyHTML(cfg, overpassUrls(cfg), 'consentBack'));
+  else if (act === 'consentBack') openConsent();
+  else if (act === 'consentOk') consentOk();
+  else if (act === 'legalMenu') openM(privacyHTML(cfg, overpassUrls(cfg), 'menu'));
+  else if (act === 'about') openM(aboutHTML(cfg));
+  else if (act === 'legalAbout') openM(privacyHTML(cfg, overpassUrls(cfg), 'about'));
+  else if (act === 'wipe') openWipe();
+  else if (act === 'wipeOk') wipeAll();
+  else if (act === 'pinSet') openPinSet();
+  else if (act === 'pinSave') savePin();
+  else if (act === 'resetOk') resetProgress();
+  else if (act === 'checklist') openChecklist();
+  else if (act === 'clDev') { checklist.device = a.dataset.v; saveChecklist(); openChecklist(); }
+  else if (act === 'clMark') { (checklist.items[a.dataset.id] ||= {}).m = a.dataset.v; saveChecklist(); openChecklist(); }
+  else if (act === 'clSend') sendChecklist();
   else if (act.startsWith('look')) onLookClick(act, a);
 }
 function onModalChange(e) {
@@ -648,6 +783,11 @@ function openMenu() {
   <label class="btn full">Obnovit ze zálohy<input type="file" accept="application/json,.json" data-import hidden></label>
   <p class="msg small">Ušlo celkem ${(state.dist / 1000).toFixed(2).replace('.', ',')} km · ${Object.values(state.caught).filter(c => c.count).length} druhů</p>
   <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b><br>Před společnou procházkou ho porovnejte – stejný kód = stejná zvířata na stejném místě.</p>
+  <button class="btn full" data-act="checklist">Kontrolní seznam pro testery</button>
+  <button class="btn full" data-act="about">O aplikaci a licence</button>
+  <button class="btn full" data-act="legalMenu">Podmínky a zásady</button>
+  <button class="btn full" data-act="pinSet">Rodičovský PIN</button>
+  <button class="btn full danger" data-act="wipe">Smazat všechna moje data</button>
   <p class="msg small">Mapa a biotopy: ${safeAttribution(cfg.map.attribution)}</p>
   <button class="btn full ghost" data-act="close">Zavřít</button></div>`);
 }
@@ -661,29 +801,24 @@ async function exportData(withConfig = false) {
   download(JSON.stringify(data), 'stopar-zaloha-' + new Date().toISOString().slice(0, 10) + '.json');
   toast('Záloha uložena do stažených souborů.');
 }
-function download(text, name) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
 let pendingImport = null;
 function readImport(file) {
   const fr = new FileReader();
-  fr.onload = () => {
-    try {
-      const d = JSON.parse(fr.result);
-      if (d.app !== 'stopar' || !d.state) throw new Error('bad');
-      pendingImport = d;
-      const n = Object.values(d.state.caught || {}).filter(c => c.count).length;
-      openM(`<h2>Obnovit zálohu?</h2><p class="msg">Záloha z ${esc(new Date(d.exported).toLocaleString('cs-CZ'))}: ${n} druhů, ${(d.photos || []).length} fotek.<br>Současný postup se přepíše.</p>
-      ${d.config ? '<label class="fld row">Obnovit i nastavení adminu<input type="checkbox" id="impCfg"></label>' : ''}
-      <button class="btn primary full" data-act="importOk">Obnovit</button><button class="btn full" data-act="menu">Zpět</button>`);
-    } catch (e) { toast('Soubor není záloha Stopaře.'); }
+  fr.onload = async () => {
+    let d;
+    try { d = JSON.parse(fr.result); if (d.app !== 'stopar' || !d.state) throw new Error('bad'); }
+    catch (e) { toast('Soubor není záloha Stopaře.'); return; }
+    pendingImport = d;
+    const n = Object.values(d.state.caught || {}).filter(c => c.count).length;
+    openM(`<h2>Obnovit zálohu?</h2><p class="msg">Záloha z ${esc(new Date(d.exported).toLocaleString('cs-CZ'))}: ${n} druhů, ${(d.photos || []).length} fotek.<br>Současný postup se přepíše.</p>
+    ${d.config ? '<label class="fld row">Obnovit i nastavení adminu<input type="checkbox" id="impCfg"></label>' : ''}
+    ${await pinFieldIfSet()}
+    <button class="btn primary full" data-act="importOk">Obnovit</button><button class="btn full" data-act="menu">Zpět</button>`);
   };
   fr.readAsText(file);
 }
 async function doImport() {
-  const d = pendingImport; if (!d) return;
+  const d = pendingImport; if (!d || !await pinGate()) return;
   const withCfg = $('impCfg') && $('impCfg').checked;
   const newState = cleanState(d.state);
   const photos = (Array.isArray(d.photos) ? d.photos : []).map(cleanPhoto).filter(Boolean);
@@ -711,7 +846,8 @@ function checkPin() {
     close: () => { document.querySelector('nav').style.display = ''; show('mapv'); },
     exportAll: () => exportData(true),
     clearOsm: async () => { await clearOsmCache(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
-    resetProgress: async () => { state = { caught: {}, gone: {}, dist: 0, simDist: 0, last: state.last }; await store.clear('photos'); await store.set('state', state); hudDist(); toast('Postup smazán.'); },
+    resetProgress: async () => openM(`<h2>Smazat postup?</h2><p class="msg">Smažou se úlovky a fotky.</p>${await pinFieldIfSet()}
+      <button class="btn danger full" data-act="resetOk">Smazat postup</button><button class="btn full ghost" data-act="close">Zrušit</button>`),
     respawn: () => { state.gone = {}; clearMarkers(); refreshBirds(); toast('Zvířata obnovena.'); },
     info: () => ({ slot: currentSlot(cfg), birds: birds.length, features: loadedFeatures().length, night: isNight(), pos: { ...pos }, alt: elevationAt(pos.lat, pos.lon), region: currentRegion(cfg).id, month: currentMonth(cfg) + (Number(cfg.general.monthOverride) ? ' (simulovaný)' : ''), code: spawnCode(cfg), osmError: osmStatus.error })
   });

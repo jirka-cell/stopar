@@ -93,13 +93,13 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
     const chunks = ensureArea(50.2306, 12.8711, 600);
     for (let i = 0; i < 10; i++) { ensureArea(50.2306, 12.8711, 600); await drain(); }
     assert.ok(chunks > 1);
-    assert.equal(calls, 1, 'po první chybě se má čekat, ne posílat další dotazy');
+    assert.equal(calls, 3, 'po chybě všech 3 serverů se má čekat, ne posílat další dotazy');
     assert.match(status.error, /429/);
     assert.match(errorAt(50.2306, 12.8711), /429/, 'bez dat pod hráčem se chyba ukáže');
     now += 6000; ok = true;
     ensureArea(50.2306, 12.8711, 600); await drain();
     assert.equal(status.error, '', 'po úspěšném načtení má chyba zmizet');
-    assert.equal(calls, 1 + chunks);
+    assert.equal(calls, 3 + chunks);
     // výpadek jen okolního čtverce: data pod hráčem jsou, chyba se hráči neukáže
     ok = false; now += 6000;
     ensureArea(50.2306, 12.8711, 1500); await drain();
@@ -353,4 +353,83 @@ test('každý druh má anglický popis vzhledu pro prompty obrázků', async () 
     assert.ok(VZHLED_EN[s.id], `${s.id}: chybí anglický popis v tools/vzhled-en.mjs`);
     assert.ok(VZHLED_EN[s.id][1].length > 30, `${s.id}: popis je moc krátký`);
   }
+});
+
+test('Overpass: při výpadku serveru se zkusí další a příště se začne funkčním', async () => {
+  const cfg = clone(DEFAULTS); osmSetConfig(cfg); try { await clearOsmCache(); } catch (e) {}
+  const realFetch = globalThis.fetch, hits = [];
+  globalThis.fetch = async url => { hits.push(new URL(url).host); return url.includes('overpass-api.de') ? { ok: false, status: 504 } : { ok: true, json: async () => ({ elements: [] }) }; };
+  try {
+    ensureArea(50.2306, 12.8711, 600); await new Promise(r => setTimeout(r, 80));
+    assert.deepEqual(hits.slice(0, 2), ['overpass-api.de', 'overpass.private.coffee']);
+    assert.ok(hits.length > 2, 'víc čtverců');
+    assert.equal(status.error, '');
+    assert.ok(hits.slice(2).every(h => h === 'overpass.private.coffee'), 'další čtverce rovnou z funkčního serveru');
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test('souhlas: věk z roku narození, mladší 15 let potřebují rodiče, nová verze podmínek = nový souhlas', async () => {
+  const { ageFrom, consentValid, TERMS_VERSION, MIN_AGE } = await import('../js/legal.js');
+  const d = new Date(2026, 10, 21);
+  assert.equal(ageFrom(2010, d), 15);
+  assert.ok(ageFrom(2011, d) < MIN_AGE, 'narozený 2011 může mít 14 → rodič');
+  for (const bad of ['', 'abc', 1800, 2030, 2000.5]) assert.equal(ageFrom(bad, d), null);
+  assert.equal(consentValid({ v: TERMS_VERSION }), true);
+  assert.equal(consentValid({ v: TERMS_VERSION - 1 }), false);
+  assert.equal(consentValid(null), false);
+});
+
+test('rodičovský PIN: ukládá se jen otisk se solí, ověří správný PIN, odmítne špatný', async () => {
+  const { newPin, verifyPin, PIN_RE } = await import('../js/legal.js');
+  const rec = await newPin('4821');
+  assert.ok(!JSON.stringify(rec).includes('4821'));
+  assert.notEqual((await newPin('4821')).hash, rec.hash, 'jiná sůl = jiný otisk');
+  assert.equal(await verifyPin(rec, '4821'), true);
+  assert.equal(await verifyPin(rec, '4822'), false);
+  assert.equal(await verifyPin(null, '4821'), false);
+  for (const bad of ['123', '123456789', '12a4', '']) assert.equal(PIN_RE.test(bad), false);
+});
+
+test('servery Overpass a kontakt z nastavení se očistí', () => {
+  const NL = String.fromCharCode(10);
+  const m = mergeDefaults({ osm: { overpassUrl: ['https://a.example/api', 'javascript:alert(1)', ' http://b.example ', 'https://c.example/api'].join(NL) }, general: { contact: '<x>@y' } });
+  assert.equal(m.osm.overpassUrl, 'https://a.example/api' + NL + 'https://c.example/api');
+  assert.equal(m.general.contact, '');
+  assert.equal(mergeDefaults({ osm: { overpassUrl: 'nic' } }).osm.overpassUrl, DEFAULTS.osm.overpassUrl);
+  assert.equal(mergeDefaults({ general: { contact: 'stopar@example.cz' } }).general.contact, 'stopar@example.cz');
+});
+
+test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', async () => {
+  const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
+  const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
+  const t = checklistText(d, 'info');
+  assert.equal(CHECKS.length, 19);
+  assert.ok(t.includes('Anička · zařízení: iPhone'));
+  assert.ok(t.includes('GPS a poloha: Problém'));
+  assert.ok(t.includes('skáče o 50 m'));
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 19);
+});
+
+test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const { APP_VERSION } = await import('../js/legal.js');
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.ok(sw.includes(`'stopar-v${APP_VERSION}'`), 'VERSION v sw.js = APP_VERSION');
+  for (const f of readdirSync(new URL('../js/', import.meta.url))) assert.ok(sw.includes(`'js/${f}'`), `sw.js: chybí js/${f}`);
+});
+
+test('Overpass: odpověď 200 s „runtime error“ se neuloží a zkusí se další server', async () => {
+  const cfg = clone(DEFAULTS); osmSetConfig(cfg); try { await clearOsmCache(); } catch (e) {}
+  const realFetch = globalThis.fetch, hits = [];
+  globalThis.fetch = async url => {
+    hits.push(new URL(url).host);
+    const bad = !url.includes('kumi.systems'); // jen třetí server odpoví bez chyby
+    return { ok: true, json: async () => bad ? { elements: [], remark: 'runtime error: Query timed out in "query" at line 1 after 26 seconds.' } : { elements: [] } };
+  };
+  try {
+    ensureArea(49.1, 16.6, 10); await new Promise(r => setTimeout(r, 80));
+    assert.ok(hits.includes('overpass.kumi.systems') && hits.length >= 2, 'chybná odpověď = zkusit další server');
+    assert.equal(status.error, '');
+    assert.notEqual(biotopeAt(49.1, 16.6), null, 'data z druhého serveru jsou načtená');
+  } finally { globalThis.fetch = realFetch; }
 });

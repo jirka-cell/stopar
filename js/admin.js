@@ -1,8 +1,7 @@
 // Admin: generický editor všech parametrů. Ukládá se průběžně.
-import { SCHEMA, LISTS, LOOK_FIELDS, EDU_FIELDS, DEFAULTS, mergeDefaults, clone } from './config.js';
+import { SCHEMA, LISTS, LOOK_FIELDS, EDU_FIELDS, DEFAULTS, mergeDefaults, clone, esc } from './config.js';
 import { birdURL } from './birds.js';
 
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let root, draft, api, saveT = 0, infoT = 0;
 const openKeys = new Set();
@@ -169,7 +168,7 @@ function importCfg(file) {
 }
 function alertInline(m) { const el = root.querySelector('#admInfo'); if (el) el.textContent = m; }
 
-function download(text, name) {
+export function download(text, name) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);

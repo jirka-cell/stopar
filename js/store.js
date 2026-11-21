@@ -35,12 +35,9 @@ const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); 
 export const store = {
   get: (k, s = 'kv') => tx(s, 'readonly', st => req(st.get(k))),
   set: (k, v, s = 'kv') => tx(s, 'readwrite', st => req(st.put(v, k))),
-  del: (k, s = 'kv') => tx(s, 'readwrite', st => req(st.delete(k))),
   clear: s => tx(s, 'readwrite', st => req(st.clear())),
   all: s => tx(s, 'readonly', st => req(st.getAll())),
-  keys: s => tx(s, 'readonly', st => req(st.getAllKeys())),
   addPhoto: p => tx('photos', 'readwrite', st => req(st.add(p))),
-  putPhoto: p => tx('photos', 'readwrite', st => req(st.put(p))),
   // Obnova zálohy v jedné transakci: buď se zapíše stav i všechny fotky, nebo nic (stará data zůstanou)
   restore: (state, photos) => open().then(db => new Promise((res, rej) => {
     const t = db.transaction(['photos', 'kv'], 'readwrite');

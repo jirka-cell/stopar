@@ -10,6 +10,9 @@ export { EDU_FIELDS, GROUPS };
 
 export const CONFIG_VERSION = 4;
 
+// Text do HTML: znaky, které by šlo zneužít k vložení kódu, se nahradí
+export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 export const DEFAULTS = {
   version: CONFIG_VERSION,
   general: {
@@ -18,7 +21,10 @@ export const DEFAULTS = {
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
-    monthOverride: 0        // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
+    monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
+    author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
+    controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
+    contact: ''                   // kontaktní e-mail pro dotazy a zpětnou vazbu testerů
   },
   spawn: {
     density: 5,             // očekávaný počet ptáků v okruhu
@@ -94,7 +100,8 @@ export const DEFAULTS = {
     { name: 'Maximum', style: 'data', layers: { roadNames: true, waterNames: true, parkNames: true, places: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiParking: true, poiNames: true, paths: true, rail: true, peaks: true, protected: true, landDetail: true, hillshade: true, contours: true, trHiking: true, trCycling: true, buildings: '3d' } }
   ],
   osm: {
-    overpassUrl: 'https://overpass-api.de/api/interpreter',
+    // servery Overpass, jeden na řádek; při výpadku se automaticky zkusí další
+    overpassUrl: 'https://overpass-api.de/api/interpreter\nhttps://overpass.private.coffee/api/interpreter\nhttps://overpass.kumi.systems/api/interpreter',
     chunkDeg: 0.01,         // velikost stahovaného čtverce ve stupních (~1,1 × 0,7 km)
     cacheDays: 30,
     lineBuffer: 15,         // m – šířka řek/potoků zadaných jako čára
@@ -184,7 +191,10 @@ export const SCHEMA = [
     ['simulation', 'Simulace chůze ťukáním do mapy (bez GPS)', 'bool'],
     ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
     ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
-    ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }]
+    ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
+    ['author', 'Autor aplikace', 'text'],
+    ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
+    ['contact', 'Kontaktní e-mail', 'text']
   ] },
   { sec: 'spawn', title: 'Objevování zvířat', fields: [
     ['density', 'Počet zvířat v okruhu (průměr)', 'number', { min: 0, max: 100, step: 1 }],
@@ -248,7 +258,7 @@ export const SCHEMA = [
     ['trSkating', 'Trasy: in-line', 'bool'], ['trRiding', 'Trasy: jezdecké', 'bool'], ['trSlopes', 'Trasy: sjezdovky', 'bool']
   ] },
   { sec: 'osm', title: 'OSM / biotopy', fields: [
-    ['overpassUrl', 'Overpass API URL', 'text'],
+    ['overpassUrl', 'Servery Overpass API (jeden na řádek, při výpadku další)', 'textarea'],
     ['chunkDeg', 'Velikost čtverce (°)', 'number', { min: 0.002, max: 0.05, step: 0.001 }],
     ['cacheDays', 'Platnost cache (dny)', 'number', { min: 1, max: 365, step: 1 }],
     ['lineBuffer', 'Šířka vodních toků (m)', 'number', { min: 1, max: 200, step: 1 }],
@@ -475,7 +485,8 @@ export function mergeDefaults(cfg) {
   out.mapPresets = out.mapPresets.filter(p => typeof p.name === 'string' && p.name.trim())
     .map(p => ({ name: p.name.trim().slice(0, 40), style: typeof p.style === 'string' ? p.style : 'auto', layers: cleanLayers(p.layers, {}) }));
   for (const k of ['vectorUrl', 'glyphsUrl', 'demUrl', 'trailsUrl']) out.map[k] = safeUrl(out.map[k], DEFAULTS.map[k]);
-  out.osm.overpassUrl = safeUrl(out.osm.overpassUrl, DEFAULTS.osm.overpassUrl);
+  out.osm.overpassUrl = String(out.osm.overpassUrl ?? '').split('\n').map(u => safeUrl(u.trim(), '')).filter(Boolean).join('\n') || DEFAULTS.osm.overpassUrl;
+  out.general.contact = /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(String(out.general.contact || '').trim()) ? String(out.general.contact).trim() : '';
   out.version = CONFIG_VERSION;
   return out;
 }

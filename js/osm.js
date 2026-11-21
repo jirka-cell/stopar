@@ -143,9 +143,7 @@ async function loadChunk(key) {
     if (Date.now() < failUntil) throw RETRY_LATER;
     const bb = chunkBBox(key);
     const body = 'data=' + encodeURIComponent(buildQuery(bb));
-    const r = await fetch(CFG.osm.overpassUrl, { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-    if (!r.ok) throw new Error('Overpass ' + r.status);
-    const feats = parseOverpass(await r.json());
+    const feats = parseOverpass(await fetchOverpass(body));
     failCount = 0; status.error = '';
     chunks.set(key, feats);
     try { await store.set(cacheKey, { time: Date.now(), features: feats }, 'osm'); } catch (e) {}
@@ -154,6 +152,29 @@ async function loadChunk(key) {
   loading.set(key, p);
   try { const f = await p; onChange(); return f; }
   finally { loading.delete(key); }
+}
+
+// Zkusí servery Overpass postupně, začne posledním funkčním; až když selžou všechny, ohlásí chybu
+let goodUrl = 0;
+export function overpassUrls(cfg = CFG) { return String(cfg.osm.overpassUrl || '').split('\n').map(u => u.trim()).filter(Boolean); }
+async function fetchOverpass(body) {
+  const urls = overpassUrls();
+  let err = new Error('Overpass: žádný server');
+  for (let i = 0; i < urls.length; i++) {
+    const n = (goodUrl + i) % urls.length;
+    try {
+      // časový limit: zaseknutý server nesmí zastavit frontu čtverců
+      const signal = AbortSignal.timeout ? AbortSignal.timeout((Number(CFG.osm.timeout) + 15) * 1000) : undefined;
+      const r = await fetch(urls[n], { method: 'POST', body, signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      if (!r.ok) throw new Error('Overpass ' + r.status);
+      const json = await r.json();
+      // přetížený server odpoví 200 s „runtime error“ a neúplnými daty – nesmí se uložit do cache
+      if (/error/i.test(json.remark || '')) throw new Error('Overpass: ' + String(json.remark).slice(0, 80));
+      goodUrl = n;
+      return json;
+    } catch (e) { err = e; }
+  }
+  throw err;
 }
 
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
