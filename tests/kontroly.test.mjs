@@ -122,7 +122,7 @@ test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribu
 test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryté', () => {
   assert.equal(styleIdFor('auto', false), 'hra');
   assert.equal(styleIdFor('auto', true), 'noc');
-  assert.equal(styleIdFor('papir', true), 'papir');
+  assert.equal(styleIdFor('papir', true), 'papirnoc'); assert.equal(styleIdFor('papir', false), 'papir');
   assert.equal(styleIdFor('neexistuje', false), 'hra');
   const ctx = { vectorUrl: DEFAULTS.map.vectorUrl, glyphsUrl: DEFAULTS.map.glyphsUrl, demUrl: 'dem://x', contourUrl: 'contour://x', trailsUrl: DEFAULTS.map.trailsUrl, biotopes: DEFAULTS.biotopes, game: { catch: circle(12.87, 50.23, 100) } };
   for (const id of Object.keys(STYLES)) {

@@ -10,22 +10,20 @@ export const STYLES = {
     bg: '#2c3a63', wood: '#25456a', grass: '#33507a', farm: '#3a4f78', wet: '#2f557a', water: '#1d6fa0', waterLine: '#2a86bd', rock: '#45507a', sand: '#4a5478',
     res: '#36456f', ind: '#3a4572', park: '#2f5a74', bld: '#46547f', bldLine: '#56669a', road: '#8fb6ff', roadCase: '#20294a', minor: '#6f8fd6', path: '#5f78b8', rail: '#6c7aa8',
     label: '#d8e4ff', halo: '#1c2546', shade: '#0d1430', game: '#9fe0b4' },
-  data: { name: 'Bohatá data',
-    bg: '#e9f2df', wood: '#a6d79a', grass: '#cdeab9', farm: '#e4efc4', wet: '#bfe3d5', water: '#8fd0ee', waterLine: '#6fc1e8', rock: '#d6d2c8', sand: '#f3e9c2',
-    res: '#e6e6dc', ind: '#e4dccf', park: '#b7e3a4', bld: '#d9d2c7', bldLine: '#bdb3a5', road: '#ffffff', roadCase: '#b9b1a3', minor: '#fffdf6', path: '#c79a6a', rail: '#9a8f86',
-    label: '#3c3a36', halo: '#ffffff', shade: '#4a4238', game: '#2f7d4f' },
   papir: { name: 'Papír a akvarel',
     bg: '#f2e8d2', wood: '#b9cf9a', grass: '#dfe3b4', farm: '#ece0b0', wet: '#c9dccb', water: '#a9cfd6', waterLine: '#8fbcc6', rock: '#ddd2bd', sand: '#efe2bf',
     res: '#eadfc8', ind: '#e5d6bf', park: '#c9d8a4', bld: '#e0cfb2', bldLine: '#c7b291', road: '#fbf6ea', roadCase: '#cbb48f', minor: '#f7efdc', path: '#b98d5c', rail: '#a8957a',
     label: '#6a5136', halo: '#f7efdc', shade: '#6a5136', game: '#7a5a2f' },
-  bio: { name: 'Biotopy',
-    bg: '#c8dc8a', wood: '#4f9a52', grass: '#c8dc8a', farm: '#d9e48f', wet: '#7fc7b8', water: '#3fa7e0', waterLine: '#3fa7e0', rock: '#b5b0a5', sand: '#e8dc9a',
-    res: '#cfc8bd', ind: '#bdb6aa', park: '#7ec36a', bld: '#b3aa9c', bldLine: '#9a9183', road: '#ffffff', roadCase: '#8f877b', minor: '#f4f1ea', path: '#f4f1ea', rail: '#7a7266',
-    label: '#2c2a26', halo: '#ffffff', shade: '#2c2a26', game: '#1f5f34' }
+  // noční papír: tmavý sépiový podklad, světlé tahy jako bílá tužka
+  papirnoc: { name: 'Papír a akvarel – noc',
+    bg: '#2b2620', wood: '#3a4230', grass: '#353a2a', farm: '#3c3828', wet: '#2f3c36', water: '#2e4a55', waterLine: '#4f7380', rock: '#45403a', sand: '#463e2e',
+    res: '#38322a', ind: '#3a332b', park: '#3a4630', bld: '#4a4236', bldLine: '#6a5e4c', road: '#a89a80', roadCase: '#1e1a15', minor: '#7a6e5a', path: '#b08a5a', rail: '#7a6e5a',
+    label: '#e8dcc4', halo: '#2b2620', shade: '#e8dcc4', game: '#d9b878' }
 };
 
 // Který styl použít: "auto" = herní den / herní noc podle slunce
 export function styleIdFor(choice, night) {
+  if (choice === 'papir' || choice === 'papirnoc') return night ? 'papirnoc' : 'papir'; // papír má svou noční podobu
   if (choice && choice !== 'auto' && STYLES[choice]) return choice;
   return night ? 'noc' : 'hra';
 }
@@ -98,7 +96,7 @@ export function makeStyle(id, o, ctx) {
   road('road-minor', minor, p.minor, 1); road('road-major', major, p.road, 1.45);
   add({ id: 'rail', type: 'line', source: 'om', 'source-layer': 'transportation', filter: ['==', ['get', 'class'], 'rail'], layout: vis(o.rail), paint: { 'line-color': p.rail, 'line-width': 1.5, 'line-dasharray': [3, 2] } });
   if (o.buildings === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
-  if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, paint: { 'raster-opacity': .9 } }); });
+  if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, minzoom: 12, paint: { 'raster-opacity': .9 } }); });
   // turistické trasy KČT: bílý okraj a barevný střed jako na značce, naučné stezky čárkovaně
   add({ id: 'walk-casing', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .9 } });
   add({ id: 'walk-line', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#e2602a', 'line-width': 5 } });

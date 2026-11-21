@@ -440,6 +440,19 @@ function refreshTrails() {
   loadTrails(tilesFor([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]), overpassQuery, cfg.osm.cacheDays, () => { kctPending = true; flushMap(); });
 }
 function updateGame() { gamePending = true; flushMap(); }
+// Zakrytí budovami (HTML značky jsou vždy navrchu): budova vykreslená v místě značky, která zvíře neobsahuje, je před ním
+const inRing = (x, y, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+let occT = 0;
+function occludeMarkers() {
+  if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(m => m.el.classList.remove('behind')); return; }
+  markers.forEach((m) => {
+    const ll = m.mk.getLngLat(), pt = map.project(ll);
+    const fs2 = map.queryRenderedFeatures([pt.x, pt.y], { layers: ['building-3d'] });
+    const behind = fs2.some(f => { const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; return !polys.some(p => inRing(ll.lng, ll.lat, p[0])); });
+    m.el.classList.toggle('behind', behind);
+  });
+}
+const occSoon = () => { clearTimeout(occT); occT = setTimeout(occludeMarkers, 120); };
 function flushMap() {
   if (!map) return;
   try {
@@ -464,11 +477,12 @@ function initMap() {
       contourUrl = demSource.contourProtocolUrl({ thresholds: CONTOUR_THRESHOLDS, elevationKey: 'ele', levelKey: 'level', contourLayer: 'contours' });
     } catch (e) { demSource = null; contourUrl = null; }
   }
+  cfg.layers.hillshade = false; cfg.layers.biotopes = false;
   const id = styleIdFor(cfg.map.style, isNight());
   try {
     map = new maplibregl.Map({
       container: 'map', style: makeStyle(id, cfg.layers, mapCtx()), center: [start.lon, start.lat], zoom: cfg.map.startZoom,
-      minZoom: cfg.map.minZoom, maxZoom: cfg.map.maxZoom, attributionControl: false, pitch: cfg.layers.buildings === '3d' ? 45 : 0
+      minZoom: cfg.map.minZoom, maxZoom: cfg.map.maxZoom, attributionControl: false, fadeDuration: 0, pitch: cfg.layers.buildings === '3d' ? 45 : 0
     });
   } catch (e) { map = null; banner('Mapa se nedá zobrazit: prohlížeč nepodporuje WebGL. Zkus aktualizovat Chrome nebo Safari.'); return; }
   styleKey = id + JSON.stringify([cfg.layers, cfg.map.vectorUrl, cfg.map.glyphsUrl, cfg.map.trailsUrl, cfg.biotopes.map(b => b.color)]);
@@ -497,7 +511,7 @@ function initMap() {
     }
   });
   map.on('styledata', () => { kctPending = planPending = true; flushMap(); });
-  map.on('moveend', refreshTrails);
+  map.on('moveend', refreshTrails); map.on('moveend', occSoon); map.on('idle', occSoon);
   map.on('idle', flushMap);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
@@ -533,35 +547,23 @@ let prefs = {};
 const savePrefs = () => store.set('prefs', prefs).catch(() => {});
 
 /* ---------- rychlý vzhled mapy (bez PINu) ---------- */
-const LOOK_LAYERS = [['contours', 'Vrstevnice'], ['hillshade', 'Stínování terénu'], ['trHiking', 'Turistické trasy (KČT)'], ['trCycling', 'Cyklotrasy'],
-  ['peaks', 'Vrcholy'], ['protected', 'Chráněná území'], ['roadNames', 'Názvy ulic'], ['biotopes', 'Barvy biotopů']];
+const LOOK_GROUPS = [['Příroda', [['contours', 'Vrstevnice'], ['peaks', 'Vrcholy'], ['protected', 'Chráněná území']]], ['Trasy', [['trHiking', 'Turistické trasy (KČT)'], ['trCycling', 'Cyklotrasy']]], ['Popisky', [['roadNames', 'Názvy ulic'], ['poi', 'Místa (obchody, doprava, školy…)']]]];
 const LOOK_POI = ['poiShop', 'poiFood', 'poiTransport', 'poiEdu', 'poiHealth', 'poiTourism', 'poiNames'];
 function openLook() {
-  const L = cfg.layers, styles = [['auto', 'Automaticky'], ...Object.entries(STYLES).map(([k, s]) => [k, s.name])];
+  const L = cfg.layers, styles = [['auto', '🌿 Krajina', 've dne světlá, v noci modrá'], ['papir', '📜 Papír a akvarel', 've dne papír, v noci sépie']], cur = cfg.map.style === 'papir' || cfg.map.style === 'papirnoc' ? 'papir' : 'auto';
   const box = (k, n, on) => `<label class="fld row"><span>${esc(n)}</span><input type="checkbox" data-look="${k}"${on ? ' checked' : ''}></label>`;
   openM(`<h2>Vzhled mapy</h2>
-  <div class="chips look">${styles.map(([k, n]) => `<button class="chip${cfg.map.style === k ? ' on' : ''}" data-act="lookStyle" data-v="${k}">${esc(n)}</button>`).join('')}</div>
-  <h3>Vrstvy</h3><div class="lookgrid">${LOOK_LAYERS.map(([k, n]) => box(k, n, L[k])).join('')}${box('poi', 'Místa (obchody, doprava, školy…)', LOOK_POI.some(k => L[k]))}</div>
+  <div class="lookstyles">${styles.map(([k, n, d]) => `<button class="lookstyle${cur === k ? ' on' : ''}" data-act="lookStyle" data-v="${k}"><b>${n}</b><small>${d}</small></button>`).join('')}</div>
+  ${LOOK_GROUPS.map(([g, list]) => `<h3>${g}</h3><div class="lookgrid">${list.map(([k, n]) => box(k, n, k === 'poi' ? LOOK_POI.some(x => L[x]) : L[k])).join('')}</div>`).join('')}
   <div class="fld"><label for="lookB">Budovy</label><select id="lookB" data-lookb>${[['off', 'Bez budov'], ['flat', 'Ploché'], ['3d', '3D']].map(([k, n]) => `<option value="${k}"${L.buildings === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
-  <h3>Uložené předvolby</h3>
-  ${cfg.mapPresets.map((p, i) => `<div class="preset"><button class="btn" data-act="lookPreset" data-i="${i}">${esc(p.name)}</button><button class="btn sm ghost" data-act="lookDel" data-i="${i}" aria-label="Smazat ${esc(p.name)}">Smazat</button></div>`).join('') || '<p class="msg small">Zatím žádné.</p>'}
-  <div class="presetnew"><input type="text" id="lookName" maxlength="40" placeholder="Název, např. Les s dětmi" aria-label="Název předvolby"><button class="btn" data-act="lookSave">Uložit</button></div>
-  <p class="msg small">Uloží současný styl a vrstvy. Všechny vrstvy jsou v Admin → Vrstvy mapy.</p>
+
   <button class="btn full ghost" data-act="close">Zavřít</button>`);
 }
 async function saveLook() { try { await store.set('config', compactConfig(cfg)); } catch (e) {} applyMapStyle(true); }
 function onLookClick(act, a) {
   const i = Number(a.dataset.i);
   if (act === 'lookStyle') { cfg.map.style = a.dataset.v; }
-  else if (act === 'lookPreset') { const p = cfg.mapPresets[i]; if (!p) return; cfg.map.style = p.style; cfg.layers = presetLayers(p); toast('Vzhled: ' + p.name); }
-  else if (act === 'lookDel') { const p = cfg.mapPresets.splice(i, 1)[0]; if (p) toast('Předvolba „' + p.name + '“ smazána.'); }
-  else if (act === 'lookSave') {
-    const name = ($('lookName').value || '').trim().slice(0, 40);
-    if (!name) { toast('Napiš název předvolby.'); return; }
-    const p = { name, style: cfg.map.style, layers: { ...cfg.layers } }, j = cfg.mapPresets.findIndex(x => x.name === name);
-    if (j >= 0) cfg.mapPresets[j] = p; else cfg.mapPresets.push(p);
-    toast('Uloženo jako „' + name + '“.');
-  } else return;
+  else return;
   saveLook(); openLook();
 }
 function onLookChange(t) {
@@ -738,7 +740,7 @@ function actState() {
   if (!kid && curView === 'atlasv') return { k: 'key', ic: 'key', lbl: 'Určit', run: () => runAct('key') };
   if (!kid && curView === 'jav') return { k: 'races', ic: 'contests', lbl: 'Závody', run: () => runAct('contests') };
   const b = nearestCatchable();
-  if (b && !muted) return { k: 'catch', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); tapBird(b.id); } };
+  if (b && !muted) return { k: 'catch', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); show('mapv'); const m = markers.get(b.id); if (m) { m.el.classList.add('pick'); setTimeout(() => m.el.classList.remove('pick'), 1200); } if (map) map.easeTo({ center: [b.lon, b.lat], duration: 450 }); setTimeout(() => tapBird(b.id), 500); } };
   if (kidMode() && !document.body.classList.contains('parent')) return { k: 'find', ic: 'center', lbl: 'Hledat', run: () => { show('mapv'); follow = true; document.body.classList.remove('away'); if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], duration: 400 }); toast('Projdi se a sleduj mapu – zvířata se ukážou kolem tebe. 🐾'); } };
   if (state.walk && !state.walk.done) return { k: 'route', ic: 'route', lbl: 'Trasa', run: () => { setUi(false); openWalkMgr(); } };
   return { k: 'plan', ic: 'plan', lbl: 'Plánovat', run: () => { setUi(false); openPlanner(); } };
@@ -947,7 +949,7 @@ function refreshBirds() {
     if (!m) {
       const el = document.createElement('div');
       el.className = 'bmk' + (near ? '' : ' far') + (speciesLocked(sp) ? ' locked' : '') + (b.variant ? ' var-' + b.variant : '');
-      el.innerHTML = (b.track && !tracked.has(b.id) ? '<span class="paw" aria-label="Stopa">🐾</span>' : cfg.map.classMarkers ? `<span class="cls" role="img" aria-label="${esc(sp.group || 'Zvíře')}">${ic(classIcon(sp.group))}</span>` : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`) + '<i class="pin" aria-hidden="true"></i>';
+      el.innerHTML = (b.track && !tracked.has(b.id) ? '<span class="cls paw" role="img" aria-label="Stopa">🐾</span>' : cfg.map.classMarkers ? `<span class="cls" role="img" aria-label="${esc(sp.group || 'Zvíře')}">${ic(classIcon(sp.group))}</span>` : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`) + '<i class="pin" aria-hidden="true"></i>';
       el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
     } else m.el.classList.toggle('far', !near);
@@ -1698,29 +1700,29 @@ function farmTile(q, r) {
   farmMove = ''; saveState(); toast(res.swapped ? 'Budovy si vyměnily místo.' : 'Přesunuto.'); farmSel = id; renderFarmView();
 }
 // Katalog staveb: co ještě nestojí; u prázdné farmy jiná krajina, v testování prázdná farma znovu
+// Okno Stavět: příbytky, hospodářství, krajina (cesty, políčka), další – v mřížce dlaždic
 function openFarmCatalog() {
-  const f = ensureFarm(), s = $('fsheet'); if (!s) return;
-  farmSel = ''; farmMove = '';
-  const all = [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => !(f.lv[id] > 0) && !f.pos[id]);
-  s.innerHTML = `<div class="fsh-h"><b>🔨 Stavět</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
-  <p class="msg small">Vyber stavbu a ťukni na zvýrazněné políčko (nebo ťukni rovnou na volné políčko na farmě).${f.build ? ' Teď se staví – další až po dokončení.' : ''}</p>
-  ${all.length ? all.map(id => { const [icon, name, desc] = fbName(id), c = farmCost(id, 0); return `<div class="fcard"><div class="fico">${icon}</div><div class="finfo"><b>${esc(name)}</b><small>${esc(desc)}</small><button class="btn sm${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-fv="place" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>Postavit: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${buildMinutes(0)} min</button></div></div>`; }).join('') : '<p class="msg">Všechno už stojí – vylepšuj!</p>'}
-  <button class="btn full" data-fv="deeds">🌱 Skutečný čin pro přírodu</button>
-  ${isEmpty(f) ? '<button class="btn full ghost" data-fv="regen">🎲 Vygenerovat jinou krajinu</button>' : ''}
-  ${cfg.farm.testTools ? '<button class="btn full ghost" data-fv="reset" data-confirm="Smazat farmu a začít znovu?">🧪 Začít znovu – prázdná farma</button>' : ''}`;
-  s.hidden = false; actNow = null; updateAct();
-}
-// Panel volného políčka: co tu postavit a jak políčko upravit (bonus okolí pro budovy)
-function showTileSheet() {
-  const s = $('fsheet'), f = ensureFarm(), W = farmTerrain(), [q, r] = farmTileSel, ty = tileType(W, f.tiles, q, r), [ti, tn] = TILE_INFO[ty] || ['🌼', 'Louka'];
-  const can = [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => !(f.lv[id] > 0) && !f.pos[id] && !(f.build && f.build.id === id));
-  const helps = Object.entries(BONUS_TILE).filter(([, t]) => t && t !== ty).map(([id, t]) => [id, t]);
-  s.innerHTML = `<div class="fsh-h"><b>${ti} ${tn}</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
-  <p class="msg small">Volné políčko. Postav tu budovu, nebo ho uprav – sousední budovy dostanou bonus k výrobě (+10 % za každé vhodné políčko).</p>
-  <div class="ftiles">${Object.entries(TILE_INFO).filter(([t]) => t !== ty).map(([t, [i, n, cost]]) => `<button class="btn sm" data-fv="tile" data-t="${t}">${i} ${n}${Object.keys(cost).length ? ' · ' + Object.entries(cost).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' ') : ''}</button>`).join('')}</div>
-  <p class="msg small">${helps.filter(([, t]) => t === 'field').length ? '🌾 Pole pomáhá Poli a Sadu · ' : ''}🌲 Les Dřevníku · 🌼 Louka Semeništi a Záhonu · 💧 Rybníček Rybníku</p>
-  ${can.length ? '<h3>Postavit tady</h3>' + can.map(id => { const [icon, name] = fbName(id), c = farmCost(id, 0); return `<button class="btn full${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-fv="buildHere" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${icon} ${esc(name)} · 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''}</button>`; }).join('') : ''}${f.build ? '<p class="msg small">Teď se staví – další budova až po dokončení.</p>' : ''}`;
-  s.hidden = false; if (farm3) farm3.highlight([farmTileSel]);
+  const f = ensureFarm(), s2 = $('fsheet'); if (!s2) return;
+  farmSel = ''; farmMove = ''; farmTileSel = null;
+  const free = id => !(f.lv[id] > 0) && !f.pos[id] && !(f.build && f.build.id === id);
+  const card = id => { const [icon, name] = fbName(id), c = farmCost(id, 0), ok = canAfford(f, c, state.cones) && !f.build;
+    return `<button class="bcard${ok ? ' ok' : ''}" data-fv="place" data-id="${esc(id)}"${f.build ? ' disabled' : ''}><span class="bico">${icon}</span><b>${esc(name)}</b><small>🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''}</small></button>`; };
+  const encs = cfg.enclosures.map(e => 'enc_' + e.id).filter(free), econ = BUILDINGS.map(b => b.id).filter(free);
+  s2.innerHTML = `<div class="fsh-h"><b>🔨 Stavět</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
+  ${f.build ? `<p class="msg small">⏳ Staví se ${esc(fbName(f.build.id)[1])} – další stavba až po dokončení.</p>` : '<p class="msg small">Vyber stavbu a ťukni na zvýrazněné políčko. Nebo ťukni rovnou na volné políčko na farmě.</p>'}
+  ${encs.length ? `<h3>🏠 Příbytky zvířat</h3><div class="bgrid">${encs.map(card).join('')}</div>` : ''}
+  ${econ.length ? `<h3>🌾 Hospodářství</h3><div class="bgrid">${econ.map(card).join('')}</div>` : ''}
+  ${!encs.length && !econ.length ? '<p class="msg">Všechno už stojí – vylepšuj budovy ťuknutím na ně.</p>' : ''}
+  <h3>🌳 Krajina</h3><div class="bgrid">
+    <button class="bcard${farmRoads ? ' on' : ''}" data-fv="roads"><span class="bico">🛤️</span><b>${farmRoads ? 'Kreslím cesty' : 'Kreslit cesty'}</b><small>ťuk na hranu políčka</small></button>
+    <button class="bcard" data-fv="tilehint"><span class="bico">🌾</span><b>Pole, les, rybníček</b><small>ťuk na volné políčko</small></button>
+  </div>
+  <h3>✨ Další</h3><div class="bgrid">
+    <button class="bcard" data-fv="deeds"><span class="bico">🌱</span><b>Skutečný čin</b><small>budka, krmítko…</small></button>
+    ${isEmpty(f) ? '<button class="bcard" data-fv="regen"><span class="bico">🎲</span><b>Jiná krajina</b><small>dokud je farma prázdná</small></button>' : ''}
+    ${cfg.farm.testTools ? '<button class="bcard" data-fv="reset"><span class="bico">🧪</span><b>Začít znovu</b><small>prázdná farma (test)</small></button>' : ''}
+  </div>`;
+  s2.hidden = false; actNow = null; updateAct();
 }
 function runFarmUp() { if (!farmSel) return; const b = document.createElement('button'); b.dataset.act = 'farmBuild'; b.dataset.id = farmSel; onModalClick({ target: b, preventDefault() {} }); }
 // Skutečné činy: budka, krmítko, hmyzí hotel, jezírko, keř – s fotkou; odměna úroveň navíc (jednou za deedDays)
@@ -1765,7 +1767,7 @@ const webgl = () => { try { const c = document.createElement('canvas'); return !
 function farmTopHTML() {
   const f = ensureFarm(), cap = storeCap(f);
   return `<div class="ftop"><div class="fres">${Object.entries(RES).map(([k, [i, n]]) => `<span title="${n}">${i} <b>${Math.floor(f.res[k])}</b><small>/${cap}</small></span>`).join('')}</div>
-  <div class="fbtns"><button class="btn sm${farmRoads ? ' primary' : ''}" data-fv="roads">🛤️ Cesty</button><button class="btn sm" data-fv="side">📊 Souhrn</button><button class="btn sm" data-fv="animals">🐾 Zvířata</button><button class="btn sm" data-fv="atlas">📖 Atlas</button></div></div>`;
+  <div class="fbtns"><button class="btn sm" data-fv="side">📊 Souhrn</button><button class="btn sm" data-fv="animals">🐾 Zvířata</button><button class="btn sm" data-fv="atlas">📖 Atlas</button></div></div>`;
 }
 function farmSideHTML() {
   const f = ensureFarm(), r = farmRates(f), cap = storeCap(f), it = id => (cfg.shop.find(x => x.id === id) || { icon: '', name: id });
@@ -1833,14 +1835,15 @@ function onFarmClick(e) {
     else if (k === 'atlas') show('atlasv');
     else if (k === 'close') { farmSel = ''; farmMove = ''; farmPlace = ''; farmTileSel = null; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
     else if (k === 'move') { farmMove = farmSel; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken(farmMove))); } $('fsheet').hidden = true; toast('Ťukni na políčko, kam budovu přesunout. Zrušíš ťuknutím zpět na budovu.'); }
-    else if (k === 'roads') { farmRoads = !farmRoads; if (farm3) farm3.setRoadMode(farmRoads); fv.classList.toggle('primary', farmRoads); $('fsheet').hidden = true; toast(farmRoads ? 'Ťukej na hrany políček – přidáš nebo smažeš cestu se stromořadím.' : 'Kreslení cest vypnuto.'); }
+    else if (k === 'roads') { farmRoads = !farmRoads; if (farm3) farm3.setRoadMode(farmRoads); $('fsheet').hidden = true; toast(farmRoads ? 'Ťukej na hrany políček – přidáš nebo smažeš cestu se stromořadím. Konec: Stavět → Kreslím cesty.' : 'Kreslení cest vypnuto.'); }
+    else if (k === 'tilehint') { $('fsheet').hidden = true; toast('Ťukni na volné políčko na farmě a vyber pole, les nebo rybníček.'); }
     else if (k === 'tile') { const res = setTile(ensureFarm(), farmTerrain(), ...farmTileSel, fv.dataset.t); if (res.err) toast(res.err); else { saveState(); toast(TILE_INFO[fv.dataset.t][0] + ' Hotovo.'); renderFarmView(); } }
     else if (k === 'buildHere') { const f = ensureFarm(), id = fv.dataset.id, res = placeBuilding(f, id, ...farmTileSel, farmTerrain(), state.cones); if (res.err) { toast(res.err); return; } if (res.cones) { state.cones -= res.cones; hudCones(); } farmTileSel = null; farmSel = id; saveState(); toast('🔨 Stavba začala.'); renderFarmView(); }
     else if (k === 'regen2') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.textContent = 'Opravdu? Ťukni znovu'; return; } const f = ensureFarm(); f.seed = 1 + Math.floor(Math.random() * 99999); const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); saveState(); toast('🎲 Nová krajina.'); renderFarmView(); }
     else if (k === 'moveCancel') { farmMove = ''; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
     else if (k === 'place') { farmPlace = fv.dataset.id; $('fsheet').hidden = true; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken())); } toast('Ťukni na zvýrazněné políčko.'); }
     else if (k === 'regen') { const f = ensureFarm(); if (isEmpty(f)) { f.seed = 1 + Math.floor(Math.random() * 99999); f.pos = {}; saveState(); renderFarmView(); } }
-    else if (k === 'reset') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.textContent = 'Opravdu? Ťukni znovu'; return; } state.farm = newFarm(cfg.enclosures.map(e => e.id)); farmSel = ''; saveState(); toast('Farma je prázdná, začni stavět.'); renderFarmView(); }
+    else if (k === 'reset') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.querySelector('b') ? fv.querySelector('b').textContent = 'Opravdu? Znovu' : fv.textContent = 'Opravdu? Ťukni znovu'; return; } state.farm = newFarm(cfg.enclosures.map(e => e.id)); farmSel = ''; saveState(); toast('Farma je prázdná, začni stavět.'); renderFarmView(); }
     else if (k === 'deeds') openM(deedsHTML());
     else if (k === 'lvUp' || k === 'lvDown') { const f = ensureFarm(), id = farmSel; if (f.build && f.build.id === id) f.build = null; f.lv[id] = Math.max(0, Math.min(10, (f.lv[id] || 0) + (k === 'lvUp' ? 1 : -1))); if (!f.lv[id]) { delete f.pos[id]; farmSel = ''; } saveState(); renderFarmView(); }
     return;

@@ -427,7 +427,7 @@ export const SCHEMA = [
     ['highAccuracy', 'Vysoká přesnost GPS', 'bool']
   ] },
   { sec: 'map', title: 'Mapa', fields: [
-    ['style', 'Styl mapy', 'select', { options: [['auto', 'Automaticky (herní den / noc)'], ['hra', 'Herní den'], ['noc', 'Herní noc'], ['data', 'Bohatá data'], ['papir', 'Papír a akvarel'], ['bio', 'Biotopy']] }],
+    ['style', 'Styl mapy', 'select', { options: [['auto', 'Krajina (den/noc podle slunce)'], ['papir', 'Papír a akvarel (den/noc podle slunce)']] }],
     ['compass', 'Tlačítko režimu kompasu', 'bool'],
     ['quickLook', 'Tlačítko „Vzhled“ na mapě (bez PINu)', 'bool'],
     ['vectorUrl', 'Vektorová mapa (TileJSON URL)', 'text'],
