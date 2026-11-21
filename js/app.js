@@ -20,7 +20,7 @@ import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scor
 import { Dog, dogURL } from './dog.js';
 import { ic, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
-import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty, setTile, toggleRoad, farmBonus, TILE_INFO, BONUS_TILE, DECOR, placeDecor, removeDecor, takenTiles, FARM_TASKS, claimTask, trainDelivery } from './farm.js';
+import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty, setTile, toggleRoad, farmBonus, TILE_INFO, BONUS_TILE, DECOR, placeDecor, removeDecor, takenTiles, FARM_TASKS, claimTask, trainDelivery, RAIL_COST, buyRail } from './farm.js';
 import { mountFarm, genWorld, validTiles, autoPlace, tileType, BIOMES } from './farm3d.js';
 import { createMeter, ingest, tickMeter, addDay, cleanDay, chipHTML, dataHTML } from './datamon.js';
 import { PUZZLES, SIZES, boardHTML, squareImage, playPuzzle, playPexeso, pexesoDeck, gameReward, cleanGames, playRows, playRings, playWho } from './minigames.js';
@@ -1678,6 +1678,7 @@ let farm3 = null, farmSel = '', farmSide = false, farmMove = '';
 // Přesouvání: v panelu budovy „Přesunout“ → ťuk na políčko (obsazené = výměna)
 let farmT = null, farmPlace = '', farmTileSel = null, farmRoads = false;
 const farmCam = {}; // pohled kamery přežije překreslení farmy
+let farmGhost = false, farmNet = -1; // náhled trati po vygenerování; počet aut (−1 = zatím neznámo)
 const farmEnv = () => ({ cond: cfg.world.weather ? weatherCond(weather) : '', sym: (weather && weather.sym) || '' });
 const EMO = [[/liš/i, '🦊'], [/zaj|králí/i, '🐇'], [/srn|jele|daněk/i, '🦌'], [/jež/i, '🦔'], [/veve/i, '🐿️'], [/kachn|kačen/i, '🦆'], [/sova|sýc|výr|puštík/i, '🦉'], [/labu/i, '🦢'], [/žab|ropuch|skokan|rosnič/i, '🐸'], [/užov|zmij|had/i, '🐍'], [/ještěr/i, '🦎'], [/motýl|babočk|otakár|bělásek/i, '🦋'], [/slunéčk|brouk|chrob|roháč/i, '🐞'], [/včel|čmel/i, '🐝'], [/myš|hraboš|plch/i, '🐭'], [/netop|vrápen/i, '🦇'], [/bobr/i, '🦫'], [/divoč|prase/i, '🐗'], [/hlemýžď|plž|šnek/i, '🐌'], [/kapr|pstruh|štik|okoun|ryb/i, '🐟']];
 const animalEmoji = sp => (EMO.find(([re]) => re.test(sp.name)) || [0, sp.group === 'Savci' ? '🦔' : groupIcon(sp.group)])[1];
@@ -1685,18 +1686,18 @@ const farmEncAnimals = () => Object.fromEntries(cfg.enclosures.map(e => ['enc_' 
 const rwTxt = rw => Object.entries(rw).map(([k, v]) => ({ cones: coneIcon, wood: '🪵', stone: '🪨', seeds: '🌱' }[k] || k) + ' ' + v).join(' ');
 // Návštěva rodinné farmy z odkazu (jen prohlížení)
 async function openVisit(code) {
-  const o = fromCode(code), vf = o && o.l && cleanFarm({ lv: o.l, pos: o.p, tiles: o.t, roads: o.r, decor: o.d, seed: o.s, biome: o.b, t: Date.now() }, cfg.enclosures.map(e => e.id));
+  const o = fromCode(code), vf = o && o.l && cleanFarm({ lv: o.l, pos: o.p, tiles: o.t, roads: o.r, decor: o.d, seed: o.s, biome: o.b, rail: o.w === 1, t: Date.now() }, cfg.enclosures.map(e => e.id));
   if (!vf) { toast('Odkaz na farmu je poškozený.'); return; }
   if (!webgl()) { toast('Tohle zařízení 3D farmu neukáže.'); return; }
   openM(`<h2>🏡 Farma: ${esc(cleanNick(o.n) || 'rodina')}</h2><p class="msg small">Jen prohlížení – tady nic nezměníš.</p><div class="fvis"><div class="f3d" id="fvis3"></div></div><button class="btn full ghost" data-act="close">Zavřít</button>`);
   const T = genWorld(vf.seed, Object.values(vf.pos), vf.biome);
   const items = [...cfg.enclosures.map(e => ({ id: 'enc_' + e.id, name: e.name, icon: e.icon })), ...BUILDINGS.map(b => ({ id: b.id, name: b.name, icon: b.icon }))].filter(i => vf.lv[i.id] > 0).map(i => ({ ...i, level: vf.lv[i.id], status: 'ok', text: '' }));
-  try { const m3 = await mountFarm($('fvis3'), items, () => {}, { world: T, tiles: vf.tiles, roads: vf.roads, decor: vf.decor, pos: vf.pos, cam: {}, env: farmEnv() }); stopGame = () => m3.destroy(); } catch (e) { toast('3D farmu se nepodařilo zobrazit.'); }
+  try { const m3 = await mountFarm($('fvis3'), items, () => {}, { world: T, tiles: vf.tiles, roads: vf.roads, decor: vf.decor, pos: vf.pos, cam: {}, env: farmEnv(), rail: vf.rail }); stopGame = () => m3.destroy(); } catch (e) { toast('3D farmu se nepodařilo zobrazit.'); }
 }
 let farmShareURL = '';
 function shareFarm() {
   const f = ensureFarm();
-  farmShareURL = shareURL() + '#farma=' + toCode({ v: 1, n: state.nick, s: f.seed, b: f.biome, l: Object.fromEntries(Object.entries(f.lv).filter(([, v]) => v > 0)), p: f.pos, t: f.tiles, r: f.roads, d: f.decor });
+  farmShareURL = shareURL() + '#farma=' + toCode({ v: 1, n: state.nick, s: f.seed, b: f.biome, w: f.rail ? 1 : 0, l: Object.fromEntries(Object.entries(f.lv).filter(([, v]) => v > 0)), p: f.pos, t: f.tiles, r: f.roads, d: f.decor });
   let qr = ''; try { qr = qrSVG(farmShareURL, 4); } catch (e) { qr = '<p class="msg">Farma je na QR kód moc velká – pošli odkaz.</p>'; }
   openM(`<h2>👪 Pozvat na farmu</h2><p class="msg small">Rodina načte QR kód nebo otevře odkaz a uvidí tvou farmu (jen prohlížení).</p><div class="qr">${qr}</div><button class="btn full" data-act="farmLink">Sdílet odkaz</button><button class="btn full ghost" data-act="close">Zavřít</button>`);
 }
@@ -1757,6 +1758,8 @@ function openFarmCatalog() {
   ${econ.length ? `<h3>🌾 Hospodářství</h3><div class="bgrid">${econ.map(card).join('')}</div>` : ''}
   ${!encs.length && !econ.length ? '<p class="msg">Všechno už stojí – vylepšuj budovy ťuknutím na ně.</p>' : ''}
   <h3>🏡 Ozdoby (jen vzhled)</h3><div class="bgrid">${DECOR.map(([t, i, n, c]) => `<button class="bcard" data-fv="decor" data-t="${t}"><span class="bico">${i}</span><b>${n}</b><small>${Object.entries(c).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' · ')}</small></button>`).join('')}</div>
+  <h3>🚂 Doprava</h3><div class="bgrid">${f.rail ? '<button class="bcard on" disabled><span class="bico">🚂</span><b>Železnice a nádraží</b><small>stojí · výroba surovin ×2</small></button>' : `<button class="bcard${f.res.wood >= RAIL_COST.wood && f.res.stone >= RAIL_COST.stone && state.cones >= RAIL_COST.cones ? ' ok' : ''}" data-fv="rail"><span class="bico">🚂</span><b>Železnice a nádraží</b><small>🪵 ${RAIL_COST.wood} · 🪨 ${RAIL_COST.stone} · ${coneIcon} ${RAIL_COST.cones} · výroba surovin ×2, vlak vozí šišky</small></button>`}</div>
+  <p class="msg small">🚚 ${farmNet > 0 ? 'Nákladní auta jezdí.' : 'Nákladní auta vyjedou, až nakreslíš cestu od cesty v krajině ke skladu.'}</p>
   <h3>🌳 Krajina</h3><div class="bgrid">
     <button class="bcard${farmRoads ? ' on' : ''}" data-fv="roads"><span class="bico">🛤️</span><b>${farmRoads ? 'Kreslím cesty' : 'Kreslit cesty'}</b><small>ťuk na hranu políčka</small></button>
     <button class="bcard" data-fv="tilehint"><span class="bico">🌾</span><b>Pole, les, rybníček</b><small>ťuk na volné políčko</small></button>
@@ -1767,6 +1770,7 @@ function openFarmCatalog() {
     ${cfg.farm.testTools ? '<button class="bcard" data-fv="reset"><span class="bico">🧪</span><b>Začít znovu</b><small>prázdná farma (test)</small></button>' : ''}
   </div>`;
   s2.hidden = false; actNow = null; updateAct();
+  if (farm3 && farm3.setRailPreview) farm3.setRailPreview(!f.rail);
 }
 function runFarmUp() { if (!farmSel) return; const b = document.createElement('button'); b.dataset.act = 'farmBuild'; b.dataset.id = farmSel; onModalClick({ target: b, preventDefault() {} }); }
 // Skutečné činy: budka, krmítko, hmyzí hotel, jezírko, keř – s fotkou; odměna úroveň navíc (jednou za deedDays)
@@ -1859,8 +1863,10 @@ async function renderFarmView() {
   if (farm3) { farm3.destroy(); farm3 = null; }
   const f = ensureFarm(), T = farmTerrain();
   autoPlace(T, f.pos, [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => (f.lv[id] || 0) > 0 || (f.build && f.build.id === id)));
-  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmTileSel = null; farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { world: T, tiles: f.tiles, roads: f.roads, decor: f.decor, pos: f.pos, env: farmEnv(), encAnimals: farmEncAnimals(), cam: farmCam, onTile: farmTile, moving: !!(farmMove || farmPlace), roadMode: farmRoads, onEdge: key => { const on = toggleRoad(ensureFarm(), key); saveState(); farm3.setRoads(ensureFarm().roads); toast(on ? '🛤️ Cesta přidána' : 'Cesta smazána'); } }); }
+  try { farm3 = await mountFarm($('f3d'), farmItems(), id => { farmTileSel = null; farmSel = farmSel === id && !$('fsheet').hidden ? '' : id; showFarmSheet(); }, { world: T, tiles: f.tiles, roads: f.roads, decor: f.decor, pos: f.pos, env: farmEnv(), encAnimals: farmEncAnimals(), rail: f.rail, railPreview: farmGhost && !f.rail, onNet: n => { if (farmNet >= 0 && n > farmNet) toast('🚚 Cesty jsou propojené se skladem – vyjela nákladní auta!'); farmNet = n; }, cam: farmCam, onTile: farmTile, moving: !!(farmMove || farmPlace), roadMode: farmRoads, onEdge: key => { const on = toggleRoad(ensureFarm(), key); saveState(); farm3.setRoads(ensureFarm().roads); toast(on ? '🛤️ Cesta přidána' : 'Cesta smazána'); } }); }
   catch (e) { v.innerHTML = '<div class="ja">' + farmHTML(ensureFarm(), cfg, state.cones) + '</div>'; return; }
+  if (farmGhost && !f.rail) toast('Čárkovaně: kudy povede železnice – postavíš ji ve Stavět.');
+  farmGhost = false;
   if (farmSel) showFarmSheet();
   if (farmPlace || farmMove) farm3.highlight(validTiles(T, farmTaken(farmMove)));
   if (isEmpty(f) && !farmSel && !farmPlace) openFarmCatalog();
@@ -1891,7 +1897,8 @@ function onFarmClick(e) {
     if (k === 'side') { farmSide = !farmSide; const sd = $('fside'); sd.hidden = !farmSide; if (farmSide) sd.innerHTML = farmSideHTML(); }
     else if (k === 'animals') { farmSel = !$('fsheet').hidden && farmSel.startsWith('enc_') ? '' : 'enc_' + cfg.enclosures[0].id; showFarmSheet(); }
     else if (k === 'atlas') show('atlasv');
-    else if (k === 'close') { farmSel = ''; farmMove = ''; farmPlace = ''; farmTileSel = null; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
+    else if (k === 'rail') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.querySelector('b').textContent = 'Opravdu postavit? Ťukni znovu'; return; } const res = buyRail(ensureFarm(), state.cones); if (res.err) { toast(res.err); return; } state.cones -= res.cones; hudCones(); saveState(); toast('🚂 Železnice a nádraží stojí! Výroba surovin je dvojnásobná.'); $('fsheet').hidden = true; renderFarmView(); }
+    else if (k === 'close') { if (farm3 && farm3.setRailPreview) farm3.setRailPreview(false); farmSel = ''; farmMove = ''; farmPlace = ''; farmTileSel = null; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
     else if (k === 'move') { farmMove = farmSel; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken(farmMove))); } $('fsheet').hidden = true; toast('Ťukni na políčko, kam budovu přesunout. Zrušíš ťuknutím zpět na budovu.'); }
     else if (k === 'roads') { farmRoads = !farmRoads; if (farm3) farm3.setRoadMode(farmRoads); $('fsheet').hidden = true; toast(farmRoads ? 'Ťukej na hrany políček – přidáš nebo smažeš cestu se stromořadím. Konec: Stavět → Kreslím cesty.' : 'Kreslení cest vypnuto.'); }
     else if (k === 'decor') { farmPlace = 'decor:' + fv.dataset.t; $('fsheet').hidden = true; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken())); } toast('Ťukni na zvýrazněné políčko, kam ozdobu dát.'); }
@@ -1899,14 +1906,14 @@ function onFarmClick(e) {
     else if (k === 'tilehint') { $('fsheet').hidden = true; toast('Ťukni na volné políčko na farmě a vyber pole, les nebo rybníček.'); }
     else if (k === 'tile') { const res = setTile(ensureFarm(), farmTerrain(), ...farmTileSel, fv.dataset.t); if (res.err) toast(res.err); else { saveState(); toast(TILE_INFO[fv.dataset.t][0] + ' Hotovo.'); renderFarmView(); } }
     else if (k === 'buildHere') { const f = ensureFarm(), id = fv.dataset.id, res = placeBuilding(f, id, ...farmTileSel, farmTerrain(), state.cones); if (res.err) { toast(res.err); return; } if (res.cones) { state.cones -= res.cones; hudCones(); } farmTileSel = null; farmSel = id; saveState(); toast('🔨 Stavba začala.'); renderFarmView(); }
-    else if (k === 'regen2') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.textContent = 'Opravdu? Ťukni znovu'; return; } const f = ensureFarm(); f.seed = 1 + Math.floor(Math.random() * 99999); const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); saveState(); toast('🎲 Nová krajina.'); renderFarmView(); }
+    else if (k === 'regen2') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.textContent = 'Opravdu? Ťukni znovu'; return; } const f = ensureFarm(); f.seed = 1 + Math.floor(Math.random() * 99999); farmGhost = true; const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); saveState(); toast('🎲 Nová krajina.'); renderFarmView(); }
     else if (k === 'moveCancel') { farmMove = ''; if (farm3) { farm3.setMoving(false); farm3.highlight([]); } showFarmSheet(); }
     else if (k === 'place') { farmPlace = fv.dataset.id; $('fsheet').hidden = true; if (farm3) { farm3.setMoving(true); farm3.highlight(validTiles(farmTerrain(), farmTaken())); } toast('Ťukni na zvýrazněné políčko.'); }
     else if (k === 'task') { const rw = claimTask(ensureFarm(), fv.dataset.id); if (rw) { if (rw.cones) { state.cones += rw.cones; hudCones(); } saveState(); toast('🎁 Odměna: ' + rwTxt(rw)); const sd = $('fside'); if (sd) sd.innerHTML = farmSideHTML(); } }
     else if (k === 'photo') farmPhoto();
     else if (k === 'share') shareFarm();
-    else if (k === 'biome') { const f = ensureFarm(); if (!BIOMES[fv.dataset.b] || f.biome === fv.dataset.b) return; f.biome = fv.dataset.b; const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); saveState(); toast(BIOMES[f.biome].icon + ' ' + BIOMES[f.biome].name); renderFarmView(); }
-    else if (k === 'regen') { const f = ensureFarm(); if (isEmpty(f)) { f.seed = 1 + Math.floor(Math.random() * 99999); f.pos = {}; saveState(); renderFarmView(); } }
+    else if (k === 'biome') { const f = ensureFarm(); if (!BIOMES[fv.dataset.b] || f.biome === fv.dataset.b) return; f.biome = fv.dataset.b; farmGhost = true; const W = farmTerrain(); f.tiles = Object.fromEntries(Object.entries(f.tiles).filter(([kk]) => W.cells.has(kk))); saveState(); toast(BIOMES[f.biome].icon + ' ' + BIOMES[f.biome].name); renderFarmView(); }
+    else if (k === 'regen') { const f = ensureFarm(); if (isEmpty(f)) { f.seed = 1 + Math.floor(Math.random() * 99999); f.pos = {}; farmGhost = true; saveState(); renderFarmView(); } }
     else if (k === 'reset') { if (!fv.dataset.armed) { fv.dataset.armed = '1'; fv.querySelector('b') ? fv.querySelector('b').textContent = 'Opravdu? Znovu' : fv.textContent = 'Opravdu? Ťukni znovu'; return; } state.farm = newFarm(cfg.enclosures.map(e => e.id)); farmSel = ''; saveState(); toast('Farma je prázdná, začni stavět.'); renderFarmView(); }
     else if (k === 'deeds') openM(deedsHTML());
     else if (k === 'lvUp' || k === 'lvDown') { const f = ensureFarm(), id = farmSel; if (f.build && f.build.id === id) f.build = null; f.lv[id] = Math.max(0, Math.min(10, (f.lv[id] || 0) + (k === 'lvUp' ? 1 : -1))); if (!f.lv[id]) { delete f.pos[id]; farmSel = ''; } saveState(); renderFarmView(); }

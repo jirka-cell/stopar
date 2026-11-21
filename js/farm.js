@@ -37,7 +37,7 @@ export const canAfford = (f, c, cones) => f.res.wood >= c.wood && f.res.stone >=
 export function newFarm(encIds, need = 5, now = Date.now(), seed = 1 + Math.floor(Math.random() * 99999)) {
   const lv = Object.fromEntries(BUILDINGS.map(b => [b.id, 0]));
   for (const id of encIds) lv['enc_' + id] = 0;
-  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [], decor: {}, tasks: {}, trainDay: '' };
+  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [], decor: {}, tasks: {}, trainDay: '', rail: false };
 }
 export const isEmpty = f => Object.values(f.lv).every(v => !v) && !f.build;
 export function cleanFarm(f, encIds) {
@@ -59,6 +59,7 @@ export function cleanFarm(f, encIds) {
   out.roads = (Array.isArray(f.roads) ? f.roads : []).filter(k => typeof k === 'string' && /^-?\d+,-?\d+\|-?\d+,-?\d+$/.test(k)).slice(0, 400);
   out.breedDay = String(f.breedDay || '').slice(0, 10);
   out.trainDay = String(f.trainDay || '').slice(0, 10);
+  out.rail = f.rail === true;
   out.tasks = Object.fromEntries(Object.entries(f.tasks && typeof f.tasks === 'object' ? f.tasks : {}).filter(([k]) => FARM_TASKS.some(t => t[0] === k)).map(([k, v]) => [k, Math.max(1, num(v, 1))]));
   out.deeds = Object.fromEntries(Object.entries(f.deeds || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, num(v))]));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
@@ -67,7 +68,7 @@ export function cleanFarm(f, encIds) {
 
 /* ---------- ozdoby: nic nevyrábí, jen vzhled; na jedno políčko jedna ---------- */
 export const DECOR = [['barn', '🏚️', 'Stodola', { wood: 6, stone: 2 }], ['mill', '🌬️', 'Větrný mlýn', { wood: 6, stone: 4 }], ['well', '🪣', 'Studna', { stone: 4 }], ['chapel', '⛪', 'Kaplička', { stone: 6 }],
-  ['beehive', '🐝', 'Včelín', { wood: 3 }], ['scarecrow', '🧑‍🌾', 'Strašák', { wood: 1 }], ['bench', '🪑', 'Lavička', { wood: 2 }], ['hay', '🌾', 'Kupka sena', { seeds: 2 }], ['station', '🚉', 'Nádraží (vlak vozí šišky)', { wood: 12, stone: 10 }]];
+  ['beehive', '🐝', 'Včelín', { wood: 3 }], ['scarecrow', '🧑‍🌾', 'Strašák', { wood: 1 }], ['bench', '🪑', 'Lavička', { wood: 2 }], ['hay', '🌾', 'Kupka sena', { seeds: 2 }]];
 export const takenTiles = (f, except = '') => new Set([...Object.entries(f.pos).filter(([k]) => k !== except).map(([, p]) => p.join()), ...Object.keys(f.decor || {})]);
 export function placeDecor(f, W, q, r, type) {
   const d = DECOR.find(x => x[0] === type); if (!d) return { err: 'Neznámá ozdoba.' };
@@ -86,7 +87,7 @@ export const FARM_TASKS = [
   ['road5', 'Nakresli 5 úseků cest', f => f.roads.length >= 5, { stone: 15 }],
   ['decor2', 'Postav 2 ozdoby', f => Object.keys(f.decor).length >= 2, { cones: 5 }],
   ['lv3', 'Vylepši budovu na úroveň 3', f => Object.values(f.lv).some(v => v >= 3), { wood: 20 }],
-  ['station', 'Postav nádraží', f => Object.values(f.decor).includes('station'), { cones: 10 }],
+  ['station', 'Postav železnici a nádraží', f => f.rail, { cones: 10 }],
   ['b6', 'Postav 6 budov', f => built(f) >= 6, { cones: 15 }],
   ['lv5', 'Vylepši budovu na úroveň 5', f => Object.values(f.lv).some(v => v >= 5), { cones: 20 }]
 ];
@@ -97,8 +98,15 @@ export function claimTask(f, id) {
   for (const [k, v] of Object.entries(t[3])) if (k in f.res) f.res[k] += v;
   return t[3];
 }
-// Nádraží: jednou denně přijede nákladní vlak se šiškami
-export function trainDelivery(f, day) { if (!Object.values(f.decor).includes('station') || f.trainDay === day) return 0; f.trainDay = day; return 3; }
+// Železnice a nádraží: velká investice, na začátku není; zdvojnásobí výrobu surovin, denně vlak přiveze šišky
+export const RAIL_COST = { wood: 120, stone: 80, cones: 50 };
+export function buyRail(f, cones) {
+  if (f.rail) return { err: 'Železnice už stojí.' };
+  if (f.res.wood < RAIL_COST.wood || f.res.stone < RAIL_COST.stone || cones < RAIL_COST.cones) return { err: 'Chybí suroviny (železnice potřebuje i větší sklad).' };
+  f.res.wood -= RAIL_COST.wood; f.res.stone -= RAIL_COST.stone; f.rail = true; return { cones: RAIL_COST.cones };
+}
+export const railMul = f => (f.rail ? 2 : 1);
+export function trainDelivery(f, day) { if (!f.rail || f.trainDay === day) return 0; f.trainDay = day; return 3; }
 
 /* ---------- políčka farmy ---------- */
 export const TILE_TYPES = ['meadow', 'field', 'forest', 'pond'];
@@ -133,7 +141,7 @@ export function advance(f, now, inv, bonus = {}) {
   for (const b of BUILDINGS) {
     const lv = f.lv[b.id] || 0; if (!lv) continue;
     const m = bonus[b.id] || 1;
-    if (b.kind === 'res') f.res[b.res] = Math.min(cap, f.res[b.res] + b.rate * lv * m * h);
+    if (b.kind === 'res') f.res[b.res] = Math.min(cap, f.res[b.res] + b.rate * lv * m * h * railMul(f));
     if (b.kind === 'item') {
       let x = (f.frac[b.id] || 0) + b.rate * lv * m * h;
       while (x >= 1) {
@@ -192,7 +200,7 @@ export function farmHTML(f, cfg, cones, now = Date.now()) {
 // Souhrn výroby za hodinu (bez chůze): suroviny a věci do batohu
 export function rates(f) {
   const out = { wood: 0, stone: 0, seeds: 0, items: {} };
-  for (const b of BUILDINGS) { const lv = f.lv[b.id] || 0; if (!lv) continue; if (b.kind === 'res') out[b.res] += b.rate * lv; if (b.kind === 'item') out.items[b.item] = (out.items[b.item] || 0) + b.rate * lv; }
+  for (const b of BUILDINGS) { const lv = f.lv[b.id] || 0; if (!lv) continue; if (b.kind === 'res') out[b.res] += b.rate * lv * railMul(f); if (b.kind === 'item') out.items[b.item] = (out.items[b.item] || 0) + b.rate * lv; }
   return out;
 }
 
