@@ -16,6 +16,7 @@ import { isTrack, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journa
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { Dog } from './dog.js';
+import { nextSpeed, muteState, attachGestures, whatsHereHTML } from './mapui.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -62,7 +63,7 @@ const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number
 let cfg = clone(DEFAULTS);
 let state = cleanState({});
 let SP = {}, FN = {}, BIO = {}, RAR = {};
-const pos = { lat: null, lon: null, acc: null, src: 'none' };
+const pos = { lat: null, lon: null, acc: null, src: 'none', speed: 0 };
 let lastGood = null;
 let map = null, meMk = null, styleKey = '', demSource = null, contourUrl = null, pitch3d = false;
 const NONE = circle(null);
@@ -81,6 +82,7 @@ async function init() {
   registerSW(); // jen vlastní soubory aplikace, nic cizího
   consentRec = consent;
   parentCfg = cleanParent(await store.get('parent').catch(() => null));
+  prefs = (await store.get('prefs').catch(() => null)) || {};
   if (consentValid(consent)) start(); else openConsent();
 }
 // Mapa, GPS a stahování dat se spustí až po souhlasu
@@ -388,7 +390,9 @@ function initMap() {
   setTimeout(() => { const c = document.querySelector('.maplibregl-ctrl-compass'); if (c) c.addEventListener('click', () => { if (compassOn) toggleCompass(); }); }, 0);
   const me = document.createElement('div'); me.className = 'me'; me.innerHTML = '<i class="dir"></i>';
   meMk = new maplibregl.Marker({ element: me }).setLngLat([start.lon, start.lat]).addTo(map);
-  map.on('dragstart', () => { follow = false; });
+  map.on('dragstart', () => { follow = false; lastTouch = Date.now(); });
+  map.on('zoomstart', e => { if (e.originalEvent) lastTouch = Date.now(); });
+  attachGestures(map, $('map'), { distance: dist, onWhatsHere: whatsHere });
   map.on('click', e => {
     if (cfg.general.simulation) {
       if (pos.lat == null) setPos(e.lngLat.lat, e.lngLat.lng, 5, 'sim');
@@ -407,7 +411,12 @@ function checkHide() {
   hidden = pos.src !== 'last' && still.t > 0 && unlocked('hide') && Date.now() - still.t >= cfg.world.hideMinutes * 60000;
   if (hidden !== was) toast(hidden ? 'Jsi ve skrýši – zvířata se tě méně bojí a líp se fotí.' : 'Opustil jsi skrýš.');
 }
-function setPos(lat, lon, acc, src) {
+let speedFix = null, muted = false, lastTouch = Date.now();
+function setPos(lat, lon, acc, src, gpsSpeed) {
+  const now = Date.now();
+  const sp = nextSpeed(speedFix, { t: now, gpsSpeed: src === 'gps' ? gpsSpeed : NaN }, speedFix ? dist(speedFix.lat, speedFix.lon, lat, lon) : 0);
+  speedFix = { lat, lon, t: now, speed: sp }; pos.speed = sp;
+  checkMute();
   if (still.lat == null || dist(still.lat, still.lon, lat, lon) > cfg.world.hideMove) still = { lat, lon, t: Date.now() };
   pos.lat = lat; pos.lon = lon; pos.acc = acc; pos.src = src;
   if (!map) return;
@@ -415,6 +424,15 @@ function setPos(lat, lon, acc, src) {
   updateGame();
   if (follow) map.easeTo({ center: [lon, lat], duration: 400 });
 }
+// Ztlumení při chůzi: zvířata se schovají, nápis „Zastav se“; vibrace dá vědět, že je něco blízko
+function muteOn() { return kidMode() || prefs.muteWalk !== false; }
+function checkMute() {
+  const m = muteOn() && pos.src === 'gps' && muteState(muted, pos.speed || 0, cfg.map.muteSpeed); // simulace se neztlumuje (testování)
+  if (m === muted) return;
+  muted = m; document.body.classList.toggle('muted', m);
+}
+let prefs = {};
+const savePrefs = () => store.set('prefs', prefs).catch(() => {});
 
 /* ---------- rychlý vzhled mapy (bez PINu) ---------- */
 const LOOK_LAYERS = [['contours', 'Vrstevnice'], ['hillshade', 'Stínování terénu'], ['trHiking', 'Turistické trasy (KČT)'], ['trCycling', 'Cyklotrasy'],
@@ -518,7 +536,7 @@ function onGPS(p) {
     } else lastGood = { lat, lon, t };
   }
   const first = pos.src !== 'gps';
-  setPos(lat, lon, acc, 'gps');
+  setPos(lat, lon, acc, 'gps', p.coords.speed);
   if (first) { follow = true; if (map) map.jumpTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom) }); tick(); }
   hudGPS();
 }
@@ -567,7 +585,7 @@ function tick() {
   applyMapStyle(false); // přepnutí den/noc
   if (pos.lat == null) { hudGPS(); return; }
   ensureArea(pos.lat, pos.lon, cfg.spawn.radius + cfg.spawn.cellSize);
-  checkHide(); loadWeather(); checkStamps(); announceEvents(); checkBound(); updateDog();
+  checkHide(); loadWeather(); checkStamps(); announceEvents(); checkBound(); updateDog(); autoFollow();
   refreshBirds();
   hudBio(); hudDist(); hudGPS();
 }
@@ -596,6 +614,18 @@ function checkStamps() {
     toast('Razítko: ' + t.icon + ' ' + t.name + ' (+' + cfg.world.xpStamp + ' XP)');
     gainXP(cfg.world.xpStamp); progressEvent({ kind: 'stamp' });
   }
+}
+function autoFollow() {
+  const s = Number(cfg.map.autoFollow) || 0;
+  if (!s || follow || !map || Date.now() - lastTouch < s * 1000) return;
+  follow = true; map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 800 });
+}
+// „Co je zde?“ – podržení prstu na mapě (na počítači pravé tlačítko)
+function whatsHere(lat, lon) {
+  const b = biotopeAt(lat, lon), alt = elevationAt(lat, lon), pa = protectedAt(lat, lon);
+  openM(whatsHereHTML({ lat, lon, dist: pos.lat != null ? dist(pos.lat, pos.lon, lat, lon) : null,
+    bio: b ? (BIO[b] ? BIO[b].name : b) : 'data ještě nejsou načtená', alt: Number.isFinite(alt) ? alt + ' m' : '',
+    protected: pa ? (pa.name || '') + ' (' + protectedType(pa) + ')' : '', targets: targetsNear(lat, lon, 500).slice(0, 5) }));
 }
 let outside = false;
 function checkBound() {
@@ -656,7 +686,7 @@ function refreshBirds() {
       el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
     } else m.el.classList.toggle('far', !near);
-    if (near && cfg.family.vibrate && !buzzed.has(b.id) && !state.caught[sp.id]?.count && !speciesLocked(sp)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
+    if (near && cfg.family.vibrate && !buzzed.has(b.id) && (muted || !state.caught[sp.id]?.count) && !speciesLocked(sp)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
   }
   const hb = $('hbio');
   if (r.pending && !birds.length) hb.dataset.loading = '1'; else delete hb.dataset.loading;
@@ -791,6 +821,8 @@ function tapBird(id) {
   const b = birds.find(x => x.id === id);
   if (!b) return;
   const d = dist(pos.lat, pos.lon, b.lat, b.lon);
+  if (muted) { toast('Zastav se – zvířata se ukážou, až budeš stát.'); return; }
+  if (kidMode() && (pos.speed || 0) > cfg.map.stillSpeed) { toast('Nejdřív zastav, pak chytej.'); return; }
   if (speciesLocked(SP[b.sp])) { toast('Neznámé zvíře. Poznáš ho od úrovně ' + levelNeeded(cfg.game.rarityLevel, String(SP[b.sp].rarity)) + '.'); return; }
   if (d > catchRadius()) { toast('Je to ' + Math.round(d) + ' m. Dojdi blíž (do ' + catchRadius() + ' m).'); if (cfg.general.simulation) simTarget = { lat: b.lat, lon: b.lon }; return; }
   if (b.track && !tracked.has(b.id)) { enc = { b, sp: SP[b.sp], step: 'track', z: trackQuiz(SP[b.sp], cfg.species) }; openM(trackHTML(enc.z, SP)); return; }
@@ -1050,6 +1082,7 @@ function onModalClick(e) {
 }
 function onModalChange(e) {
   if (onLookChange(e.target)) return;
+  if (e.target.dataset.pref) { prefs[e.target.dataset.pref] = e.target.checked; savePrefs(); checkMute(); return; }
   const real = e.target.closest('input[data-real]');
   if (real && real.files && real.files[0]) { addRealPhoto(real.dataset.real, real.files[0]); return; }
   const imp = e.target.closest('input[data-import]');
@@ -1219,6 +1252,7 @@ function openMenu() {
   <label class="btn full">Obnovit ze zálohy<input type="file" accept="application/json,.json" data-import hidden></label>
   <p class="msg small">Ušlo celkem ${(state.dist / 1000).toFixed(2).replace('.', ',')} km · ${Object.values(state.caught).filter(c => c.count).length} druhů</p>
   <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b><br>Před společnou procházkou ho porovnejte – stejný kód = stejná zvířata na stejném místě.</p>
+  <label class="fld row">Ztlumit mapu při chůzi (bezpečnost)<input type="checkbox" data-pref="muteWalk"${muteOn() ? ' checked' : ''}${kidMode() ? ' disabled' : ''}></label>
   <button class="btn full" data-act="contests">Soutěže</button>
   <button class="btn full" data-act="journal">Deník pozorování</button>
   <button class="btn full" data-act="key">Určovací klíč</button>

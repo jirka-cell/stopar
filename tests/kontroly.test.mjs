@@ -713,3 +713,13 @@ test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, od
   assert.equal(dogPose({ ...base, idleMs: 200000, night: true }).pose, 'sleep', 'v noci usne dřív');
   for (const p of POSES) { const u = decodeURIComponent(dogURL(p)); assert.ok(u.includes('<svg') && u.includes('</svg>') && !/undefined|NaN/.test(u), p); }
 });
+
+test('ztlumení při chůzi: rychlost z poloh i z GPS, zapnutí a vypnutí s odstupem', async () => {
+  const { nextSpeed, muteState } = await import('../js/mapui.js');
+  assert.equal(nextSpeed(null, { t: 1000, gpsSpeed: NaN }, 0), 0);
+  assert.equal(nextSpeed({ t: 0, speed: 0 }, { t: 2000, gpsSpeed: NaN }, 4), 1, '4 m za 2 s, vyhlazeno');
+  assert.equal(nextSpeed({ t: 0, speed: 1 }, { t: 2000, gpsSpeed: 1.7 }, 0), 1.7, 'GPS rychlost má přednost');
+  assert.equal(nextSpeed({ t: 0, speed: 0.8 }, { t: 200, gpsSpeed: NaN }, 5), 0.8, 'moc krátký interval');
+  assert.equal(muteState(false, 1.2, 1), true); assert.equal(muteState(false, 0.9, 1), false);
+  assert.equal(muteState(true, 0.7, 1), true, 'vypne se až pod polovinou'); assert.equal(muteState(true, 0.4, 1), false);
+});

@@ -75,6 +75,9 @@ export const DEFAULTS = {
     startZoom: 16,
     startLat: 50.2306,
     startLon: 12.8711,
+    autoFollow: 20,         // s – po kolika sekundách bez dotyku se mapa vrátí na hráče (0 = nikdy)
+    muteSpeed: 1.0,         // m/s – nad touto rychlostí se mapa ztlumí („Zastav se a rozhlédni se“)
+    stillSpeed: 0.6,        // m/s – děti chytají jen pod touto rychlostí
     tileCacheMax: 3000      // max. počet dlaždic (mapa, terén, trasy) v offline cache
   },
   layers: {                 // volitelné vrstvy mapy
@@ -382,6 +385,9 @@ export const SCHEMA = [
     ['startZoom', 'Výchozí zoom', 'number', { min: 1, max: 22, step: 1 }],
     ['startLat', 'Výchozí šířka', 'number', { step: 0.0001 }],
     ['startLon', 'Výchozí délka', 'number', { step: 0.0001 }],
+    ['autoFollow', 'Návrat mapy na hráče po (s bez dotyku, 0 = nikdy)', 'number', { min: 0, max: 600, step: 5 }],
+    ['muteSpeed', 'Ztlumení při chůzi nad (m/s)', 'number', { min: 0.3, max: 5, step: 0.1 }],
+    ['stillSpeed', 'Děti chytají jen pod (m/s)', 'number', { min: 0.1, max: 3, step: 0.1 }],
     ['tileCacheMax', 'Max. dlaždic v offline cache', 'number', { min: 0, max: 20000, step: 100 }]
   ] },
   { sec: 'layers', title: 'Vrstvy mapy', fields: [
