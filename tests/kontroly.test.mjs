@@ -527,3 +527,36 @@ test('kvíz: správná odpověď je mezi třemi různými možnostmi a sedí s �
   }
   assert.ok(n >= 90, 'kvíz jde skoro u všech druhů: ' + n);
 });
+
+test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce XP jedince i body', async () => {
+  const { release, releaseValue, evolve, evolveNeed, stageNames, isMaster, train, buy, useItem } = await import('../js/economy.js');
+  const { animalFrom } = await import('../js/collection.js');
+  const { cleanProgress } = await import('../js/progress.js');
+  const st = Object.assign(cleanProgress({}), { animals: [], inv: {} });
+  const a = animalFrom('kos', [50, 50, 50, 50], 90, 'park'); st.animals.push(a);
+  assert.equal(releaseValue(DEFAULTS, { rarity: '3' }, a), 60);
+  assert.deepEqual(stageNames(DEFAULTS, 'Ptáci'), ['mládě', 'dospělý', 'mistr']);
+  assert.deepEqual(stageNames(DEFAULTS, 'Obojživelníci'), ['pulec', 'mladý', 'dospělý', 'mistr']);
+  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'axp');
+  a.axp = evolveNeed(DEFAULTS, a).axp;
+  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'points');
+  st.points = 1000;
+  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok');
+  assert.equal(a.stage, 1); assert.equal(a.stats[0], 55); assert.equal(st.points, 970);
+  a.axp = 1e6; assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok'); assert.ok(isMaster(DEFAULTS, a, 'Ptáci'));
+  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'max');
+  // trénink: šišky a denní limit
+  const b = animalFrom('kos', [10, 5, 20, 30], 90, 'park');
+  assert.equal(train(DEFAULTS, st, b, '2026-11-21'), 'cones');
+  st.cones = 1000;
+  for (let i = 0; i < DEFAULTS.game.trainPerDay; i++) assert.equal(train(DEFAULTS, st, b, '2026-11-21'), 'ok');
+  assert.equal(train(DEFAULTS, st, b, '2026-11-21'), 'limit');
+  assert.equal(train(DEFAULTS, st, b, '2026-11-22'), 'ok', 'nový den');
+  assert.deepEqual(b.stats, [12, 11, 20, 30], 'trénink zvedá vždy nejslabší vlastnost');
+  // obchod
+  assert.equal(buy(DEFAULTS, st, 'navnada'), 'ok'); assert.equal(st.inv.navnada, 1);
+  assert.equal(useItem(DEFAULTS, st, 'navnada').effect, 'lure'); assert.equal(st.inv.navnada, undefined);
+  assert.equal(useItem(DEFAULTS, st, 'navnada'), null);
+  // vypuštění odebere jedince
+  assert.equal(release(DEFAULTS, st, a, { rarity: '1' }), 30); assert.equal(st.animals.length, 0);
+});

@@ -10,6 +10,7 @@ import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './map
 import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
 import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz, profileHTML, unlockName } from './progress.js';
+import { evolve, train, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, shopHTML, coneIcon } from './economy.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -33,7 +34,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}));
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0 });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -48,7 +49,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s));
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil) });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -151,7 +152,7 @@ async function resetProgress() {
   if (!await pinGate()) return;
   state = Object.assign(cleanState({}), { last: state.last });
   await store.clear('photos'); await store.set('state', state);
-  closeM(); hudDist(); toast('Postup smazán.');
+  closeM(); hudDist(); hudLevel(); hudCones(); toast('Postup smazán.');
 }
 async function openWipe() {
   if (!await store.get('parentPin').catch(() => null)) {
@@ -239,7 +240,7 @@ function saveState() {
 function gameData() {
   return {
     range: circle(pos.lon, pos.lat, cfg.spawn.radius),
-    catch: circle(pos.lon, pos.lat, cfg.catch.radius),
+    catch: circle(pos.lon, pos.lat, catchRadius()),
     acc: pos.src === 'gps' && pos.acc ? circle(pos.lon, pos.lat, pos.acc) : NONE,
     bio: cfg.general.showBiotopes ? biotopeGeo() : NONE
   };
@@ -437,7 +438,7 @@ function walked(d) {
   if (walkBuf >= 50) { progressEvent({ kind: 'walk', n: Math.round(walkBuf) }); walkBuf = 0; }
   while (state.dist / 1000 >= state.counters.km + 1) { state.counters.km++; gainXP(cfg.game.xpPerKm); onKm(); progressEvent({ kind: 'km' }); }
 }
-function onKm() {}
+function onKm() { addCones(Number(cfg.game.conesPerKm) || 0); }
 function onGPSErr(e) {
   const m = e.code === 1 ? 'Poloha je zakázaná. Povol ji v nastavení prohlížeče pro tuto stránku.' : e.code === 3 ? 'Čekám na signál GPS…' : 'Polohu se nepodařilo zjistit.';
   banner(m);
@@ -487,7 +488,7 @@ function refreshBirds() {
   for (const b of birds) {
     const sp = SP[b.sp];
     if (!sp) continue;
-    const near = dist(pos.lat, pos.lon, b.lat, b.lon) <= cfg.catch.radius;
+    const near = dist(pos.lat, pos.lon, b.lat, b.lon) <= catchRadius();
     const m = markers.get(b.id);
     if (!m) {
       const el = document.createElement('div');
@@ -565,6 +566,7 @@ function bindUI() {
   $('lookBtn').onclick = openLook;
   $('menuBtn').onclick = openMenu;
   $('lvlBtn').onclick = openProfile; hudLevel();
+  $('coneBtn').onclick = openShop; hudCones();
   $('logo').addEventListener('click', () => {
     clearTimeout(logoT); logoTaps++;
     logoT = setTimeout(() => { logoTaps = 0; }, 1500);
@@ -590,7 +592,7 @@ function tapBird(id) {
   if (!b) return;
   const d = dist(pos.lat, pos.lon, b.lat, b.lon);
   if (speciesLocked(SP[b.sp])) { toast('Neznámé zvíře. Poznáš ho od úrovně ' + levelNeeded(cfg.game.rarityLevel, String(SP[b.sp].rarity)) + '.'); return; }
-  if (d > cfg.catch.radius) { toast('Je to ' + Math.round(d) + ' m. Dojdi blíž (do ' + cfg.catch.radius + ' m).'); if (cfg.general.simulation) simTarget = { lat: b.lat, lon: b.lon }; return; }
+  if (d > catchRadius()) { toast('Je to ' + Math.round(d) + ' m. Dojdi blíž (do ' + catchRadius() + ' m).'); if (cfg.general.simulation) simTarget = { lat: b.lat, lon: b.lon }; return; }
   enc = { b, sp: SP[b.sp], step: 'food', tries: 0, shots: 0, msg: 'Čím ho nalákáš?' };
   renderEnc();
 }
@@ -612,12 +614,13 @@ function renderEnc() {
   const sp = enc.sp;
   if (enc.step === 'food') {
     openM(`<div class="encimg">${birdImg(sp)}</div><h2>${esc(sp.name)}</h2><div class="sub">${esc(sp.lat)}</div>${chips(sp)}<p class="msg">${esc(enc.msg)}</p>
-    <div class="foods">${cfg.foods.map(f => `<button data-f="${esc(f.id)}">${esc(f.name)}</button>`).join('')}</div><button class="btn ghost full" data-act="close">Nechat být</button>`);
+    <div class="foods">${cfg.foods.map(f => `<button data-f="${esc(f.id)}">${esc(f.name)}</button>`).join('')}</div>
+    ${enc.lure ? '' : invOf(cfg, state, 'lure').map(it => `<button class="btn full" data-act="lure" data-item="${esc(it.id)}">Použít ${esc(it.icon)} ${esc(it.name)} (${state.inv[it.id]})</button>`).join('')}<button class="btn ghost full" data-act="close">Nechat být</button>`);
   } else if (enc.step === 'photo') {
-    const g = gameFor(sp); enc.zone = Number(g.zone); enc.speed = Number(g.speed);
+    const g = gameFor(sp); enc.zone = Math.min(.95, Number(g.zone) * (enc.lens ? Number(cfg.game.lensMult) || 1 : 1)); enc.speed = Number(g.speed);
     openM(`<h2>${esc(sp.name)}</h2><div class="frame"><div id="fb" style="width:100%;height:100%">${birdImg(sp)}</div><div class="cross"></div></div>
     <div class="bar"><div class="zone" style="left:${(.5 - enc.zone / 2) * 100}%;width:${enc.zone * 100}%"></div><div class="mark" id="mk"></div></div>
-    <p class="msg">${esc(enc.msg)}</p><button class="btn primary full" data-act="shoot">Cvak (zbývá ${cfg.catch.shots - enc.shots})</button>`);
+    <p class="msg">${esc(enc.msg)}</p><button class="btn primary full" data-act="shoot">Cvak (zbývá ${cfg.catch.shots - enc.shots})</button>${enc.lens || enc.shots ? '' : invOf(cfg, state, 'lens').map(it => `<button class="btn full" data-act="lens" data-item="${esc(it.id)}">Nasadit ${esc(it.icon)} ${esc(it.name)} (${state.inv[it.id]})</button>`).join('')}`);
     enc.t0 = performance.now(); photoAnim();
   } else if (enc.step === 'done') {
     const c = state.caught[sp.id];
@@ -660,7 +663,12 @@ function progressEvent(ev) {
   }
   saveState();
 }
-function addCones(n) { if (n > 0) state.cones += n; }
+function addCones(n) { if (n > 0) { state.cones += n; hudCones(); } }
+function hudCones() { const b = $('coneBtn'); if (b) b.innerHTML = coneIcon + ' ' + Math.floor(state.cones); }
+// Dosah chytání (dalekohled ho na chvíli zvětší)
+function catchRadius() { return cfg.catch.radius * (Date.now() < state.radiusUntil ? Number(cfg.game.radiusMult) || 1 : 1); }
+const can = Object.assign(k => unlocked(k), { level: k => levelNeeded(cfg.game.unlocks, k) });
+function openShop() { openM(shopHTML(cfg, state, can)); }
 function hudLevel() { const b = $('lvlBtn'); if (!b) return; const lv = levelFor(state.xp, cfg.game); b.textContent = 'Úr. ' + lv.level; b.style.setProperty('--p', Math.round(lv.into / lv.need * 100) + '%'); }
 function openProfile() { openM(profileHTML(cfg, state, levelFor(state.xp, cfg.game))); }
 function addedMsg(sp) {
@@ -705,7 +713,7 @@ function photoAnim() {
 function gone() { state.gone[enc.b.id] = Date.now(); removeMarker(enc.b.id); saveState(); }
 function pickFood(f) {
   const C = cfg.catch, food = parseMap(enc.sp.food), m = food[f] || 0;
-  const ch = m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong;
+  const ch = enc.lure ? 1 : m >= 1 ? C.chanceFull : m > 0 ? C.chanceHalf : C.chanceWrong;
   enc.tries++;
   if (Math.random() < ch) { enc.step = 'photo'; enc.msg = m >= 1 ? approach(enc.sp) + ' Cvakni, až je značka v zelené.' : 'Opatrně se přiblížil. Rychle fotku!'; renderEnc(); return; }
   if ((m === 0 && Math.random() < C.fleeWrong) || enc.tries >= C.maxFoodTries) { gone(); enc.step = 'fled'; enc.msg = m === 0 ? (FN[f] || f) + ' ho nezajímá. ' + cap(fled(enc.sp)) + '.' : 'Vyplašil se a ' + fled(enc.sp) + '.'; renderEnc(); return; }
@@ -746,6 +754,8 @@ function doCatch(q) {
 function onModalClick(e) {
   const f = e.target.closest('[data-f]'); if (f && enc) { pickFood(f.dataset.f); return; }
   const a = e.target.closest('[data-act]'); if (!a) return;
+  // nevratné akce: první ťuknutí jen připraví, druhé provede
+  if (a.dataset.confirm && !a.dataset.armed) { a.dataset.armed = '1'; const t = a.textContent; a.textContent = a.dataset.confirm; setTimeout(() => { if (a.isConnected) { delete a.dataset.armed; a.textContent = t; } }, 3000); return; }
   const act = a.dataset.act;
   if (act === 'close') closeM();
   else if (act === 'shoot' && enc) shoot();
@@ -776,6 +786,11 @@ function onModalClick(e) {
   else if (act === 'quizGo' && enc) quizAsk();
   else if (act === 'quizAns' && enc) quizAnswer(Number(a.dataset.i));
   else if (act === 'profile') openProfile();
+  else if (['train', 'evolve', 'feed', 'release'].includes(act)) animalAct(act, $('animalActs')?.dataset.uid, a.dataset.item);
+  else if (act === 'buy') { const r = buy(cfg, state, a.dataset.item); toast(r === 'ok' ? 'Koupeno, je v batohu.' : 'Nemáš dost šišek.'); saveState(); hudCones(); openShop(); }
+  else if (act === 'useItem') { const it = useItem(cfg, state, a.dataset.item); if (it) { state.radiusUntil = Date.now() + cfg.game.radiusMinutes * 60000; toast(it.icon + ' ' + it.name + ': větší dosah na ' + cfg.game.radiusMinutes + ' min'); updateGame(); refreshBirds(); saveState(); } openShop(); }
+  else if (act === 'lure' && enc) { if (useItem(cfg, state, a.dataset.item)) { enc.lure = true; enc.msg = 'Návnada připravena – teď vyber potravu.'; saveState(); renderEnc(); } }
+  else if (act === 'lens' && enc) { if (useItem(cfg, state, a.dataset.item)) { enc.lens = true; enc.msg = 'Nasadil jsi objektiv.'; saveState(); renderEnc(); } }
   else if (act.startsWith('look')) onLookClick(act, a);
 }
 function onModalChange(e) {
@@ -903,13 +918,30 @@ function renderCollection() { $('sbirkav').innerHTML = collectionHTML(cfg, state
 function openAnimal(uid) {
   const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
   const e = enclosureOf(cfg, sp.group);
-  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
+  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${esc(stageNames(cfg, sp.group)[a.stage] || '')}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
   ${statsHTML(a.stats)}<div class="kv"><span>Síla:</span> ${power(a)} · <span>chycen:</span> ${new Date(a.date).toLocaleDateString('cs-CZ')}${a.bio ? ' · <span>biotop:</span> ' + esc(BIO[a.bio]?.name || a.bio) : ''}${a.variant ? ' · <span>vzácná forma:</span> ' + esc(variantName(a.variant)) : ''}</div>
   <div class="kv"><span>Ubikace:</span> ${esc(e.icon)} ${esc(e.name)}</div>
   <div class="presetnew"><input type="text" id="nick" maxlength="20" placeholder="Přezdívka" aria-label="Přezdívka" value="${esc(a.nick || '')}"><button class="btn" data-act="nick" data-uid="${esc(uid)}">Uložit</button></div>
   <p class="msg small" id="nickErr"></p>
-  <div id="animalActs" data-uid="${esc(uid)}"></div>
+  <div id="animalActs" data-uid="${esc(uid)}">${animalActionsHTML(cfg, state, a, sp, can)}</div>
   <button class="btn full" data-act="close">Zavřít</button>`);
+}
+function animalAct(act, uid, item) {
+  const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
+  if (act === 'train') {
+    const r = train(cfg, state, a, new Date().toISOString().slice(0, 10));
+    toast(r === 'ok' ? 'Trénink: +' + cfg.game.trainXp + ' XP jedince' : r === 'limit' ? 'Dnes už toho natrénoval dost, zkus to zítra.' : 'Nemáš dost šišek.');
+  } else if (act === 'evolve') {
+    const r = evolve(cfg, state, a, sp.group);
+    if (r === 'ok') { toast(sp.name + ': ' + stageNames(cfg, sp.group)[a.stage] + '!'); progressEvent({ kind: 'evolve' }); }
+    else toast(r === 'axp' ? 'Jedinec potřebuje víc XP (trénink, krmení).' : r === 'points' ? 'Nemáš dost bodů – získáš je vypuštěním zvířat.' : 'Už je v nejvyšším stádiu.');
+  } else if (act === 'feed') {
+    const it = useItem(cfg, state, item); if (it) { a.axp += Number(it.value) || 0; toast(it.icon + ' ' + it.name + ': +' + it.value + ' XP jedince'); }
+  } else if (act === 'release') {
+    const v = release(cfg, state, a, sp); closeM(); renderCollection(); hudCones();
+    toast((a.nick || sp.name) + ' se vrátil do přírody. +' + v + ' bodů'); progressEvent({ kind: 'release' }); return;
+  }
+  saveState(); hudCones(); renderCollection(); openAnimal(uid);
 }
 function saveNick(uid) {
   const a = state.animals.find(x => x.uid === uid); if (!a) return;
@@ -973,7 +1005,7 @@ async function doImport() {
   catch (e) { toast('Obnova se nepovedla, původní data zůstala.'); return; }
   state = newState;
   if (withCfg && d.config) await saveConfig(mergeDefaults(d.config));
-  pendingImport = null; closeM(); hudDist(); renderAtlas(); toast('Záloha obnovena.');
+  pendingImport = null; closeM(); hudDist(); hudLevel(); hudCones(); clearMarkers(); refreshBirds(); renderAtlas(); toast('Záloha obnovena.');
 }
 
 /* ---------- admin ---------- */

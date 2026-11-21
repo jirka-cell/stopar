@@ -199,8 +199,26 @@ export const DEFAULTS = {
     rarityLevel: '2:3, 3:6',  // vzácnost:úroveň – od které úrovně jde vzácnější zvíře chytit (do té doby silueta)
     unlocks: 'release:2, shop:2, train:3, contests:3, evolve:4, hide:5', // funkce:úroveň
     questsPerDay: 3, questsPerWeek: 2,
-    quizBonus: 3            // kolik bodů přidá správná odpověď v kvízu ke všem vlastnostem jedince
+    quizBonus: 3,           // kolik bodů přidá správná odpověď v kvízu ke všem vlastnostem jedince
+    conesPerKm: 50,         // šišky za 1 km skutečné chůze (simulace se nepočítá)
+    trainCost: 20, trainPerDay: 3, trainXp: 10, trainGain: 2,
+    stageXp: 60,            // XP jedince na další stádium (× pořadí stádia)
+    evolveCost: 30,         // body na další stádium (× pořadí stádia)
+    evolveBoost: 10,        // % ke všem vlastnostem za stádium
+    progressStyle: 'ring',  // ring = kroužek, stars = hvězdičky, bar = proužek
+    // vývojová stádia: řádek bez skupiny = výchozí, jinak „Skupina: stádia“
+    stages: ': mládě, dospělý, mistr\nObojživelníci: pulec, mladý, dospělý, mistr\nHmyz: larva, kukla, dospělec, mistr\nRyby: plůdek, mladá ryba, dospělá, mistr',
+    releaseBase: 10, releaseRarity: '1:1, 2:2.5, 3:6', // body za vypuštění = základ × vzácnost × (stádium + 1)
+    radiusMult: 2, radiusMinutes: 15, lensMult: 1.5
   },
+  // Obchod: effect = feed (XP jedince = value) | lure (zvíře vždy přijde) | lens (širší zelená zóna) | radius (větší dosah chytání)
+  shop: [
+    { id: 'krmivo', name: 'Krmivo', icon: '🥣', price: 15, effect: 'feed', value: 15, desc: '+15 XP jedinci, kterého nakrmíš' },
+    { id: 'pamlsek', name: 'Pamlsek', icon: '🍓', price: 40, effect: 'feed', value: 50, desc: '+50 XP jedinci' },
+    { id: 'navnada', name: 'Návnada', icon: '🪱', price: 25, effect: 'lure', value: 1, desc: 'Při setkání zvíře určitě přijde blíž' },
+    { id: 'objektiv', name: 'Objektiv', icon: '🔭', price: 60, effect: 'lens', value: 1, desc: 'Širší zelená zóna při focení' },
+    { id: 'dalekohled', name: 'Dalekohled', icon: '🔍', price: 80, effect: 'radius', value: 1, desc: 'Na 15 minut dvojnásobný dosah chytání' }
+  ],
   // Odznaky: kind = species | catches | km | verified | quiz | level | stamps | released | evolved | album (album = id alba)
   badges: [
     { id: 'druhy5', name: '5 druhů', icon: '🌱', kind: 'species', value: 5, album: '' },
@@ -354,7 +372,17 @@ export const SCHEMA = [
     ['rarityLevel', 'Vzácnost odemčená od úrovně (vzácnost:úroveň, …)', 'text'],
     ['unlocks', 'Funkce od úrovně (funkce:úroveň, …)', 'text'],
     ['questsPerDay', 'Denních úkolů', 'number', { min: 0, max: 10, step: 1 }], ['questsPerWeek', 'Týdenních úkolů', 'number', { min: 0, max: 10, step: 1 }],
-    ['quizBonus', 'Bonus za kvíz ke všem vlastnostem', 'number', { min: 0, max: 50, step: 1 }]
+    ['quizBonus', 'Bonus za kvíz ke všem vlastnostem', 'number', { min: 0, max: 50, step: 1 }],
+    ['conesPerKm', 'Šišky za 1 km chůze', 'number', { min: 0, step: 1 }],
+    ['trainCost', 'Trénink: cena (šišky)', 'number', { min: 0, step: 1 }], ['trainPerDay', 'Trénink: max. denně na jedince', 'number', { min: 0, step: 1 }],
+    ['trainXp', 'Trénink: XP jedince', 'number', { min: 0, step: 1 }], ['trainGain', 'Trénink: + k nejslabší vlastnosti', 'number', { min: 0, step: 1 }],
+    ['stageXp', 'Vývoj: XP jedince na stádium (× pořadí)', 'number', { min: 1, step: 1 }], ['evolveCost', 'Vývoj: body na stádium (× pořadí)', 'number', { min: 0, step: 1 }],
+    ['evolveBoost', 'Vývoj: % ke všem vlastnostem', 'number', { min: 0, max: 100, step: 1 }],
+    ['progressStyle', 'Postup ke stádiu', 'select', { options: [['ring', 'Kroužek (koláč)'], ['stars', 'Hvězdičky'], ['bar', 'Proužek']] }],
+    ['stages', 'Vývojová stádia (řádek „Skupina: stádia“, bez skupiny = výchozí)', 'textarea'],
+    ['releaseBase', 'Vypuštění: základ bodů', 'number', { min: 0, step: 1 }], ['releaseRarity', 'Vypuštění: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
+    ['radiusMult', 'Dalekohled: násobek dosahu', 'number', { min: 1, max: 10, step: 0.1 }], ['radiusMinutes', 'Dalekohled: minut', 'number', { min: 1, step: 1 }],
+    ['lensMult', 'Objektiv: násobek zelené zóny', 'number', { min: 1, max: 5, step: 0.1 }]
   ] }
 ];
 
@@ -397,6 +425,11 @@ export const LISTS = [
     ['kind', 'Co splnit', 'select', { options: [['catch', 'chytit zvíře'], ['catchGroup', 'chytit ze skupiny'], ['catchBio', 'chytit v biotopu'], ['newSpecies', 'nový druh'], ['walk', 'ujít (m)'], ['photo', 'skutečná fotka'], ['quiz', 'správná odpověď v kvízu']] }],
     ['param', 'Skupina nebo biotop (id)', 'text'], ['count', 'Kolik', 'number', { min: 1, step: 1 }],
     ['xp', 'Odměna XP', 'number', { min: 0, step: 1 }], ['cones', 'Odměna šišky', 'number', { min: 0, step: 1 }]
+  ] },
+  { sec: 'shop', title: 'Obchod', label: o => (o.icon || '') + ' ' + (o.name || o.id) + ' – ' + o.price, fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['price', 'Cena (šišky)', 'number', { min: 0, step: 1 }],
+    ['effect', 'Účinek', 'select', { options: [['feed', 'krmení (XP jedince)'], ['lure', 'návnada'], ['lens', 'objektiv'], ['radius', 'dalekohled']] }],
+    ['value', 'Hodnota (XP u krmení)', 'number', { min: 0, step: 1 }], ['desc', 'Popis', 'text']
   ] },
   { sec: 'enclosures', title: 'Ubikace ve sbírce', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['groups', 'Skupiny (oddělené čárkou)', 'text']
@@ -474,7 +507,7 @@ export function presetLayers(p) {
 }
 
 // Seznamy s id: ukládají se jen změny proti výchozím položkám, nové výchozí položky z aktualizací se doplní
-export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests'];
+export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests', 'shop'];
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 

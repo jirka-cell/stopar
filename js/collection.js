@@ -11,7 +11,7 @@ export const power = a => (a.stats || []).reduce((x, y) => x + num(y), 0);
 
 let seq = 0;
 export function animalFrom(spId, stats, q, bio, now = Date.now()) {
-  return { uid: now.toString(36) + '-' + (seq++).toString(36) + Math.floor(Math.random() * 1296).toString(36), sp: spId, stats: stats.slice(), q: num(q), date: now, bio: String(bio ?? ''), stage: 0, trained: 0, variant: '' };
+  return { uid: now.toString(36) + '-' + (seq++).toString(36) + Math.floor(Math.random() * 1296).toString(36), sp: spId, stats: stats.slice(), q: num(q), date: now, bio: String(bio ?? ''), stage: 0, trained: 0, variant: '', axp: 0 };
 }
 
 // Jedinec ze zálohy nebo starého uložení je nedůvěryhodný: jen známá pole se správnými typy
@@ -20,7 +20,7 @@ export function cleanAnimal(a) {
   return {
     uid: String(a.uid || animalFrom(a.sp, [], 0, '').uid).slice(0, 40), sp: String(a.sp).slice(0, 60),
     stats: Array.isArray(a.stats) ? a.stats.map(v => num(v)) : [], q: num(a.q), date: num(a.date), bio: String(a.bio ?? '').slice(0, 40),
-    stage: Math.max(0, Math.round(num(a.stage))), trained: Math.max(0, Math.round(num(a.trained))), variant: String(a.variant ?? '').slice(0, 20),
+    stage: Math.max(0, Math.round(num(a.stage))), trained: Math.max(0, Math.round(num(a.trained))), variant: String(a.variant ?? '').slice(0, 20), axp: Math.max(0, num(a.axp)),
     ...(a.nick && cleanNick(a.nick) ? { nick: cleanNick(a.nick) } : {}),
     ...(a.trainedOn ? { trainedOn: String(a.trainedOn).slice(0, 10), trainedToday: Math.max(0, Math.round(num(a.trainedToday))) } : {})
   };
