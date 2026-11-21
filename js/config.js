@@ -214,6 +214,10 @@ export const DEFAULTS = {
     releaseBase: 10, releaseRarity: '1:1, 2:2.5, 3:6', // body za vypuštění = základ × vzácnost × (stádium + 1)
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5
   },
+  field: {
+    trackChance: 0.25,      // jak často je místo zvířete jen jeho stopa (u druhů s popsanými znameními)
+    xpTrack: 10             // XP za správně určenou stopu
+  },
   world: {
     weather: true,          // počasí z MET Norway (api.met.no, CC BY 4.0)
     // řádek „stav: druh nebo skupina:násobek, …“; stavy rain (i 3 h po dešti), snow, cold, hot, clear, cloudy
@@ -394,6 +398,10 @@ export const SCHEMA = [
     ['sunAltitude', 'Noc pod výškou slunce (°)', 'number', { min: -18, max: 5, step: 0.5 }],
     ['nightFrom', 'Noc od (h)', 'number', { min: 0, max: 23, step: 1 }],
     ['nightTo', 'Noc do (h)', 'number', { min: 0, max: 23, step: 1 }]
+  ] },
+  { sec: 'field', title: 'Stopy a poznávání', fields: [
+    ['trackChance', 'Stopa místo zvířete: šance (0–1)', 'number', { min: 0, max: 1, step: 0.05 }],
+    ['xpTrack', 'XP za určenou stopu', 'number', { min: 0, step: 1 }]
   ] },
   { sec: 'world', title: 'Svět (počasí, šero, skrýše, varianty)', fields: [
     ['weather', 'Počasí z MET Norway', 'bool'],

@@ -24,7 +24,7 @@ export function cleanProgress(s) {
   const q = s && s.quests && typeof s.quests === 'object' ? s.quests : {};
   return {
     xp: Math.max(0, num(s && s.xp)), cones: Math.max(0, num(s && s.cones)), points: Math.max(0, num(s && s.points)),
-    counters: Object.fromEntries(['catches', 'newSpecies', 'verified', 'quiz', 'km', 'stamps', 'released', 'evolved'].map(k => [k, Math.max(0, num(c[k]))])),
+    counters: Object.fromEntries(['catches', 'newSpecies', 'verified', 'quiz', 'km', 'stamps', 'released', 'evolved', 'tracks'].map(k => [k, Math.max(0, num(c[k]))])),
     badges: Object.fromEntries(Object.entries((s && s.badges) || {}).map(([k, v]) => [String(k).slice(0, 40), num(v)])),
     quests: { day: String(q.day || ''), week: String(q.week || ''), items: Array.isArray(q.items) ? q.items.filter(i => i && i.id).map(i => ({ id: String(i.id), p: Math.max(0, num(i.p)), done: !!i.done })) : [] }
   };

@@ -12,6 +12,7 @@ import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
 import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz, profileHTML, unlockName } from './progress.js';
 import { evolve, train, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, shopHTML, coneIcon } from './economy.js';
+import { isTrack, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -35,7 +36,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {} });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [] });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -50,7 +51,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps) });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal) });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -549,7 +550,7 @@ function refreshBirds() {
   const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now);
   const quietSet = new Set(String(cfg.world.quietBiotopes || '').split(',').map(x => x.trim()));
   const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone, now.getTime(), biotopeAt, elevationAt, {
-    allow: spawnAllowed, twilight: ctx.twilight, variant: (sp, h) => variantFor(cfg, sp, h),
+    allow: spawnAllowed, twilight: ctx.twilight, variant: (sp, h) => variantFor(cfg, sp, h), track: (sp, h) => isTrack(cfg, sp, h),
     mult: (sp, bio, la, lo) => quiet && quietSet.has(bio) && protectedAt(la, lo) ? 0 : base.get(sp.id) ?? 1
   });
   birds = r.birds;
@@ -563,7 +564,7 @@ function refreshBirds() {
     if (!m) {
       const el = document.createElement('div');
       el.className = 'bmk' + (near ? '' : ' far') + (speciesLocked(sp) ? ' locked' : '') + (b.variant ? ' var-' + b.variant : '');
-      el.innerHTML = `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`;
+      el.innerHTML = b.track && !tracked.has(b.id) ? '<span class="paw" aria-label="Stopa">🐾</span>' : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`;
       el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
     } else m.el.classList.toggle('far', !near);
@@ -671,6 +672,7 @@ function tapBird(id) {
   const d = dist(pos.lat, pos.lon, b.lat, b.lon);
   if (speciesLocked(SP[b.sp])) { toast('Neznámé zvíře. Poznáš ho od úrovně ' + levelNeeded(cfg.game.rarityLevel, String(SP[b.sp].rarity)) + '.'); return; }
   if (d > catchRadius()) { toast('Je to ' + Math.round(d) + ' m. Dojdi blíž (do ' + catchRadius() + ' m).'); if (cfg.general.simulation) simTarget = { lat: b.lat, lon: b.lon }; return; }
+  if (b.track && !tracked.has(b.id)) { enc = { b, sp: SP[b.sp], step: 'track', z: trackQuiz(SP[b.sp], cfg.species) }; openM(trackHTML(enc.z, SP)); return; }
   enc = { b, sp: SP[b.sp], step: 'food', tries: 0, shots: 0, msg: 'Čím ho nalákáš?' };
   renderEnc();
 }
@@ -779,6 +781,30 @@ function quizAnswer(i) {
   openM(`<h2>${ok ? 'Správně!' : 'Tentokrát ne'}</h2><p class="msg">${ok ? `Jedinec dostal +${cfg.game.quizBonus} ke všem vlastnostem.` : 'Správná odpověď: ' + esc(z.answers[z.correct])}</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
   saveState();
 }
+// Stopa: správné určení „vystopuje“ zvíře (ukáže se a jde ho chytit), špatné ho vyplaší
+const tracked = new Set();
+function trackAnswer(i) {
+  const ok = i === enc.z.correct, b = enc.b;
+  if (!ok) { gone(); toast('Kdepak, byla to stopa: ' + enc.sp.name + '. Zvíře zmizelo.'); closeM(); return; }
+  tracked.add(b.id); removeMarker(b.id); refreshBirds();
+  state.counters.tracks = (state.counters.tracks || 0) + 1; gainXP(cfg.field.xpTrack); progressEvent({ kind: 'track' });
+  enc = { b, sp: SP[b.sp], step: 'food', tries: 0, shots: 0, msg: 'Správně! Vystopoval jsi ho. Čím ho nalákáš?' };
+  renderEnc();
+}
+/* ---------- určovací klíč a deník ---------- */
+let keyAns = {};
+function openKey() { openM(keyHTML(cfg, keyAns, SP)); }
+function openJournal() { openM(journalHTML(state, SP)); }
+let jPhoto = null;
+async function saveJournal() {
+  const spId = $('jSp').value, name = $('jName').value.trim();
+  if (!spId && !name) { $('jInfo').textContent = 'Vyber druh nebo napiš název.'; return; }
+  let photo = null;
+  if (jPhoto) { try { photo = await store.addPhoto({ sp: spId, img: jPhoto, date: Date.now(), lat: null, lon: null, journal: true }); } catch (e) {} }
+  state.journal.push({ id: Date.now().toString(36), sp: spId, name, date: Date.now(), note: $('jNote').value.trim().slice(0, 500), photo,
+    lat: pos.lat == null ? null : Math.round(pos.lat * 1000) / 1000, lon: pos.lon == null ? null : Math.round(pos.lon * 1000) / 1000 });
+  jPhoto = null; saveState(); openJournal(); toast('Zapsáno do deníku.');
+}
 function photoAnim() {
   if (!enc || enc.step !== 'photo') return;
   const mk = $('mk'), fb = $('fb'); if (!mk) return;
@@ -865,6 +891,16 @@ function onModalClick(e) {
   else if (act === 'quizAns' && enc) quizAnswer(Number(a.dataset.i));
   else if (act === 'profile') openProfile();
   else if (act === 'calendar') openM(calendarHTML(cfg));
+  else if (act === 'trackAns' && enc && enc.step === 'track') trackAnswer(Number(a.dataset.i));
+  else if (act === 'key') { keyAns = {}; openKey(); }
+  else if (act === 'keyAns') { keyAns[a.dataset.k] = a.dataset.v; openKey(); }
+  else if (act === 'keyBack') { const k = KEY_STEPS.filter(k => k in keyAns).pop(); delete keyAns[k]; openKey(); }
+  else if (act === 'keyReset') { keyAns = {}; openKey(); }
+  else if (act === 'keyPick') openDetail(a.dataset.sp);
+  else if (act === 'journal') openJournal();
+  else if (act === 'jNew') { jPhoto = null; openM(journalFormHTML(cfg)); }
+  else if (act === 'jSave') saveJournal();
+  else if (act === 'jDel') { state.journal = state.journal.filter(e => e.id !== a.dataset.id); saveState(); openJournal(); }
   else if (['train', 'evolve', 'feed', 'release'].includes(act)) animalAct(act, $('animalActs')?.dataset.uid, a.dataset.item);
   else if (act === 'buy') { const r = buy(cfg, state, a.dataset.item); toast(r === 'ok' ? 'Koupeno, je v batohu.' : 'Nemáš dost šišek.'); saveState(); hudCones(); openShop(); }
   else if (act === 'useItem') { const it = useItem(cfg, state, a.dataset.item); if (it) { state.radiusUntil = Date.now() + cfg.game.radiusMinutes * 60000; toast(it.icon + ' ' + it.name + ': větší dosah na ' + cfg.game.radiusMinutes + ' min'); updateGame(); refreshBirds(); saveState(); } openShop(); }
@@ -877,7 +913,8 @@ function onModalChange(e) {
   const real = e.target.closest('input[data-real]');
   if (real && real.files && real.files[0]) { addRealPhoto(real.dataset.real, real.files[0]); return; }
   const imp = e.target.closest('input[data-import]');
-  if (imp && imp.files && imp.files[0]) readImport(imp.files[0]);
+  if (imp && imp.files && imp.files[0]) { readImport(imp.files[0]); return; }
+  if (e.target.id === 'jPhoto' && e.target.files && e.target.files[0]) resizeImage(e.target.files[0], 800).then(img => { jPhoto = img; if ($('jInfo')) $('jInfo').textContent = 'Fotka připravena. Uloží se čas a místo (přibližně na 100 m).'; }).catch(() => toast('Fotku se nepodařilo načíst.'));
 }
 
 /* ---------- atlas ---------- */
@@ -1041,6 +1078,8 @@ function openMenu() {
   <label class="btn full">Obnovit ze zálohy<input type="file" accept="application/json,.json" data-import hidden></label>
   <p class="msg small">Ušlo celkem ${(state.dist / 1000).toFixed(2).replace('.', ',')} km · ${Object.values(state.caught).filter(c => c.count).length} druhů</p>
   <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b><br>Před společnou procházkou ho porovnejte – stejný kód = stejná zvířata na stejném místě.</p>
+  <button class="btn full" data-act="journal">Deník pozorování</button>
+  <button class="btn full" data-act="key">Určovací klíč</button>
   <button class="btn full" data-act="calendar">Kalendář přírody</button>
   <button class="btn full" data-act="checklist">Kontrolní seznam pro testery</button>
   <button class="btn full" data-act="about">O aplikaci a licence</button>

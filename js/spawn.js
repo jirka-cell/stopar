@@ -73,7 +73,8 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
     let q = hash01(S.seed, cx, cy, slot, 4) * tot, pick = cand[0][0];
     for (const [s, w] of cand) { q -= w; if (q <= 0) { pick = s; break; } }
     const variant = opts.variant ? opts.variant(pick, hash01(S.seed, cx, cy, slot, 9)) : '';
-    out.push({ id, sp: pick.id, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d, variant });
+    const track = !!(opts.track && opts.track(pick, hash01(S.seed, cx, cy, slot, 10)));
+    out.push({ id, sp: pick.id, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d, variant, track });
   }
   return { birds: out, pending };
 }
@@ -89,7 +90,7 @@ export function spawnCode(cfg) {
     pick(cfg.osm, ['chunkDeg', 'lineBuffer', 'defaultBiotope', 'villagePlaces', 'townPlaces', 'villageRadius', 'protectedPaths', 'pathBuffer']),
     pick(cfg.world, ['twilightFrom', 'twilightTo', 'twilightBoost', 'quietMonths', 'quietBiotopes', 'variantChance', 'albinGroups', 'melanGroups', 'melanSpecies']), cfg.events,
     cfg.species.map(s => pick(s, ['id', 'active', 'rarity', 'night', 'bio', 'alt', 'months', 'regions'])),
-    cfg.rarities, cfg.regions, cfg.biotopes.map(b => pick(b, ['id', 'priority', 'tags', 'villageFrom']))
+    cfg.field && cfg.field.trackChance, cfg.rarities, cfg.regions, cfg.biotopes.map(b => pick(b, ['id', 'priority', 'tags', 'villageFrom']))
   ];
   const s = JSON.stringify(data);
   let h = 2166136261 >>> 0;

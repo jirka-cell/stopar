@@ -621,3 +621,23 @@ test('chráněné území: zvířata jen u cest, turistické cíle se načtou s 
     assert.equal(t.length, 1); assert.equal(t[0].name, 'Vyhlídka Test'); assert.equal(t[0].icon, '🔭');
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('poznávání: stopy jen u druhů se znameními, kvíz má správný druh, klíč zužuje druhy, deník se očistí', async () => {
+  const { isTrack, trackQuiz, sizeCm, keyFilter, cleanJournal, hasSigns } = await import('../js/field.js');
+  const sp = id => DEFAULTS.species.find(s => s.id === id);
+  assert.ok(hasSigns(sp('veverka')));
+  assert.equal(isTrack(DEFAULTS, sp('veverka'), 0.1), true);
+  assert.equal(isTrack(DEFAULTS, sp('veverka'), 0.9), false);
+  assert.equal(isTrack(DEFAULTS, sp('kapr'), 0.01), false, 'ryba stopy nemá');
+  const z = trackQuiz(sp('veverka'), DEFAULTS.species);
+  assert.equal(z.opts.length, 3); assert.equal(z.opts[z.correct], 'veverka'); assert.equal(new Set(z.opts).size, 3);
+  assert.equal(sizeCm('11–12 cm'), 11); assert.equal(sizeCm('1–1,3 m'), 100); assert.equal(sizeCm('20–25 cm + ocas 15–20 cm'), 20); assert.equal(sizeCm(''), null);
+  const all = keyFilter(DEFAULTS.species, {}).length;
+  const birds = keyFilter(DEFAULTS.species, { group: 'Ptáci' });
+  assert.ok(birds.length < all && birds.every(s => s.group === 'Ptáci'));
+  const small = keyFilter(DEFAULTS.species, { group: 'Ptáci', size: 'small' });
+  assert.ok(small.some(s => s.id === 'modrinka') && !small.some(s => s.id === 'volavka'));
+  assert.ok(keyFilter(DEFAULTS.species, { group: 'Ptáci', time: 'night' }).every(s => s.night));
+  const j = cleanJournal([{ id: 'a', sp: 'kos', date: 5, note: 'x'.repeat(900), lat: 50.123456, lon: 14.98765, photo: '3' }, null, 'bad']);
+  assert.equal(j.length, 1); assert.equal(j[0].note.length, 500); assert.equal(j[0].lat, 50.123); assert.equal(j[0].photo, 3);
+});
