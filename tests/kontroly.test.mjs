@@ -675,3 +675,26 @@ test('události od rodičů: odkaz se zakóduje a dekóduje, cíle se počítaj�
   assert.equal(p.kidMode, 'auto');
   assert.equal(insideBound(p, 50.005, 14), true); assert.equal(insideBound(p, 50.02, 14), false);
 });
+
+test('soutěže: hodnocení šikovnosti, skóre půl na půl se zvířetem, kód výsledku se přečte a odhalí překlep', async () => {
+  const { sprintSkill, tahSkill, schovkaSkill, rytmusSkill, contestScore, scoreCode, readScoreCode, lemniscate, cleanRecords } = await import('../js/contests.js');
+  assert.equal(sprintSkill([250, 250], 0), 1); assert.equal(sprintSkill([1000], 0), 0); assert.equal(sprintSkill([], 0), 0);
+  assert.ok(Math.abs(sprintSkill([625], 1) - 0.45) < 1e-9);
+  assert.equal(tahSkill(0, 4), 1); assert.equal(tahSkill(40, 4), 0); assert.equal(tahSkill(0, 15), 0);
+  assert.equal(schovkaSkill(5, 5, 0), 1); assert.equal(schovkaSkill(0, 5, 500), 0);
+  assert.equal(rytmusSkill([0, 0, 0]), 1); assert.equal(rytmusSkill([-200, 200]), 0);
+  assert.equal(contestScore(1, 100, 100), 1000); assert.equal(contestScore(0, 50, 100), 250); assert.equal(contestScore(2, 500, 100), 1000, 'strop');
+  const when = Date.UTC(2026, 10, 21, 12);
+  for (const [g, s] of [['sprint', 812], ['tah', 0], ['schovka', 1000], ['rytmus', 437]]) {
+    const c = scoreCode(g, s, when), r = readScoreCode(c);
+    assert.match(c, /^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
+    assert.equal(r.game, g); assert.equal(r.score, s); assert.equal(new Date(r.date).toISOString().slice(0, 10), '2026-11-21');
+    assert.deepEqual(readScoreCode(c.toLowerCase().replace('-', ' ')), r, 'malá písmena a mezera nevadí');
+  }
+  const c = scoreCode('sprint', 812, when), typo = (c[0] === '2' ? '3' : '2') + c.slice(1);
+  assert.equal(readScoreCode(typo), null, 'překlep se pozná');
+  assert.equal(readScoreCode('nesmysl'), null);
+  assert.equal(lemniscate(300, 200).length, 240);
+  assert.deepEqual(Object.keys(cleanRecords({ sprint: { score: 5000, sp: 'kos', date: 1 }, nic: { score: 1 } })), ['sprint']);
+  assert.equal(cleanRecords({ sprint: { score: 5000 } }).sprint.score, 1000);
+});

@@ -212,7 +212,8 @@ export const DEFAULTS = {
     // vývojová stádia: řádek bez skupiny = výchozí, jinak „Skupina: stádia“
     stages: ': mládě, dospělý, mistr\nObojživelníci: pulec, mladý, dospělý, mistr\nHmyz: larva, kukla, dospělec, mistr\nRyby: plůdek, mladá ryba, dospělá, mistr',
     releaseBase: 10, releaseRarity: '1:1, 2:2.5, 3:6', // body za vypuštění = základ × vzácnost × (stádium + 1)
-    radiusMult: 2, radiusMinutes: 15, lensMult: 1.5
+    radiusMult: 2, radiusMinutes: 15, lensMult: 1.5,
+    xpContest: 10           // XP za odehranou soutěž
   },
   family: {
     kidAge: 8,              // režim pro malé děti „podle věku“: do kolika let
@@ -452,7 +453,8 @@ export const SCHEMA = [
     ['stages', 'Vývojová stádia (řádek „Skupina: stádia“, bez skupiny = výchozí)', 'textarea'],
     ['releaseBase', 'Vypuštění: základ bodů', 'number', { min: 0, step: 1 }], ['releaseRarity', 'Vypuštění: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
     ['radiusMult', 'Dalekohled: násobek dosahu', 'number', { min: 1, max: 10, step: 0.1 }], ['radiusMinutes', 'Dalekohled: minut', 'number', { min: 1, step: 1 }],
-    ['lensMult', 'Objektiv: násobek zelené zóny', 'number', { min: 1, max: 5, step: 0.1 }]
+    ['lensMult', 'Objektiv: násobek zelené zóny', 'number', { min: 1, max: 5, step: 0.1 }],
+    ['xpContest', 'XP za odehranou soutěž', 'number', { min: 0, step: 1 }]
   ] }
 ];
 

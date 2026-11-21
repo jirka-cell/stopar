@@ -14,6 +14,7 @@ import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz
 import { evolve, train, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, shopHTML, coneIcon } from './economy.js';
 import { isTrack, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
+import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -37,7 +38,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {} });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {} });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -52,7 +53,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays) });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records) });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -635,6 +636,37 @@ function refreshBirds() {
   if (r.pending && !birds.length) hb.dataset.loading = '1'; else delete hb.dataset.loading;
   refreshTargets();
 }
+/* ---------- soutěže ---------- */
+let stopGame = null;
+function openContests() {
+  if (!unlocked('contests')) { openM(`<h2>Soutěže</h2><p class="msg">Soutěže se otevřou na úrovni ${levelNeeded(cfg.game.unlocks, 'contests')}.</p><button class="btn full ghost" data-act="close">Zavřít</button>`); return; }
+  openM(contestsHTML(cfg, state, SP));
+}
+function startGame(game, uid) {
+  const g = GAMES.find(x => x.id === game), a = state.animals.find(x => x.uid === uid); if (!g || !a) return;
+  const si = cfg.stats.findIndex(st => st.id === g.stat), stat = a.stats[si] || 0;
+  openM(`<h2>${g.icon} ${g.name}</h2><div id="game"></div>`);
+  locked = true; // během hry se okno nezavírá ťuknutím vedle
+  stopGame = runGame(game, $('game'), skill => {
+    stopGame = null; locked = false;
+    const score = contestScore(skill, stat, cfg.catch.maxStat), rec = state.records[game], best = !rec || score > rec.score;
+    if (best) state.records[game] = { score, sp: a.sp, date: Date.now() };
+    gainXP(Number(cfg.game.xpContest) || 0); progressEvent({ kind: 'contest' });
+    const code = scoreCode(game, score);
+    openM(`<h2>${g.icon} ${score} bodů</h2><p class="msg">Šikovnost ${Math.round(skill * 100)} % + ${esc(cfg.stats[si].name.toLowerCase())} ${stat}${best ? '<br><b>Nový rekord!</b>' : '<br>Rekord: ' + rec.score}</p>
+    <p class="msg small">Kód výsledku pro rodinu:</p><p class="msg"><b class="code">${code}</b></p>
+    <button class="btn full" data-act="cShare" data-code="${code}" data-g="${esc(g.name)}" data-s="${score}">Poslat kód</button>
+    <button class="btn primary full" data-act="cStart" data-uid="${esc(uid)}" data-g="${game}">Hrát znovu</button><button class="btn full ghost" data-act="contests">Zpět na soutěže</button>`);
+    curGame = game; saveState();
+  });
+  curGame = game;
+}
+let curGame = '';
+async function shareScore(a) {
+  const text = `Stopař – ${a.dataset.g}: ${a.dataset.s} bodů. Kód: ${a.dataset.code}`;
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('Zkopírováno.'); } catch (e) { prompt('Zkopíruj:', text); }
+}
 const buzzed = new Set();
 function removeMarker(id) { const m = markers.get(id); if (m) { m.mk.remove(); markers.delete(id); } }
 function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
@@ -684,7 +716,7 @@ function banner(m, btn) {
 }
 const modal = $('modal'), mbox = $('mbox');
 function openM(h) { mbox.innerHTML = h; modal.classList.add('on'); mbox.scrollTop = 0; }
-function closeM() { modal.classList.remove('on'); enc = null; }
+function closeM() { modal.classList.remove('on'); enc = null; if (stopGame) { stopGame(); stopGame = null; } }
 modal.addEventListener('pointerdown', e => { if (e.target === modal && !locked && (!enc || enc.step !== 'photo')) closeM(); });
 
 function show(v) {
@@ -974,6 +1006,11 @@ function onModalClick(e) {
   else if (act === 'evLink') shareEventLink();
   else if (act === 'evAccept' && pendingEvent) { state.events = state.events.filter(e => e.id !== pendingEvent.id).concat(pendingEvent); pendingEvent = null; saveState(); closeM(); toast('Událost přidána – najdeš ji v profilu (tlačítko Úr.).'); }
   else if (act === 'card') shareCard($('animalActs')?.dataset.uid);
+  else if (act === 'contests') openContests();
+  else if (act === 'cPick') { curGame = a.dataset.g; openM(pickHTML(cfg, state, SP, curGame)); }
+  else if (act === 'cStart') startGame(a.dataset.g || curGame, a.dataset.uid);
+  else if (act === 'cCompare') $('cCmp').textContent = compareText($('cCode').value, state);
+  else if (act === 'cShare') shareScore(a);
   else if (act === 'jNew') { jPhoto = null; openM(journalFormHTML(cfg)); }
   else if (act === 'jSave') saveJournal();
   else if (act === 'jDel') { state.journal = state.journal.filter(e => e.id !== a.dataset.id); saveState(); openJournal(); }
@@ -1155,6 +1192,7 @@ function openMenu() {
   <label class="btn full">Obnovit ze zálohy<input type="file" accept="application/json,.json" data-import hidden></label>
   <p class="msg small">Ušlo celkem ${(state.dist / 1000).toFixed(2).replace('.', ',')} km · ${Object.values(state.caught).filter(c => c.count).length} druhů</p>
   <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b><br>Před společnou procházkou ho porovnejte – stejný kód = stejná zvířata na stejném místě.</p>
+  <button class="btn full" data-act="contests">Soutěže</button>
   <button class="btn full" data-act="journal">Deník pozorování</button>
   <button class="btn full" data-act="key">Určovací klíč</button>
   <button class="btn full" data-act="calendar">Kalendář přírody</button>
