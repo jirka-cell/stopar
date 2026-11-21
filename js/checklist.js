@@ -20,15 +20,21 @@ export const CHECKS = [
   ['offline', 'Offline režim', 'Zapni režim letadlo na už prošlém místě. Funguje mapa, biotopy a atlas? Co se stane na novém místě?'],
   ['backup', 'Záloha a obnova', 'Menu → Uložit zálohu, pak Obnovit ze zálohy. Vrátí se úlovky i fotky? Chce obnova rodičovský PIN?'],
   ['wipe', 'Rodičovský PIN a smazání dat', 'Menu → Rodičovský PIN: nastav a změň PIN. Smazat všechna moje data se špatným PINem nesmí nic smazat, se správným smaže vše a ukáže znovu úvodní souhlas.'],
+  ['planner', 'Plánovač procházky', 'Menu → Naplánovat procházku: najdi místo (mapa se má přesunout a ukázat 🚩), navrhni trasy. Posuň bod prstem, podržením prstu na čáře přidej nový bod, zkus Body (pořadí, smazání, názvy), Okruh/Do cíle, tempo a profil (ťukni do něj). Sedí čas a převýšení?'],
+  ['follow', 'Mapa se vrací na mě', 'Posuň mapu a 20 s se jí nedotýkej – vrátí se na tebe. Při plánování trasy a s otevřeným oknem se vracet nesmí.'],
+  ['gifts', 'Odměny na trase a poklady', 'Vyraz po trase s odměnami: 🎁 i 💎 poklady musí při posouvání a oddalování mapy zůstat na svém místě. Sebere se odměna, když k ní dojdeš?'],
+  ['speed', 'Načítání biotopů', 'Na novém místě: za jak dlouho se ukáže biotop pod tebou a za jak dlouho celé okolí? Při chůzi se má dřív načítat směr, kterým jdeš.'],
+  ['offmaps', 'Offline mapy', 'Menu → Offline mapy: stáhni 2 km přes Wi-Fi, pak zapni režim letadlo. Je vidět mapa, biotopy a trasy?'],
+  ['games', 'Minihry', 'Menu → Minihry: zahraj posouvačku, skládačku, otáčení a pexeso. Jsou srozumitelné, ne moc těžké ani lehké? Přijde odměna a platí denní limit?'],
   ['battery', 'Baterie a rychlost', 'Kolik procent baterie spotřebuje hodina hraní? Seká se mapa nebo se telefon hřeje?'],
   ['kids', 'Srozumitelnost pro děti', 'Zvládne dítě hrát samo? Kde se zaseklo nebo čemu nerozumělo?']
 ];
 export const DEVICES = ['Android', 'iPhone', 'Tablet'];
-const MARKS = [['ok', 'Funguje'], ['bad', 'Problém'], ['skip', 'Nezkoušeno']];
+const MARKS = [['ok', 'Funguje'], ['bad', 'Problém'], ['unk', 'Nevím'], ['skip', 'Nezkoušeno']];
 
 export const emptyChecklist = () => ({ name: '', device: '', items: {}, note: '' });
 
-export function checklistHTML(d) {
+export function checklistHTML(d, fromFab = false) {
   const done = CHECKS.filter(([id]) => d.items[id] && d.items[id].m).length;
   return `<h2>Kontrolní seznam</h2><p class="sub">Vyplněno ${done} z ${CHECKS.length} · ukládá se průběžně</p>
   <div class="fld"><label for="clName">Jméno testera</label><input type="text" id="clName" data-cl="name" value="${esc(d.name)}"></div>
@@ -42,7 +48,7 @@ export function checklistHTML(d) {
   }).join('')}
   <div class="fld"><label for="clNote">Celkový dojem a nápady</label><textarea id="clNote" data-cl="note">${esc(d.note)}</textarea></div>
   <button class="btn primary full" data-act="clSend">Odeslat výsledek</button>
-  <button class="btn full ghost" data-act="menu">Zpět</button>`;
+  <button class="btn full ghost" data-act="${fromFab ? 'close' : 'menu'}">${fromFab ? 'Zavřít' : 'Zpět'}</button>`;
 }
 
 // Výsledek jako prostý text pro sdílení nebo e-mail

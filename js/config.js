@@ -21,6 +21,7 @@ export const DEFAULTS = {
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
+    testerFab: true,        // plovoucí tlačítko kontrolního seznamu pro testery (vpravo dole)
     monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
@@ -109,6 +110,7 @@ export const DEFAULTS = {
     cacheDays: 30,
     lineBuffer: 15,         // m – šířka řek/potoků zadaných jako čára
     timeout: 25,            // s
+    parallel: 2,            // kolik čtverců stahovat najednou (Overpass povoluje ~2 dotazy z jedné adresy)
     defaultBiotope: 'louka', // biotop, když OSM nic nemá
     villagePlaces: 'village,hamlet,isolated_dwelling', // place=… vesnice (rozliší vesnici od města)
     townPlaces: 'city,town,suburb,quarter,borough',     // place=… město
@@ -294,6 +296,10 @@ export const DEFAULTS = {
     radii: '2000,5000,10000', // nabídka poloměrů (m)
     defaultRadius: 5000, maxRadius: 10000
   },
+  games: {
+    dailyCones: 40,         // denní strop šišek z miniher (ať nepřebijí chůzi)
+    conesEasy: 5, conesMid: 10, conesHard: 20
+  },
   planner: {
     kmh: 3.5,               // rychlost chůze pro odhad času (s dětmi)
     cpCones: 10, cpXp: 10,  // odměna na trase
@@ -361,6 +367,7 @@ export const SCHEMA = [
     ['simulation', 'Simulace chůze ťukáním do mapy (bez GPS)', 'bool'],
     ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
     ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
+    ['testerFab', 'Tlačítko kontrolního seznamu pro testery (vpravo dole)', 'bool'],
     ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
@@ -434,6 +441,7 @@ export const SCHEMA = [
     ['overpassUrl', 'Servery Overpass API (jeden na řádek, při výpadku další)', 'textarea'],
     ['chunkDeg', 'Velikost čtverce (°)', 'number', { min: 0.002, max: 0.05, step: 0.001 }],
     ['cacheDays', 'Platnost cache (dny)', 'number', { min: 1, max: 365, step: 1 }],
+    ['parallel', 'Stahování najednou', 'number', { min: 1, max: 4, step: 1 }],
     ['lineBuffer', 'Šířka vodních toků (m)', 'number', { min: 1, max: 200, step: 1 }],
     ['timeout', 'Timeout dotazu (s)', 'number', { min: 5, max: 180, step: 1 }],
     ['defaultBiotope', 'Výchozí biotop (id)', 'text'],
@@ -467,6 +475,10 @@ export const SCHEMA = [
   { sec: 'offline', title: 'Offline mapy', fields: [
     ['radii', 'Nabídka poloměrů (m, čárkou)', 'text'], ['defaultRadius', 'Výchozí poloměr (m)', 'number', { min: 500, max: 20000, step: 500 }],
     ['maxRadius', 'Největší poloměr (m)', 'number', { min: 1000, max: 20000, step: 500 }]
+  ] },
+  { sec: 'games', title: 'Minihry', fields: [
+    ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
+    ['conesEasy', 'Odměna: lehká', 'number', { min: 0, step: 1 }], ['conesMid', 'Odměna: střední', 'number', { min: 0, step: 1 }], ['conesHard', 'Odměna: těžká', 'number', { min: 0, step: 1 }]
   ] },
   { sec: 'planner', title: 'Plánovač procházek', fields: [
     ['kmh', 'Rychlost pro odhad času (km/h)', 'number', { min: 1, max: 8, step: 0.5 }],

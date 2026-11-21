@@ -406,11 +406,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 19);
+  assert.equal(CHECKS.length, 25);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 19);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 25);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
@@ -876,4 +876,75 @@ test('drobnosti: každá potrava má obrázek, kód rodinné výpravy se přečt
   const typo = (c[0] === '2' ? '3' : '2') + c.slice(1);
   assert.equal(readWeekCode(typo), null);
   assert.equal(readWeekCode('nesmysl'), null);
+});
+
+test('plánovač: průchozí bod se vloží do správného úseku, trasa do cíle, profil a čas chůze', async () => {
+  const P = await import('../js/planner.js');
+  const els = [], id = (r, c) => r * 10 + c + 1;
+  for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) els.push({ type: 'node', id: id(r, c), lat: 50 + r * 0.0009, lon: 14 + c * 0.0014 });
+  for (let r = 0; r < 7; r++) els.push({ type: 'way', id: 1000 + r, tags: { highway: 'footway' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(c => id(r, c)) });
+  for (let c = 0; c < 7; c++) els.push({ type: 'way', id: 2000 + c, tags: { highway: 'footway' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(r => id(r, c)) });
+  const g = P.buildGraph({ elements: els });
+  const L = P.loopThrough(g, [id(0, 0), id(0, 6), id(6, 6)]);
+  assert.equal(L.cuts.length, 4, 'start + 3 úseky okruhu');
+  assert.deepEqual(L.coords[0], L.coords.at(-1));
+  // bod u úseku start → (0,6) se vloží za start
+  const v = P.viaIndex(L, [50.0001, 14.0042]);
+  assert.equal(v.at, 1); assert.ok(v.d < 20);
+  const open = P.loopThrough(g, [id(0, 0), id(0, 6)], false);
+  assert.equal(open.closed, false); assert.ok(Math.abs(open.len - P.dist([50, 14], [50, 14.0084])) < 1, 'do cíle bez návratu');
+  assert.equal(P.loopThrough(g, [id(0, 0)]), null, 'jeden bod není trasa');
+  // profil: rovnoměrné vzorky, stoupání a klesání bez šumu pod 3 m
+  const pr = P.profile([[50, 14], [50, 14.01]], (la, lo) => 200 + (lo - 14) * 10000 + ((lo * 1e5) % 2), 10);
+  assert.equal(pr.h.length, 11); assert.ok(pr.ready);
+  assert.ok(pr.up >= 95 && pr.up <= 102, 'stoupání ~100 m: ' + pr.up); assert.equal(pr.down, 0);
+  assert.equal(P.profile([[50, 14], [50, 14.01]], () => null, 4).ready, false);
+  // čas: 4 km po rovině tempem 4 km/h = 60 min; s 300 m stoupání = 90 min (delší + polovina kratšího)
+  assert.equal(P.walkMinutes(4000, 0, 0, 4), 60);
+  assert.equal(P.walkMinutes(4000, 300, 0, 4), 90);
+  assert.ok(P.walkMinutes(4000, 0, 0, 2.5) > 90, 'pomalejší tempo = delší čas');
+  assert.equal(P.fmtMin(75), '1 h 15 min');
+});
+
+test('minihry: posouvačka jde vždy složit, tahy jen do prázdna, pexeso má dvojice, odměna má denní strop', async () => {
+  const M = await import('../js/minigames.js');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (const n of [3, 4, 5]) {
+    const t = M.slideShuffle(n, rnd);
+    assert.equal(new Set(t).size, n * n); assert.equal(M.solved(t), false);
+    // parita: složitelné uspořádání (inverze + řádek prázdného)
+    const flat = t.filter(v => v !== n * n - 1); let inv = 0;
+    for (let i = 0; i < flat.length; i++) for (let j = i + 1; j < flat.length; j++) if (flat[i] > flat[j]) inv++;
+    const blankRowFromBottom = n - Math.floor(t.indexOf(n * n - 1) / n);
+    assert.ok(n % 2 ? inv % 2 === 0 : (inv + blankRowFromBottom) % 2 === 1, 'složitelné pro n=' + n);
+  }
+  const t = [0, 1, 2, 3, 4, 5, 6, 8, 7]; // prázdné na pozici 7
+  assert.equal(M.slideMove(t, 3, 0), false, 'daleko od prázdného');
+  assert.equal(M.slideMove(t, 3, 8), true); assert.equal(M.solved(t), true);
+  assert.equal(M.solved(M.swapShuffle(9, rnd)), false);
+  assert.ok(M.rotShuffle(16, rnd).filter(Boolean).length >= 8);
+  const deck = M.pexesoDeck(['a', 'b', 'c', 'd', 'e'], 4, rnd);
+  assert.equal(deck.length, 8); for (const x of new Set(deck)) assert.equal(deck.filter(y => y === x).length, 2);
+  const cfg = { games: { dailyCones: 25, conesEasy: 5, conesMid: 10, conesHard: 20 } };
+  assert.equal(M.gameReward({ day: 'x', cones: 0 }, cfg, 'hard', 'x'), 20);
+  assert.equal(M.gameReward({ day: 'x', cones: 20 }, cfg, 'hard', 'x'), 5, 'jen do stropu');
+  assert.equal(M.gameReward({ day: 'včera', cones: 25 }, cfg, 'mid', 'dnes'), 10, 'nový den = nový strop');
+  assert.deepEqual(M.cleanGames({ best: { slide_easy: 12, 'x y': 3, swap_mid: -1 }, cones: 'a' }).best, { slide_easy: 12 });
+});
+
+test('biotopy: první se stahuje čtverec pod hráčem, po přesunu zase nejbližší k nové poloze', async () => {
+  const cfg = clone(DEFAULTS); cfg.osm.overpassUrl = 'https://a.example/api'; osmSetConfig(cfg); try { await clearOsmCache(); } catch (e) {}
+  const realFetch = globalThis.fetch, boxes = [];
+  let release; const gate = new Promise(r => { release = r; });
+  globalThis.fetch = async (url, o) => { const m = /\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/.exec(decodeURIComponent(o.body)); boxes.push(m.slice(1).map(Number)); await gate; return { ok: true, json: async () => ({ elements: [] }) }; };
+  const inBox = (b, lat, lon) => lat >= b[0] && lat <= b[2] && lon >= b[1] && lon <= b[3];
+  try {
+    ensureArea(50.2355, 12.8755, 1200);
+    await new Promise(r => setTimeout(r, 30));
+    assert.ok(boxes.length >= 1 && inBox(boxes[0], 50.2355, 12.8755), 'první čtverec je ten pod hráčem');
+    ensureArea(50.2455, 12.8955, 1200); // hráč popošel o ~1,7 km
+    release(); await new Promise(r => setTimeout(r, 60));
+    assert.ok(inBox(boxes[1], 50.2455, 12.8955), 'po přesunu jde na řadu čtverec pod novou polohou');
+    assert.ok(boxes.length > 3, 'po prvním úspěchu se stahuje víc najednou');
+  } finally { globalThis.fetch = realFetch; }
 });

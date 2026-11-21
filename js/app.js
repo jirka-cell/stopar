@@ -18,9 +18,10 @@ import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords } from './contests.js';
 import { Dog } from './dog.js';
+import { PUZZLES, SIZES, gamesHTML, boardHTML, squareImage, playPuzzle, playPexeso, pexesoDeck, gameReward, cleanGames } from './minigames.js';
 import { foodIcon, tripCardBlob, weekCode, readWeekCode, weekNumber, familyHTML } from './extras.js';
 import { planUrls, estimate, download as offlineDownload, removeUrls, cleanAreas, offlineHTML, OFFLINE_CACHE } from './offline.js';
-import { buildGraph, graphQuery, suggestLoops, loopThrough, nearestNode, simplify, encodePolyline, decodePolyline, checkpointsAlong, cleanRoute, pathLength, plannerHTML, choiceHTML, ROUTE_COLORS } from './planner.js';
+import { buildGraph, graphQuery, suggestLoops, loopThrough, nearestNode, simplify, encodePolyline, decodePolyline, checkpointsAlong, cleanRoute, pathLength, plannerHTML, choiceHTML, ROUTE_COLORS, viaIndex, profile, walkMinutes, pointsHTML } from './planner.js';
 import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './trails.js';
 import { cleanTreasure, treasureLink, decodeTreasure, searchCircle, treasuresHTML, treasureFormHTML, feedersNear, feederReward, parkCell, cleanPlaces, distM } from './treasure.js';
 import { mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML } from './myths.js';
@@ -48,7 +49,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] } });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] }, games: cleanGames(null) });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -63,7 +64,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: (Array.isArray(s.routes) ? s.routes : []).map(cleanRoute).filter(Boolean).slice(-30), walk: cleanWalk(s.walk), fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] } });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), records: cleanRecords(s.records), myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: (Array.isArray(s.routes) ? s.routes : []).map(cleanRoute).filter(Boolean).slice(-30), walk: cleanWalk(s.walk), fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] }, games: cleanGames(s.games) });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -288,10 +289,12 @@ async function wipeAll() {
 
 /* ---------- kontrolní seznam pro testery ---------- */
 let checklist = null, clTimer = 0;
-async function openChecklist() {
+let clFromFab = false;
+async function openChecklist(fromFab) {
+  if (fromFab != null) clFromFab = fromFab;
   if (!checklist) checklist = Object.assign(emptyChecklist(), await store.get('checklist').catch(() => null) || {});
   const y = mbox.scrollTop;
-  openM(checklistHTML(checklist));
+  openM(checklistHTML(checklist, clFromFab));
   mbox.scrollTop = y;
 }
 function saveChecklist() { clearTimeout(clTimer); clTimer = setTimeout(() => { if (!wiping) store.set('checklist', checklist).catch(() => {}); }, 400); }
@@ -310,12 +313,13 @@ async function sendChecklist() {
 }
 
 function applyConfig(first) {
+  $('clFab').hidden = !cfg.general.testerFab;
   SP = Object.fromEntries(cfg.species.map(s => [s.id, s]));
   FN = Object.fromEntries(cfg.foods.map(f => [f.id, f.name]));
   BIO = Object.fromEntries(cfg.biotopes.map(b => [b.id, b]));
   RAR = Object.fromEntries(cfg.rarities.map(r => [String(r.id), r]));
   osmSetConfig(cfg, () => { refreshBirds(); if (cfg.general.showBiotopes) drawBiotopes(); });
-  elevSetConfig(cfg, () => { refreshBirds(); if (pos.lat != null) hudBio(); });
+  elevSetConfig(cfg, () => { refreshBirds(); if (pos.lat != null) hudBio(); const L = pl.loops[pl.sel]; if (L && L.prof && !L.prof.ready && !$('plpanel').hidden) showPlanPanel(); });
   $('logo').textContent = cfg.general.appName;
   document.title = cfg.general.appName;
   $('legend').innerHTML = cfg.biotopes.map(b => `<span><i style="background:${esc(b.color)}"></i>${esc(b.name)}</span>`).join('');
@@ -426,9 +430,10 @@ function initMap() {
   meMk = new maplibregl.Marker({ element: me }).setLngLat([start.lon, start.lat]).addTo(map);
   map.on('dragstart', () => { follow = false; lastTouch = Date.now(); });
   map.on('zoomstart', e => { if (e.originalEvent) lastTouch = Date.now(); });
-  attachGestures(map, $('map'), { distance: dist, onWhatsHere: whatsHere });
+  for (const ev of ['touchstart', 'touchmove', 'wheel', 'mousedown']) $('map').addEventListener(ev, () => { lastTouch = Date.now(); }, { passive: true });
+  attachGestures(map, $('map'), { distance: dist, onWhatsHere: onLongPress });
   map.on('click', e => {
-    if (pl.tap) { pl.tap = false; pl.start = [e.lngLat.lat, e.lngLat.lng]; pl.startName = 'bod na mapě'; openPlanner(); return; }
+    if (pl.tap) { pl.tap = false; pl.start = [e.lngLat.lat, e.lngLat.lng]; pl.startName = 'bod na mapě'; showStart(false); openPlanner(); return; }
     if (cfg.general.simulation) {
       if (pos.lat == null) setPos(e.lngLat.lat, e.lngLat.lng, 5, 'sim');
       else simTarget = { lat: e.lngLat.lat, lon: e.lngLat.lng };
@@ -654,6 +659,7 @@ function checkStamps() {
 function autoFollow() {
   const s = Number(cfg.map.autoFollow) || 0;
   if (!s || follow || !map || Date.now() - lastTouch < s * 1000) return;
+  if (!$('plpanel').hidden || pl.tap || modal.classList.contains('on')) return; // plánování trasy – mapa zůstane, kde ji máš
   follow = true; map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 800 });
 }
 // „Co je zde?“ – podržení prstu na mapě (na počítači pravé tlačítko)
@@ -876,14 +882,23 @@ async function shareTreasureLink() {
 /* ---------- plánovač procházek ---------- */
 function cleanWalk(w) {
   if (!w || typeof w !== 'object' || typeof w.p !== 'string' || !decodePolyline(w.p)) return null;
-  return { p: w.p, n: String(w.n || 'Trasa').slice(0, 60), start: Array.isArray(w.start) ? w.start.map(Number).slice(0, 2) : null, done: !!w.done,
+  return { p: w.p, n: String(w.n || 'Trasa').slice(0, 60), start: Array.isArray(w.start) ? w.start.map(Number).slice(0, 2) : null, end: Array.isArray(w.end) ? w.end.map(Number).slice(0, 2) : null, done: !!w.done,
     cps: (Array.isArray(w.cps) ? w.cps : []).slice(0, 20).map(c => ({ la: Number(c.la), lo: Number(c.lo), done: !!c.done })).filter(c => Number.isFinite(c.la)) };
 }
-const pl = { q: '', results: [], start: null, startName: '', len: 3000, mood: 'any', rewards: true, msg: '', tap: false, loops: [], sel: 0, graph: null };
+const pl = { q: '', results: [], start: null, startName: '', len: 3000, mood: 'any', rewards: true, msg: '', tap: false, loops: [], sel: 0, graph: null, names: {}, mark: -1 };
 const lineFeat = (pts, props) => ({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: pts.map(([a, b]) => [b, a]) } });
 function planGeo() { return { type: 'FeatureCollection', features: pl.loops.map((L, i) => lineFeat(L.coords, { color: ROUTE_COLORS[i], sel: i === pl.sel ? 1 : 0 })) }; }
 function walkGeo() { const p = state.walk && decodePolyline(state.walk.p); return { type: 'FeatureCollection', features: p ? [lineFeat(p, {})] : [] }; }
 function redrawPlan() { planPending = true; flushMap(); drawPlanMarkers(); }
+// Značka startu ještě před návrhem tras; fly = přesunout mapu na start
+let startMk = null;
+function showStart(fly) {
+  if (startMk) { startMk.remove(); startMk = null; }
+  if (!map) return;
+  const st = pl.start || (pos.lat != null ? [pos.lat, pos.lon] : null);
+  if (pl.start) { const el = document.createElement('div'); el.className = 'plflag'; el.textContent = '🚩'; startMk = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([pl.start[1], pl.start[0]]).addTo(map); }
+  if (fly && st) { follow = false; lastTouch = Date.now(); map.flyTo({ center: [st[1], st[0]], zoom: Math.max(map.getZoom(), 14), duration: 900 }); }
+}
 function openPlanner() { openM(plannerHTML(pl, state.routes)); }
 let lastSearch = 0; const searchCache = new Map();
 // Hledání místa (Nominatim): jen po potvrzení, nejvýš 1 dotaz za sekundu, výsledky v paměti
@@ -929,21 +944,53 @@ function moodScore(L) {
   const want = pl.mood === 'water' ? ['voda', 'mokrad'] : ['les'];
   return sample.filter(([a, b]) => want.includes(biotopeAt(a, b))).length / Math.max(1, sample.length) * 3;
 }
-function showPlanPanel() { const p = $('plpanel'); p.innerHTML = choiceHTML(pl.loops, pl.sel, cfg.planner.kmh); p.hidden = false; }
-function hidePlanPanel() { $('plpanel').hidden = true; pl.loops = []; redrawPlan(); }
+const planKmh = () => Number(prefs.kmh) || cfg.planner.kmh;
+function planProf() { const L = pl.loops[pl.sel]; if (!L) return null; if (!L.prof || !L.prof.ready) L.prof = profile(L.coords, elevationAt); return L.prof; }
+function planMinutes() { const L = pl.loops[pl.sel], pr = planProf(); return L ? walkMinutes(L.len, pr ? pr.up : 0, pr ? pr.down : 0, planKmh()) : 0; }
+function showPlanPanel() { const p = $('plpanel'); p.innerHTML = choiceHTML(pl.loops, pl.sel, { kmh: planKmh(), prof: planProf(), mark: pl.mark, mini: pl.mini }); p.hidden = false; }
+function hidePlanPanel() { $('plpanel').hidden = true; pl.loops = []; pl.mark = -1; showMark(null); redrawPlan(); }
+// Změna bodů trasy (posun, vložení, smazání, pořadí, okruh/do cíle) → přepočet po cestách
+function planSet(ids, closed) {
+  const L = pl.loops[pl.sel]; if (!L || !pl.graph) return false;
+  const N = loopThrough(pl.graph, ids, closed == null ? L.closed : closed);
+  if (!N) { toast('Tudy cesta nevede.'); redrawPlan(); return false; }
+  pl.loops[pl.sel] = Object.assign(N, { score: L.score }); pl.mark = -1; showMark(null); showPlanPanel(); redrawPlan(); return true;
+}
+// Podržení prstu: na čáře vybrané trasy přidá průchozí bod, jinde ukáže „Co je zde?“
+function onLongPress(lat, lon) {
+  const L = pl.loops[pl.sel];
+  if (L && pl.graph && !$('plpanel').hidden) {
+    const v = viaIndex(L, [lat, lon]), mpp = 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** map.getZoom());
+    if (v.d / mpp < 36) {
+      const id = nearestNode(pl.graph, [lat, lon]);
+      if (id != null && !L.ids.includes(id)) { const ids = L.ids.slice(); ids.splice(v.at, 0, id); if (planSet(ids)) { toast('Přidán bod trasy – můžeš ho posunout.'); if (navigator.vibrate) navigator.vibrate(30); } }
+      return;
+    }
+  }
+  whatsHere(lat, lon);
+}
+// Ťuknutí do profilu ukáže místo na mapě
+let markMk = null;
+function showMark(p) {
+  if (markMk) { markMk.remove(); markMk = null; }
+  if (!p || !map) return;
+  const el = document.createElement('div'); el.className = 'plmark'; markMk = new maplibregl.Marker({ element: el }).setLngLat([p[1], p[0]]).addTo(map);
+}
 // Posouvání trasy prstem: body P1 a P2 vybraného okruhu jdou přetáhnout, trasa se přepočítá
 let planMarkers = [];
 function drawPlanMarkers() {
   planMarkers.forEach(m => m.remove()); planMarkers = [];
   const L = pl.loops[pl.sel]; if (!L || !pl.graph) return;
-  L.ids.slice(1).forEach((id, k) => {
-    const [la, lo] = pl.graph.nodes.get(id), el = document.createElement('div'); el.className = 'plpt'; el.textContent = k + 1;
-    const mk = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([lo, la]).addTo(map);
+  if (startMk) { startMk.remove(); startMk = null; }
+  const n = L.ids.length;
+  L.ids.forEach((id, k) => {
+    const [la, lo] = pl.graph.nodes.get(id), el = document.createElement('div'), flag = !k || (!L.closed && k === n - 1);
+    el.className = flag ? 'plflag' : 'plpt'; el.textContent = !k ? '🚩' : flag ? '🏁' : k;
+    if (pl.names[id]) el.title = pl.names[id];
+    const mk = new maplibregl.Marker({ element: el, draggable: true, anchor: flag ? 'bottom' : 'center' }).setLngLat([lo, la]).addTo(map);
     mk.on('dragend', () => {
-      const p = mk.getLngLat(), ids = L.ids.slice(); ids[k + 1] = nearestNode(pl.graph, [p.lat, p.lng]);
-      const N = loopThrough(pl.graph, ids);
-      if (N) { pl.loops[pl.sel] = Object.assign(N, { score: L.score }); showPlanPanel(); } else toast('Tudy cesta nevede.');
-      redrawPlan();
+      const p = mk.getLngLat(), ids = L.ids.slice(); ids[k] = nearestNode(pl.graph, [p.lat, p.lng]);
+      if (planSet(ids) && !k) { pl.start = pl.graph.nodes.get(ids[0]); pl.startName = 'bod na mapě'; }
     });
     planMarkers.push(mk);
   });
@@ -952,8 +999,9 @@ function drawPlanMarkers() {
 function startWalk(pts, name) {
   const simple = simplify(pts, 6), len = pathLength(pts);
   const cps = pl.rewards ? checkpointsAlong(pts, Math.max(2, Math.min(8, Math.round(len / 1000)))).map(([la, lo]) => ({ la, lo, done: false })) : [];
-  state.walk = { p: encodePolyline(simple), n: name, start: pts[0], cps, done: false };
-  planMarkers.forEach(m => m.remove()); planMarkers = []; $('plpanel').hidden = true; pl.loops = [];
+  const L = pl.loops[pl.sel], open = L && L.coords === pts && !L.closed;
+  state.walk = { p: encodePolyline(simple), n: name, start: pts[0], end: open ? pts[pts.length - 1] : null, cps, done: false };
+  planMarkers.forEach(m => m.remove()); planMarkers = []; $('plpanel').hidden = true; pl.loops = []; showMark(null);
   saveState(); redrawPlan(); refreshWalkMarkers();
   toast('Jdeme! ' + (cps.length ? 'Na trase je ' + cps.length + ' odměn.' : ''));
 }
@@ -961,7 +1009,7 @@ const walkMarkers = [];
 function refreshWalkMarkers() {
   walkMarkers.splice(0).forEach(m => m.remove());
   if (!state.walk || !map) return;
-  state.walk.cps.forEach(c => { if (c.done) return; const el = document.createElement('div'); el.className = 'cpmk'; el.textContent = '🎁'; walkMarkers.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([c.lo, c.la]).addTo(map)); });
+  state.walk.cps.forEach(c => { if (c.done) return; const el = document.createElement('div'); el.className = 'cpmk'; el.innerHTML = '<span>🎁</span>'; walkMarkers.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([c.lo, c.la]).addTo(map)); });
 }
 function checkWalk() {
   const w = state.walk; if (!w || w.done || pos.lat == null || pos.src === 'last') return;
@@ -970,7 +1018,8 @@ function checkWalk() {
     if (c.done || dist(pos.lat, pos.lon, c.la, c.lo) > P.cpRadius) continue;
     c.done = true; addCones(P.cpCones); gainXP(P.cpXp); toast('🎁 Odměna na trase: +' + P.cpCones + ' šišek'); refreshWalkMarkers();
   }
-  if (w.cps.every(c => c.done) && w.start && dist(pos.lat, pos.lon, w.start[0], w.start[1]) <= 40 && (w.cps.length || walkLeftStart)) {
+  const fin = w.end || w.start;
+  if (w.cps.every(c => c.done) && fin && dist(pos.lat, pos.lon, fin[0], fin[1]) <= 40 && (w.cps.length || walkLeftStart || w.end)) {
     w.done = true; addCones(P.finishCones); gainXP(P.finishXp);
     if (dog) dog.react('jump', 3500);
     toast('🏁 Trasa „' + w.n + '“ hotová! +' + P.finishCones + ' šišek, +' + P.finishXp + ' XP'); progressEvent({ kind: 'route' });
@@ -1075,6 +1124,39 @@ async function shareFam() {
   try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(text); toast('Zkopírováno.'); } catch (e) { prompt('Zkopíruj:', text); }
 }
+/* ---------- minihry ---------- */
+const caughtIds = () => Object.keys(state.caught).filter(id => SP[id] && state.caught[id].count > 0);
+function openGames() { if (stopGame) { stopGame(); stopGame = null; } openM(gamesHTML(state.games, caughtIds().length, cfg, dayStr(new Date()))); }
+let mgImg = '';
+async function playMini(id, level) {
+  const p = PUZZLES.find(x => x.id === id), mine = caughtIds(); if (!p || mine.length < p.need) return;
+  if (stopGame) { stopGame(); stopGame = null; }
+  const size = SIZES[id][['easy', 'mid', 'hard'].indexOf(level)] || SIZES[id][0];
+  const win = (moves, secs) => {
+    stopGame = null;
+    const day = dayStr(new Date()), g = state.games; if (g.day !== day) { g.day = day; g.cones = 0; }
+    const r = gameReward(g, cfg, level, day), key = id + '_' + level, rec = !g.best[key] || moves < g.best[key];
+    g.cones += r; g.plays++; if (rec) g.best[key] = moves; addCones(r); saveState();
+    const box = document.createElement('div'); box.className = 'mgwin';
+    box.innerHTML = `<p class="newsp">Hotovo!</p><p class="msg">${moves} tahů · ${secs} s${rec ? ' · nový rekord!' : ''}<br>${r ? '+' + r + ' šišek' : 'Dnešní odměny z miniher jsou vybrané – zítra zase.'}</p><button class="btn primary full" data-act="mgPlay" data-g="${id}" data-l="${level}">Hrát znovu</button><button class="btn full ghost" data-act="games">Minihry</button>`;
+    $('mgInfo').replaceWith(box);
+    if (dog) dog.react('jump', 2500);
+  };
+  openM(boardHTML(p, level));
+  const el = $('mgBoard'), info = $('mgInfo');
+  if (id === 'pexeso') {
+    // karty: přednostně ze sbírky, doplní se dalšími odemčenými druhy
+    const pool = mine.sort(() => Math.random() - 0.5), extra = cfg.species.filter(s => !pool.includes(s.id) && !speciesLocked(s)).map(s => s.id).sort(() => Math.random() - 0.5);
+    mgImg = '';
+    stopGame = playPexeso(el, pexesoDeck(pool.concat(extra), size), sid => birdURL(SP[sid]), sid => SP[sid].name, info, win);
+    return;
+  }
+  el.innerHTML = '<p class="msg small">Připravuji obrázek…</p>';
+  const sp = SP[mine[Math.floor(Math.random() * mine.length)]];
+  mgImg = await squareImage(birdURL(sp));
+  if (!el.isConnected) return; // okno mezitím zavřené
+  stopGame = playPuzzle(el, id, size, mgImg, info, win);
+}
 const buzzed = new Set();
 function removeMarker(id) { const m = markers.get(id); if (m) { m.mk.remove(); markers.delete(id); } }
 function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
@@ -1142,6 +1224,7 @@ mbox.addEventListener('change', e => onModalChange(e));
 mbox.addEventListener('input', e => {
   if (e.target.id === 'cYear') onConsentInput();
   else if (e.target.id === 'plLen') { pl.len = Number(e.target.value); $('plLenV').textContent = (pl.len / 1000).toFixed(1).replace('.', ',') + ' km'; }
+  else if (e.target.dataset.pt) { pl.names[e.target.dataset.pt] = e.target.value.slice(0, 30); drawPlanMarkers(); }
   else onChecklistInput(e.target);
 });
 function bindUI() {
@@ -1154,6 +1237,8 @@ function bindUI() {
   $('coneBtn').onclick = openShop; hudCones();
   $('hbio').addEventListener('click', openProtected);
   $('plpanel').addEventListener('click', onModalClick);
+  $('clFab').addEventListener('click', () => openChecklist(true));
+  $('plpanel').addEventListener('change', e => { if (e.target.id === 'plKmhIn') { const v = Number(e.target.value); if (v >= 1 && v <= 8) { prefs.kmh = v; savePrefs(); } showPlanPanel(); } });
   refreshWalkMarkers();
   $('logo').addEventListener('click', () => {
     clearTimeout(logoT); logoTaps++;
@@ -1399,7 +1484,7 @@ function onModalClick(e) {
   else if (act === 'pinSet') openPinSet();
   else if (act === 'pinSave') savePin();
   else if (act === 'resetOk') resetProgress();
-  else if (act === 'checklist') openChecklist();
+  else if (act === 'checklist') openChecklist(false);
   else if (act === 'clDev') { checklist.device = a.dataset.v; saveChecklist(); openChecklist(); }
   else if (act === 'clMark') { (checklist.items[a.dataset.id] ||= {}).m = a.dataset.v; saveChecklist(); openChecklist(); }
   else if (act === 'clSend') sendChecklist();
@@ -1427,6 +1512,9 @@ function onModalClick(e) {
   else if (act === 'evAccept' && pendingEvent) { state.events = state.events.filter(e => e.id !== pendingEvent.id).concat(pendingEvent); pendingEvent = null; saveState(); closeM(); toast('Událost přidána – najdeš ji v profilu (tlačítko Úr.).'); }
   else if (act === 'card') shareCard($('animalActs')?.dataset.uid);
   else if (act === 'contests') openContests();
+  else if (act === 'games') openGames();
+  else if (act === 'mgPlay') playMini(a.dataset.g, a.dataset.l);
+  else if (act === 'mgHint') { const b = $('mgBoard'); if (b && mgImg) { b.classList.add('hint'); b.style.setProperty('--hint', 'url("' + mgImg + '")'); setTimeout(() => b.classList.remove('hint'), 1500); } }
   else if (act === 'toAtlas') { closeM(); show('atlasv'); openDetail(a.dataset.sp); }
   else if (act === 'toCollection') { const sp = SP[a.dataset.sp]; closeM(); if (sp) colView.enc = enclosureOf(cfg, sp.group).id; colView.sort = 'species'; show('sbirkav'); }
   else if (act === 'planner') openPlanner();
@@ -1440,15 +1528,32 @@ function onModalClick(e) {
   else if (act === 'offStop') { if (off.ctrl) off.ctrl.abort(); }
   else if (act === 'offDel') offlineDel(a.dataset.id);
   else if (act === 'plSearch') plSearch();
-  else if (act === 'plPick') { const r = pl.results[Number(a.dataset.i)]; if (r) { pl.start = [r.lat, r.lon]; pl.startName = r.name; pl.results = []; openPlanner(); } }
-  else if (act === 'plHere') { e.preventDefault(); pl.start = null; pl.startName = ''; openPlanner(); }
+  else if (act === 'plPick') { const r = pl.results[Number(a.dataset.i)]; if (r) { pl.start = [r.lat, r.lon]; pl.startName = r.name; pl.results = []; showStart(true); openPlanner(); } }
+  else if (act === 'plHere') { e.preventDefault(); pl.start = null; pl.startName = ''; showStart(true); openPlanner(); }
   else if (act === 'plTap') { e.preventDefault(); pl.tap = true; closeM(); toast('Ťukni do mapy, kde má trasa začít.'); }
   else if (act === 'plMood') { pl.mood = a.dataset.v; pl.len = Number($('plLen').value) || pl.len; pl.rewards = $('plRew').checked; openPlanner(); }
   else if (act === 'plGo') plGo();
   else if (act === 'plSel') { pl.sel = Number(a.dataset.i); showPlanPanel(); redrawPlan(); }
-  else if (act === 'plStart') { const L = pl.loops[pl.sel]; if (L) startWalk(L.coords, 'Okruh ' + (L.len / 1000).toFixed(1).replace('.', ',') + ' km'); }
+  else if (act === 'plStart') { const L = pl.loops[pl.sel]; if (L) startWalk(L.coords, (L.closed ? 'Okruh ' : 'Trasa ') + (L.len / 1000).toFixed(1).replace('.', ',') + ' km'); }
+  else if (act === 'plMini') { pl.mini = !pl.mini; showPlanPanel(); }
+  else if (act === 'plKmh') { prefs.kmh = Number(a.dataset.v); savePrefs(); showPlanPanel(); }
+  else if (act === 'plClosed') { const L = pl.loops[pl.sel]; if (L) planSet(L.ids, !L.closed); }
+  else if (act === 'plPoints') { const L = pl.loops[pl.sel]; if (L) openM(pointsHTML(L, pl.names, planMinutes())); }
+  else if (act === 'ptUp' || act === 'ptDown' || act === 'ptDel') {
+    const L = pl.loops[pl.sel], k = Number(a.dataset.k); if (!L || !k) return;
+    const ids = L.ids.slice();
+    if (act === 'ptDel') ids.splice(k, 1); else { const j = act === 'ptUp' ? k - 1 : k + 1; if (j < 1 || j >= ids.length) return; [ids[k], ids[j]] = [ids[j], ids[k]]; }
+    if (planSet(ids)) openM(pointsHTML(pl.loops[pl.sel], pl.names, planMinutes()));
+  }
+  else if (act === 'plProf') {
+    const pr = planProf(), r = a.getBoundingClientRect(); if (!pr || !r.width) return;
+    const total = pr.d[pr.d.length - 1], want = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * total;
+    let i = 0; while (i + 1 < pr.d.length && pr.d[i + 1] <= want) i++;
+    pl.mark = i; showMark(pr.p[i]); showPlanPanel();
+    toast(Math.round(pr.d[i] / 100) / 10 + ' km' + (pr.h[i] != null ? ' · ' + pr.h[i] + ' m n. m.' : ''));
+  }
   else if (act === 'plSave') { const L = pl.loops[pl.sel]; if (L) saveRoute(L.coords, 'Okruh ' + (L.len / 1000).toFixed(1).replace('.', ',') + ' km – ' + new Date().toLocaleDateString('cs-CZ')); }
-  else if (act === 'plCancel') { planMarkers.forEach(m => m.remove()); planMarkers = []; hidePlanPanel(); }
+  else if (act === 'plCancel') { planMarkers.forEach(m => m.remove()); planMarkers = []; hidePlanPanel(); showStart(false); }
   else if (act === 'rtWalk') { const r = state.routes.find(x => x.id === a.dataset.id); if (r) { closeM(); startWalk(decodePolyline(r.p), r.n); } }
   else if (act === 'rtShare') shareRoute(a.dataset.id);
   else if (act === 'rtLink') shareRouteLink();
@@ -1654,6 +1759,7 @@ function openMenu() {
   <button class="btn full" data-act="offline">Offline mapy</button>
   ${state.walk && !state.walk.done ? '<button class="btn full" data-act="walkEnd">Ukončit trasu „' + esc(state.walk.n) + '“</button>' : ''}
   <button class="btn full" data-act="contests">Soutěže</button>
+  <button class="btn full" data-act="games">Minihry</button>
   <button class="btn full" data-act="family">Rodinná výprava</button>
   <button class="btn full" data-act="trip">Karta dnešního výletu</button>
   <button class="btn full" data-act="treasures">Poklady</button>

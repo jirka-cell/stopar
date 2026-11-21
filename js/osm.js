@@ -11,11 +11,11 @@ let targetRules = [];    // [{k, v, kind, icon}] – turistické cíle
 const PATHS = 'path|footway|track|bridleway|cycleway|steps';
 const PATH_RE = new RegExp('^(' + PATHS + ')$');
 const chunks = new Map(); // key -> features
-const loading = new Map();
 let onChange = () => {};
 
 export function osmSetConfig(cfg, cb) {
   CFG = cfg;
+  netOk = false; // jiné servery v nastavení → zase začít jedním stahováním
   if (cb) onChange = cb;
   rules = [];
   for (const b of cfg.biotopes) {
@@ -155,32 +155,25 @@ export function parseOverpass(json) {
   return feats;
 }
 
-async function loadChunk(key) {
-  if (chunks.has(key)) return chunks.get(key);
-  if (loading.has(key)) return loading.get(key);
-  const p = (async () => {
-    const cacheKey = key + '|' + hashStr(rulesHash);
-    try {
-      const c = await store.get(cacheKey, 'osm');
-      if (c && Date.now() - c.time < CFG.osm.cacheDays * 86400000) { chunks.set(key, c.features); return c.features; }
-    } catch (e) {}
-    if (Date.now() < failUntil) throw RETRY_LATER;
-    const bb = chunkBBox(key);
-    const body = 'data=' + encodeURIComponent(buildQuery(bb));
-    let feats = parseOverpass(await fetchOverpass(body));
-    // v chráněném území se zvířata objevují jen u cest → stáhnout i pěšiny tohoto čtverce
-    if (feats.some(f => f.pa)) {
-      const q = `[out:json][timeout:${CFG.osm.timeout}];way["highway"~"^(${PATHS})$"](${bb[0]},${bb[1]},${bb[2]},${bb[3]});out geom;`;
-      feats = feats.concat(parseOverpass(await fetchOverpass('data=' + encodeURIComponent(q))).filter(f => f.path));
-    }
-    failCount = 0; status.error = '';
-    chunks.set(key, feats);
-    try { await store.set(cacheKey, { time: Date.now(), features: feats }, 'osm'); } catch (e) {}
-    return feats;
-  })();
-  loading.set(key, p);
-  try { const f = await p; onChange(); return f; }
-  finally { loading.delete(key); }
+// Uložený čtverec z telefonu (IndexedDB) – bez sítě, proto mimo frontu stahování
+async function fromCache(key) {
+  try {
+    const c = await store.get(key + '|' + hashStr(rulesHash), 'osm');
+    if (c && Date.now() - c.time < CFG.osm.cacheDays * 86400000) { chunks.set(key, c.features); return true; }
+  } catch (e) {}
+  return false;
+}
+async function fromNet(key) {
+  const bb = chunkBBox(key);
+  let feats = parseOverpass(await fetchOverpass('data=' + encodeURIComponent(buildQuery(bb))));
+  // v chráněném území se zvířata objevují jen u cest → stáhnout i pěšiny tohoto čtverce
+  if (feats.some(f => f.pa)) {
+    const q = `[out:json][timeout:${CFG.osm.timeout}];way["highway"~"^(${PATHS})$"](${bb[0]},${bb[1]},${bb[2]},${bb[3]});out geom;`;
+    feats = feats.concat(parseOverpass(await fetchOverpass('data=' + encodeURIComponent(q))).filter(f => f.path));
+  }
+  failCount = 0; netOk = true; status.error = '';
+  chunks.set(key, feats);
+  try { await store.set(key + '|' + hashStr(rulesHash), { time: Date.now(), features: feats }, 'osm'); } catch (e) {}
 }
 
 // Zkusí servery Overpass postupně, začne posledním funkčním; až když selžou všechny, ohlásí chybu
@@ -210,31 +203,56 @@ function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (Math.im
 
 // Zajistí načtení čtverců v okruhu kolem bodu (postupně, ať se nepřetíží Overpass).
 // Po chybě se síť zkouší znovu až po prodlevě 5 s, 10 s, 20 s … max. 5 min (cache z IndexedDB jde načíst i mezitím).
-let queue = Promise.resolve();
-const queued = new Set();
-const RETRY_LATER = new Error('retry-later');
-let failCount = 0, failUntil = 0;
+// Fronta čtverců: uložené se načtou hned; ze sítě vždy nejbližší k poslednímu místu (a přednostně ve směru chůze),
+// víc stahování najednou (při chybách jen jedno); čtverce, o které už nikdo nestojí, z fronty vypadnou.
+const wanted = new Map();  // key -> čas posledního vyžádání (čeká na síť)
+const busy = new Set();    // právě se načítá (cache nebo síť)
+let netActive = 0, netOk = false, failCount = 0, failUntil = 0, focus = null, heading = null;
+const WANT_MS = 30000;
 export function ensureArea(lat, lon, radius) {
-  const dLat = radius / mPerDegLat, dLon = radius / mPerDegLon(lat);
-  const keys = [];
-  const d = CFG.osm.chunkDeg;
-  const a0 = Math.floor((lat - dLat) / d), a1 = Math.floor((lat + dLat) / d);
-  const b0 = Math.floor((lon - dLon) / d), b1 = Math.floor((lon + dLon) / d);
-  const ca = Math.floor(lat / d), cb = Math.floor(lon / d);
-  for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) keys.push(a + '_' + b);
-  keys.sort((x, y) => { const [xa, xb] = x.split('_').map(Number), [ya, yb] = y.split('_').map(Number); return (Math.abs(xa - ca) + Math.abs(xb - cb)) - (Math.abs(ya - ca) + Math.abs(yb - cb)); });
-  const missing = keys.filter(k => !chunks.has(k) && !queued.has(k));
-  missing.forEach(k => {
-    queued.add(k);
-    queue = queue.then(() => loadChunk(k)).catch(err => {
-      if (err === RETRY_LATER) return;
+  if (focus && Math.hypot((lat - focus[0]) * mPerDegLat, (lon - focus[1]) * mPerDegLon(lat)) > 25) heading = [lat - focus[0], (lon - focus[1]) * mPerDegLon(lat) / mPerDegLat];
+  focus = [lat, lon];
+  const dLat = radius / mPerDegLat, dLon = radius / mPerDegLon(lat), d = CFG.osm.chunkDeg, now = Date.now();
+  let missing = 0; const checks = [];
+  for (let a = Math.floor((lat - dLat) / d); a <= Math.floor((lat + dLat) / d); a++) for (let b = Math.floor((lon - dLon) / d); b <= Math.floor((lon + dLon) / d); b++) {
+    const k = a + '_' + b;
+    if (chunks.has(k)) continue;
+    missing++;
+    if (wanted.has(k)) { wanted.set(k, now); continue; }
+    if (busy.has(k)) continue;
+    busy.add(k);
+    checks.push(fromCache(k).then(ok => { busy.delete(k); if (ok) onChange(); else wanted.set(k, Date.now()); }));
+  }
+  // ze sítě až po prověření celé várky v telefonu – jinak by se jako první stáhl čtverec, který se prověřil dřív, ne ten nejbližší
+  if (checks.length) Promise.all(checks).then(pump);
+  pump();
+  return missing;
+}
+export const queueSize = () => wanted.size + busy.size;
+// Pořadí: vzdálenost středu čtverce od místa; čtverce ve směru chůze o kus blíž
+function chunkScore(k) {
+  const d = CFG.osm.chunkDeg, [a, b] = k.split('_').map(Number), y = (a + 0.5) * d - focus[0], x = ((b + 0.5) * d - focus[1]) * mPerDegLon(focus[0]) / mPerDegLat;
+  const r = Math.hypot(x, y);
+  if (!heading || !r) return r;
+  const hl = Math.hypot(heading[0], heading[1]) || 1;
+  return r * (1 - 0.35 * (y * heading[0] + x * heading[1]) / (r * hl));
+}
+function pump() {
+  // dokud nevíme, který server funguje (a po chybě), jen jedno stahování
+  const par = failCount || !netOk ? 1 : Math.max(1, Math.min(4, Number(CFG.osm.parallel) || 2));
+  const now = Date.now();
+  for (const [k, t] of wanted) if (now - t > WANT_MS) wanted.delete(k);
+  while (netActive < par && wanted.size && focus && now >= failUntil) {
+    let best = null, bs = Infinity;
+    for (const k of wanted.keys()) { const sc = chunkScore(k); if (sc < bs) { bs = sc; best = k; } }
+    wanted.delete(best); busy.add(best); netActive++;
+    fromNet(best).then(() => onChange(), err => {
       failCount++;
       failUntil = Date.now() + Math.min(300000, 5000 * 2 ** (failCount - 1));
       status.error = String(err.message || err);
       onChange();
-    }).finally(() => queued.delete(k));
-  });
-  return missing.length;
+    }).finally(() => { busy.delete(best); netActive--; pump(); });
+  }
 }
 
 export const status = { error: '' };
@@ -284,7 +302,7 @@ export function loadedFeatures() {
   return out;
 }
 
-export async function clearOsmCache() { chunks.clear(); failCount = 0; failUntil = 0; status.error = ''; await store.clear('osm'); }
+export async function clearOsmCache() { chunks.clear(); wanted.clear(); failCount = 0; failUntil = 0; status.error = ''; await store.clear('osm'); }
 
 // Chráněné území v bodě (tagy z OSM) nebo null; undefined = data ještě nejsou
 export function protectedAt(lat, lon) {

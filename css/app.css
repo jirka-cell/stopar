@@ -204,12 +204,48 @@ body.muted .bmk,body.muted .tgmk{display:none}
 .acard.myth{border-color:#b388ff}
 .fdmk,.trmk{width:30px;height:30px;border-radius:9px;background:#fff;border:2px solid #9a6a3a;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}
 .fdmk.done{opacity:.5;border-color:var(--acc)}
-.trmk{border-radius:50%;border-color:#4fa3d8;animation:bob 2s ease-in-out infinite}
+.trmk{border-radius:50%;border-color:#4fa3d8}
+.trmk span,.cpmk span{display:inline-block;animation:bob 2s ease-in-out infinite}
 .plpanel{position:absolute;left:10px;right:10px;top:46px;z-index:620;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .plchoice{display:flex;flex-direction:column;gap:6px}
 .plchoice .chip{font:inherit;font-size:13px;padding:8px 10px;border:2px solid var(--line);background:#fff;border-radius:10px;text-align:left;cursor:pointer}
 .plchoice .chip.on{background:var(--acc2)}
 .plpt{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid #e2602a;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.cpmk{font-size:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));animation:bob 1.8s ease-in-out infinite}
+.cpmk{font-size:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+.plflag{font-size:28px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));cursor:grab}
 .foods button{display:flex;align-items:center;gap:8px;text-align:left}
 .ficon{width:34px;height:34px;flex:none}
+.plmark{width:14px;height:14px;border-radius:50%;background:#24301f;border:3px solid #fff;box-shadow:0 0 0 2px #24301f}
+.plprof{display:block;width:100%;height:64px;margin:4px 0 6px;border-radius:8px;background:#f4f7f1;cursor:crosshair}
+.plprof.empty{font-size:12px;color:var(--mut);display:flex;align-items:center;justify-content:center}
+.plsum{margin:6px 0 0}
+.plpace{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+.plpace .chip{font-size:12px;padding:5px 8px}
+.plpace input{width:44px;font:inherit;font-size:12px;padding:1px 3px}
+.plpanel{max-height:calc(100% - 120px);overflow:auto}
+.ptrow{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.ptrow b{min-width:22px;text-align:center}
+.ptrow input{flex:1;min-width:0;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px}
+.ptrow small{white-space:nowrap;color:var(--mut)}
+.clfab{position:absolute;right:12px;bottom:calc(150px + var(--sab));z-index:640;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:#fff;font-size:19px;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer}
+.mgcard{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:#fff}
+.mgcard.locked{opacity:.6}
+.mgtitle{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.mgicon{font-size:28px}
+.mgboard{position:relative;display:grid;gap:2px;width:min(86vw,360px);aspect-ratio:1;margin:8px auto;background:var(--line);border-radius:10px;overflow:hidden;touch-action:none;user-select:none}
+.mgboard.pex{aspect-ratio:auto;background:none;gap:6px;overflow:visible}
+.mgp{background-color:#eef4e8;transition:transform .15s;cursor:pointer}
+.mgp.blank{background:#f6f3ec;cursor:default}
+.mgp.sel{outline:3px solid #e2602a;outline-offset:-3px}
+.mgboard.won{gap:0}
+.mgboard.hint::after{content:"";position:absolute;inset:0;background:var(--hint) center/cover;z-index:2}
+.mgc{aspect-ratio:1;border:2px solid var(--line);border-radius:10px;background:var(--acc);color:#fff;font-size:24px;padding:0;cursor:pointer;overflow:hidden}
+.mgc.up{background:#eef4e8}
+.mgc.ok{border-color:var(--acc)}
+.mgc img{width:100%;height:100%;object-fit:contain}
+.mgwin{text-align:center}
+.plpace .chip.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+.plfold{position:absolute;right:8px;top:6px;padding:2px 9px;z-index:1}
+.plchoice{padding-right:34px}
+.plmini{display:flex;align-items:center;gap:8px}
+.plmini span{flex:1;font-size:14px}

@@ -56,13 +56,15 @@ export function route(g, from, to, used = null) {
 const destination = (p, bearingDeg, m) => { const b = bearingDeg * Math.PI / 180; return [p[0] + Math.cos(b) * m / mPerDegLat, p[1] + Math.sin(b) * m / mPerDegLon(p[0])]; };
 
 // Okruh přes body (uzly); vrací souřadnice, délku a podíl pěšin
-export function loopThrough(g, ids) {
-  const used = new Set(), out = [];
-  for (let i = 0; i < ids.length; i++) {
+export function loopThrough(g, ids, closed = true) {
+  const used = new Set(), out = [], cuts = [0];
+  if (ids.length < 2) return null;
+  for (let i = 0; i < (closed ? ids.length : ids.length - 1); i++) {
     const seg = route(g, ids[i], ids[(i + 1) % ids.length], used);
     if (!seg) return null;
     for (let j = 1; j < seg.length; j++) used.add(seg[j - 1] + '>' + seg[j]), used.add(seg[j] + '>' + seg[j - 1]);
     out.push(...(out.length ? seg.slice(1) : seg));
+    cuts.push(out.length - 1);
   }
   let len = 0, nice = 0, again = 0; const seen = new Set();
   for (let i = 1; i < out.length; i++) {
@@ -70,7 +72,7 @@ export function loopThrough(g, ids) {
     len += d; if (e && e[2]) nice += d;
     const k = a < b ? a + '_' + b : b + '_' + a; if (seen.has(k)) again += d; seen.add(k);
   }
-  return { coords: out.map(id => g.nodes.get(id)), len, nice: len ? nice / len : 0, again: len ? again / len : 0, ids };
+  return { coords: out.map(id => g.nodes.get(id)), len, nice: len ? nice / len : 0, again: len ? again / len : 0, ids, cuts, closed };
 }
 // Návrhy okruhů: trojúhelník start → P1 → P2 → start pro 12 směrů; skóre = délka, pěšiny, málo opakování, nálada
 export function suggestLoops(g, start, lengthM, score = () => 0, count = 3) {
@@ -152,8 +154,72 @@ export function plannerHTML(p, routes) {
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
 export const ROUTE_COLORS = ['#e2602a', '#7b4fd8', '#1f8fb0'];
-export function choiceHTML(loops, sel, kidsKmh) {
-  return `<div class="plchoice">${loops.map((L, i) => `<button class="chip${i === sel ? ' on' : ''}" data-act="plSel" data-i="${i}" style="border-color:${ROUTE_COLORS[i]}"><b style="color:${ROUTE_COLORS[i]}">●</b> ${(L.len / 1000).toFixed(1).replace('.', ',')} km · ${Math.round(L.len / 1000 / kidsKmh * 60)} min · ${Math.round(L.nice * 100)} % pěšin</button>`).join('')}</div>
-  <p class="msg small">Body trasy můžeš posunout prstem.</p>
+export function choiceHTML(loops, sel, info) {
+  const pr = info.prof, L = loops[sel], mins = L ? walkMinutes(L.len, pr ? pr.up : 0, pr ? pr.down : 0, info.kmh) : 0;
+  const eta = new Date(Date.now() + mins * 60000).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+  // sbalený panel: jen souhrn, ať je vidět mapa a jde přidávat body
+  if (info.mini && L) return `<div class="plmini"><span><b style="color:${ROUTE_COLORS[sel]}">●</b> ${(L.len / 1000).toFixed(1).replace('.', ',')} km · ${fmtMin(mins)}${pr ? ' · ↑ ' + pr.up + ' m' : ''}</span><button class="btn sm primary" data-act="plStart">Jít</button><button class="btn sm" data-act="plMini" aria-label="Rozbalit panel">▾</button></div>`;
+  return `<button class="btn sm plfold" data-act="plMini" aria-label="Sbalit panel">▴</button><div class="plchoice">${loops.map((L, i) => `<button class="chip${i === sel ? ' on' : ''}" data-act="plSel" data-i="${i}" style="border-color:${ROUTE_COLORS[i]}"><b style="color:${ROUTE_COLORS[i]}">●</b> ${(L.len / 1000).toFixed(1).replace('.', ',')} km · ${Math.round(L.nice * 100)} % pěšin${i === sel ? ' · ' + fmtMin(mins) : ''}</button>`).join('')}</div>
+  ${pr ? `<p class="msg small plsum">↑ ${pr.up} m · ↓ ${pr.down} m · nejvýš ${pr.max} m n. m. · příchod kolem ${eta}</p>${profileSVG(pr, info.mark)}` : ''}
+  <div class="chips plpace">${PACES.map(([v, n]) => `<button class="chip${Number(info.kmh) === v ? ' on' : ''}" data-act="plKmh" data-v="${v}">${n}</button>`).join('')}<label class="chip">vlastní <input type="number" id="plKmhIn" min="1" max="8" step="0.5" value="${info.kmh}" aria-label="Vlastní tempo v km/h"> km/h</label></div>
+  <p class="msg small">Body posuneš prstem, nový přidáš podržením prstu na čáře.</p>
+  <div class="tools"><button class="btn sm" data-act="plPoints">Body (${L ? L.ids.length : 0})</button><button class="btn sm" data-act="plClosed">Typ: ${L && L.closed ? 'okruh ↻' : 'do cíle →'}</button></div>
   <div class="tools"><button class="btn sm primary" data-act="plStart">Jít po trase</button><button class="btn sm" data-act="plSave">Uložit</button><button class="btn sm" data-act="plCancel">Zrušit</button></div>`;
+}
+
+/* ---------- úpravy trasy, profil a čas ---------- */
+// Kam vložit nový průchozí bod: za bod trasy, v jehož úseku leží nejbližší místo čáry
+export function viaIndex(L, p) {
+  let bi = 0, bd = Infinity;
+  L.coords.forEach((c, i) => { const d = dist(p, c); if (d < bd) { bd = d; bi = i; } });
+  let k = 0; while (k + 1 < L.cuts.length && L.cuts[k + 1] <= bi) k++;
+  return { at: Math.min(k + 1, L.ids.length), d: bd };
+}
+// Body podél trasy po stejných vzdálenostech (pro profil)
+export function samplesAlong(pts, n) {
+  const total = pathLength(pts), out = [[0, pts[0]]];
+  let i = 1, acc = 0;
+  for (let k = 1; k <= n; k++) {
+    const goal = total * k / n;
+    while (i < pts.length && acc + dist(pts[i - 1], pts[i]) < goal - 1e-6) { acc += dist(pts[i - 1], pts[i]); i++; }
+    if (i >= pts.length) { out.push([total, pts[pts.length - 1]]); continue; }
+    const d = dist(pts[i - 1], pts[i]), t = d ? (goal - acc) / d : 0;
+    out.push([goal, [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]]);
+  }
+  return out;
+}
+// Podélný profil: výšky ve vzorcích (null = dlaždice se načítá), stoupání a klesání s tolerancí 3 m proti šumu
+export function profile(pts, elevAt, n = 80) {
+  const s = samplesAlong(pts, n), h = s.map(([, p]) => { const v = elevAt(p[0], p[1]); return Number.isFinite(v) ? v : null; });
+  const known = h.filter(v => v != null);
+  let up = 0, down = 0, last = known.length ? known[0] : 0;
+  for (const v of known) { if (v - last >= 3) { up += v - last; last = v; } else if (last - v >= 3) { down += last - v; last = v; } }
+  return { d: s.map(x => x[0]), p: s.map(x => x[1]), h, up: Math.round(up), down: Math.round(down), min: known.length ? Math.min(...known) : 0, max: known.length ? Math.max(...known) : 0, ready: known.length === h.length };
+}
+// Čas chůze (min) jako u turistických značek: vodorovně tempem kmh, nahoru 300 m/h a dolů 500 m/h (pro tempo 4 km/h);
+// celkem = delší z obou + polovina kratšího
+export function walkMinutes(lenM, up, down, kmh) {
+  const k = Math.max(0.5, Number(kmh) || 4), th = lenM / 1000 / k, tv = up / (300 * k / 4) + down / (500 * k / 4);
+  return Math.round((Math.max(th, tv) + Math.min(th, tv) / 2) * 60);
+}
+export const fmtMin = m => m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min';
+export function profileSVG(pr, mark = -1) {
+  const W = 300, H = 64, total = pr.d[pr.d.length - 1] || 1, lo = pr.min - 5, span = Math.max(20, pr.max - lo + 5);
+  const pts = pr.h.map((v, i) => v == null ? null : [pr.d[i] / total * W, H - (v - lo) / span * (H - 4)]).filter(Boolean);
+  if (pts.length < 2) return '<div class="plprof empty">Výškový profil se načítá…</div>';
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+  const x = mark >= 0 ? (pr.d[mark] / total * W).toFixed(1) : null;
+  const m = x != null ? `<line x1="${x}" x2="${x}" y1="0" y2="${H}" stroke="#24301f" stroke-width="1.5" vector-effect="non-scaling-stroke"/>` : '';
+  return `<svg class="plprof" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-act="plProf" role="img" aria-label="Výškový profil trasy"><path d="${line}L${W} ${H}L0 ${H}Z" fill="#cfe3c4"/><path d="${line}" fill="none" stroke="#2f7d4f" stroke-width="2" vector-effect="non-scaling-stroke"/>${m}</svg>`;
+}
+export const PACES = [[2.5, '🧒 S dětmi'], [3.5, '🚶 Pohodově'], [5, '⚡ Svižně']];
+// Seznam bodů trasy: posun, smazání, název; čas k bodu podle podílu délky
+export function pointsHTML(L, names, minutes) {
+  const total = L.coords.length > 1 ? pathLength(L.coords) : 0;
+  const at = k => total ? Math.round(minutes * pathLength(L.coords.slice(0, L.cuts[k] + 1)) / total) : 0;
+  const n = L.ids.length;
+  return `<h2>Body trasy</h2><p class="msg small">${L.closed ? 'Okruh se vrací na start.' : 'Trasa končí v posledním bodě.'} Nový bod přidáš podržením prstu na čáře trasy.</p>
+  ${L.ids.map((id, k) => `<div class="quest"><span class="ptrow"><b>${k ? (!L.closed && k === n - 1 ? '🏁' : k) : '🚩'}</b><input type="text" maxlength="30" data-pt="${id}" value="${esc(names[id] || '')}" placeholder="${k ? 'Bod ' + k : 'Start'}" aria-label="Název bodu"><small>${k ? '+' + fmtMin(at(k)) : ''}</small></span>
+    <span>${k ? `<button class="btn sm" data-act="ptUp" data-k="${k}" aria-label="Posunout dřív"${k < 2 ? ' disabled' : ''}>↑</button> <button class="btn sm" data-act="ptDown" data-k="${k}" aria-label="Posunout později"${k === n - 1 ? ' disabled' : ''}>↓</button> <button class="btn sm ghost" data-act="ptDel" data-k="${k}" aria-label="Smazat bod"${n <= 2 ? ' disabled' : ''}>✕</button>` : ''}</span></div>`).join('')}
+  <button class="btn full ghost" data-act="close">Hotovo</button>`;
 }
