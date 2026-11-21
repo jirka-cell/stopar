@@ -475,3 +475,55 @@ test('každý druh mimo ptáky má vlastní kresbu bez chyb', async () => {
     assert.ok(v.startsWith('<svg') && v.endsWith('</svg>') && !/undefined|NaN/.test(v), s.id);
   }
 });
+
+test('úrovně: XP se přepočítá na úroveň a zbytek do další', async () => {
+  const { levelFor } = await import('../js/progress.js');
+  const G = { levelBase: 100, levelGrowth: 1.5 };
+  assert.deepEqual(levelFor(0, G), { level: 1, into: 0, need: 100 });
+  assert.deepEqual(levelFor(99, G), { level: 1, into: 99, need: 100 });
+  assert.deepEqual(levelFor(100, G), { level: 2, into: 0, need: 150 });
+  assert.deepEqual(levelFor(260, G), { level: 3, into: 10, need: 225 });
+  assert.equal(levelFor(1e6, { levelBase: 100, levelGrowth: 1 }).level, 99, 'strop úrovně');
+});
+
+test('úkoly: stejné pro všechny v daný den, nový den = nové úkoly, splnění se počítá jednou', async () => {
+  const { currentQuests, questEvent, cleanProgress } = await import('../js/progress.js');
+  const d1 = new Date(2026, 10, 21, 10), d2 = new Date(2026, 10, 22, 10);
+  const a = cleanProgress({}), b = cleanProgress({});
+  assert.deepEqual(currentQuests(DEFAULTS, a, d1).map(i => i.id), currentQuests(DEFAULTS, b, d1).map(i => i.id));
+  const ids1 = currentQuests(DEFAULTS, a, d1).map(i => i.id);
+  assert.equal(ids1.length, DEFAULTS.game.questsPerDay + DEFAULTS.game.questsPerWeek);
+  // týdenní úkoly zůstanou, denní se změní
+  const week1 = ids1.filter(id => id.startsWith('w_'));
+  const ids2 = currentQuests(DEFAULTS, a, d2).map(i => i.id);
+  assert.deepEqual(ids2.filter(id => id.startsWith('w_')), week1);
+  // splnění: úkol „Chyť 3 zvířata“ podstrčený napřímo
+  const st = cleanProgress({}); st.quests = { day: '2026-11-21', week: '2026-W47', items: [{ id: 'd_catch3', p: 0, done: false }, { id: 'd_bird', p: 0, done: false }] };
+  assert.equal(questEvent(DEFAULTS, st, { kind: 'catch', group: 'Savci', bio: 'les' }, d1).length, 0);
+  assert.deepEqual(questEvent(DEFAULTS, st, { kind: 'catch', group: 'Ptáci', bio: 'les' }, d1).map(t => t.id), ['d_bird']);
+  assert.deepEqual(questEvent(DEFAULTS, st, { kind: 'catch', group: 'Ptáci', bio: 'les' }, d1).map(t => t.id), ['d_catch3']);
+  assert.equal(questEvent(DEFAULTS, st, { kind: 'catch', group: 'Ptáci', bio: 'les' }, d1).length, 0, 'hotový úkol se znovu nepočítá');
+});
+
+test('odznaky a alba: získají se jednou při dosažení cíle', async () => {
+  const { checkBadges, cleanProgress, albumProgress } = await import('../js/progress.js');
+  const st = Object.assign(cleanProgress({}), { caught: { pustik: { count: 1 }, vyr: { count: 2 } } });
+  assert.deepEqual(albumProgress(DEFAULTS.albums.find(a => a.id === 'sovy'), st.caught), { have: 2, total: 3 });
+  assert.ok(!checkBadges(DEFAULTS, st, 1).some(b => b.id === 'alb_sovy'));
+  st.caught.sycek = { count: 1 }; st.counters.km = 5;
+  const got = checkBadges(DEFAULTS, st, 1).map(b => b.id);
+  assert.ok(got.includes('alb_sovy') && got.includes('km5'));
+  assert.equal(checkBadges(DEFAULTS, st, 1).length, 0, 'podruhé nic');
+});
+
+test('kvíz: správná odpověď je mezi třemi různými možnostmi a sedí s údaji druhu', async () => {
+  const { makeQuiz } = await import('../js/progress.js');
+  let n = 0;
+  for (const sp of DEFAULTS.species) {
+    const z = makeQuiz(sp, DEFAULTS.species);
+    if (!z) continue; n++;
+    assert.equal(z.answers.length, 3); assert.equal(new Set(z.answers).size, 3, sp.id);
+    assert.equal(z.answers[z.correct], sp.edu[z.field], sp.id);
+  }
+  assert.ok(n >= 90, 'kvíz jde skoro u všech druhů: ' + n);
+});

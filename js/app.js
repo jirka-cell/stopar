@@ -9,6 +9,7 @@ import { openAdmin, download } from './admin.js';
 import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
 import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
+import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz, profileHTML, unlockName } from './progress.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -32,7 +33,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return out;
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}));
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -47,7 +48,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return out;
+  return Object.assign(out, cleanProgress(s));
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -419,7 +420,7 @@ function onGPS(p) {
     if (lastGood) {
       const d = dist(lastGood.lat, lastGood.lon, lat, lon), dt = Math.max(1, (t - lastGood.t) / 1000);
       if (d >= cfg.gps.minStep) {
-        if (d / dt <= cfg.gps.maxSpeed) state.dist += d;
+        if (d / dt <= cfg.gps.maxSpeed) { state.dist += d; walked(d); }
         lastGood = { lat, lon, t };
       }
     } else lastGood = { lat, lon, t };
@@ -429,6 +430,14 @@ function onGPS(p) {
   if (first) { follow = true; if (map) map.jumpTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom) }); tick(); }
   hudGPS();
 }
+// Skutečná chůze (ne simulace): úkoly na vzdálenost, XP a šišky za každý celý km
+let walkBuf = 0;
+function walked(d) {
+  walkBuf += d;
+  if (walkBuf >= 50) { progressEvent({ kind: 'walk', n: Math.round(walkBuf) }); walkBuf = 0; }
+  while (state.dist / 1000 >= state.counters.km + 1) { state.counters.km++; gainXP(cfg.game.xpPerKm); onKm(); progressEvent({ kind: 'km' }); }
+}
+function onKm() {}
 function onGPSErr(e) {
   const m = e.code === 1 ? 'Poloha je zakázaná. Povol ji v nastavení prohlížeče pro tuto stránku.' : e.code === 3 ? 'Čekám na signál GPS…' : 'Polohu se nepodařilo zjistit.';
   banner(m);
@@ -482,7 +491,7 @@ function refreshBirds() {
     const m = markers.get(b.id);
     if (!m) {
       const el = document.createElement('div');
-      el.className = 'bmk' + (near ? '' : ' far');
+      el.className = 'bmk' + (near ? '' : ' far') + (speciesLocked(sp) ? ' locked' : '');
       el.innerHTML = `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`;
       el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
@@ -517,7 +526,13 @@ function hudGPS() {
 
 /* ---------- UI ---------- */
 let tT = 0;
-function toast(m) { const el = $('toast'); el.textContent = m; el.classList.add('on'); clearTimeout(tT); tT = setTimeout(() => el.classList.remove('on'), 2800); }
+// Zprávy jdou po sobě (úkol, odznak a úroveň můžou přijít naráz)
+const toastQ = [];
+function toast(m) { toastQ.push(m); if (toastQ.length === 1) showToast(); }
+function showToast() {
+  const el = $('toast'); el.textContent = toastQ[0]; el.classList.add('on');
+  clearTimeout(tT); tT = setTimeout(() => { el.classList.remove('on'); toastQ.shift(); if (toastQ.length) setTimeout(showToast, 250); }, 2600);
+}
 function banner(m, btn) {
   const b = $('banner');
   if (!m) { b.hidden = true; return; }
@@ -549,6 +564,7 @@ function bindUI() {
   $('compassBtn').onclick = toggleCompass;
   $('lookBtn').onclick = openLook;
   $('menuBtn').onclick = openMenu;
+  $('lvlBtn').onclick = openProfile; hudLevel();
   $('logo').addEventListener('click', () => {
     clearTimeout(logoT); logoTaps++;
     logoT = setTimeout(() => { logoTaps = 0; }, 1500);
@@ -573,6 +589,7 @@ function tapBird(id) {
   const b = birds.find(x => x.id === id);
   if (!b) return;
   const d = dist(pos.lat, pos.lon, b.lat, b.lon);
+  if (speciesLocked(SP[b.sp])) { toast('Neznámé zvíře. Poznáš ho od úrovně ' + levelNeeded(cfg.game.rarityLevel, String(SP[b.sp].rarity)) + '.'); return; }
   if (d > cfg.catch.radius) { toast('Je to ' + Math.round(d) + ' m. Dojdi blíž (do ' + cfg.catch.radius + ' m).'); if (cfg.general.simulation) simTarget = { lat: b.lat, lon: b.lon }; return; }
   enc = { b, sp: SP[b.sp], step: 'food', tries: 0, shots: 0, msg: 'Čím ho nalákáš?' };
   renderEnc();
@@ -607,6 +624,7 @@ function renderEnc() {
     openM(`<div class="encimg">${birdImg(sp)}</div>${enc.isNew ? '<p class="newsp">Nový druh v atlasu!</p>' : ''}<h2>${esc(sp.name)}</h2><div class="sub">${esc(sp.lat)}</div>
     <p class="msg">Ostrost fotky ${enc.q} %. Úlovek č. ${c.count}.</p>${statsHTML(enc.stats)}
     <p class="msg small">${addedMsg(sp)}</p>
+    ${enc.uid && !enc.quizDone && makeQuiz(sp, cfg.species) ? `<button class="btn full" data-act="quizRead">Kvíz o tomto zvířeti (+bonus)</button>` : ''}
     <button class="btn primary full" data-act="close">Pokračovat</button><button class="btn full" data-act="atlas">Do atlasu</button>`);
   } else if (enc.step === 'fled') {
     openM(`<div class="encimg" style="opacity:.4">${birdImg(sp)}</div><h2>${esc(sp.name)}</h2><p class="msg">${esc(enc.msg)}</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
@@ -614,12 +632,66 @@ function renderEnc() {
 }
 // Kolik jedinců druhu smí hráč mít (roste s úrovní hráče, strop v adminu)
 function maxPerSpecies() { const G = cfg.game; return Math.max(1, Math.min(G.maxCap, G.maxBase + G.maxPerLevel * (playerLevel() - 1))); }
-function playerLevel() { return 1; }
+function playerLevel() { return levelFor(state.xp, cfg.game).level; }
+// Zamčené funkce a vzácnosti podle úrovně hráče
+const unlocked = k => playerLevel() >= levelNeeded(cfg.game.unlocks, k);
+const speciesLocked = sp => playerLevel() < levelNeeded(cfg.game.rarityLevel, String(sp.rarity));
+// Přidá XP; při nové úrovni ohlásí, co se odemklo
+function gainXP(n) {
+  if (!(n > 0)) return;
+  const before = playerLevel();
+  state.xp += n;
+  const after = playerLevel();
+  if (after > before) {
+    const opened = Object.entries(Object.assign({}, ...[cfg.game.unlocks, cfg.game.rarityLevel].map((m, i) => Object.fromEntries(Object.entries(parseMap(m)).map(([k, v]) => [i ? 'vzacnost' + k : k, v])))))
+      .filter(([, l]) => l > before && l <= after).map(([k]) => unlockName(cfg, k));
+    toast('Úroveň ' + after + '!' + (opened.length ? ' Odemčeno: ' + opened.join(', ') + '.' : ''));
+    clearMarkers(); refreshBirds();
+  }
+  hudLevel();
+}
+// Herní událost: posune úkoly, ohlásí splněné úkoly a nové odznaky
+function progressEvent(ev) {
+  for (const t of questEvent(cfg, state, ev)) { gainXP(Number(t.xp) || 0); addCones(Number(t.cones) || 0); toast('Úkol splněn: ' + t.name + ' (+' + (Number(t.xp) || 0) + ' XP' + (Number(t.cones) ? ', +' + t.cones + ' šišek' : '') + ')'); }
+  for (let i = 0; i < 5; i++) { // odznak dá XP, to může dát úroveň a další odznak
+    const got = checkBadges(cfg, state, playerLevel());
+    if (!got.length) break;
+    for (const b of got) { toast('Nový odznak: ' + b.icon + ' ' + b.name); gainXP(Number(cfg.game.xpBadge) || 0); }
+  }
+  saveState();
+}
+function addCones(n) { if (n > 0) state.cones += n; }
+function hudLevel() { const b = $('lvlBtn'); if (!b) return; const lv = levelFor(state.xp, cfg.game); b.textContent = 'Úr. ' + lv.level; b.style.setProperty('--p', Math.round(lv.into / lv.need * 100) + '%'); }
+function openProfile() { openM(profileHTML(cfg, state, levelFor(state.xp, cfg.game))); }
 function addedMsg(sp) {
   const e = enclosureOf(cfg, sp.group), a = enc.added || {};
   if (a.released) return `Máš už ${maxPerSpecies()} silnějších kusů, tenhle jsi pustil zpátky do přírody.`;
   if (a.replaced) return `Nahradil slabší kus v ubikaci ${e.icon} ${e.name}.`;
   return `Nový jedinec v ubikaci ${e.icon} ${e.name}.`;
+}
+// Kvíz: nejdřív základní údaje, pak se zavřou a přijde otázka abc
+function quizRead() {
+  const sp = enc.sp, e = sp.edu || {};
+  const row = (k, l) => e[k] ? `<div class="kv"><span>${l}:</span> ${esc(e[k])}</div>` : '';
+  enc.quiz = makeQuiz(sp, cfg.species);
+  openM(`<h2>${esc(sp.name)}</h2><div class="sub">${esc(sp.lat)}</div><div class="fact">${esc(sp.fact)}</div>
+  ${row('family', 'Čeleď')}${row('length', 'Velikost')}${row('diet', 'Potrava')}${row('migration', 'V zimě')}${row('breedTime', 'Rozmnožování')}
+  <p class="msg small">Přečti si to pozorně – potom přijde otázka.</p><button class="btn primary full" data-act="quizGo">Mám přečteno</button>`);
+}
+function quizAsk() {
+  const z = enc.quiz; if (!z) return;
+  openM(`<h2>Kvíz: ${esc(enc.sp.name)}</h2><p class="msg">${esc(z.q)}</p><div class="answers">${z.answers.map((a, i) => `<button class="btn full" data-act="quizAns" data-i="${i}">${'ABC'[i]}) ${esc(a)}</button>`).join('')}</div>`);
+}
+function quizAnswer(i) {
+  const z = enc.quiz; if (!z || enc.quizDone) return;
+  enc.quizDone = true;
+  const ok = i === z.correct, a = state.animals.find(x => x.uid === enc.uid);
+  if (ok) {
+    if (a) a.stats = a.stats.map(v => Math.min(cfg.catch.maxStat, v + Number(cfg.game.quizBonus || 0)));
+    state.counters.quiz++; gainXP(cfg.game.xpQuiz); progressEvent({ kind: 'quiz' });
+  }
+  openM(`<h2>${ok ? 'Správně!' : 'Tentokrát ne'}</h2><p class="msg">${ok ? `Jedinec dostal +${cfg.game.quizBonus} ke všem vlastnostem.` : 'Správná odpověď: ' + esc(z.answers[z.correct])}</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
+  saveState();
 }
 function photoAnim() {
   if (!enc || enc.step !== 'photo') return;
@@ -661,8 +733,14 @@ function doCatch(q) {
   enc.better = !c.best || sum(st) > sum(c.best.stats);
   if (enc.better) c.best = { q, stats: st, date: Date.now(), lat: enc.b.lat, lon: enc.b.lon, bio: enc.b.bio };
   enc.q = q; enc.stats = st;
-  enc.added = addAnimal(state, animalFrom(sp.id, st, q, enc.b.bio), maxPerSpecies());
+  const animal = animalFrom(sp.id, st, q, enc.b.bio);
+  enc.added = addAnimal(state, animal, maxPerSpecies());
+  enc.uid = enc.added.kept ? animal.uid : null;
   gone(); enc.step = 'done'; renderEnc();
+  state.counters.catches++; if (enc.isNew) state.counters.newSpecies++;
+  gainXP(cfg.game.xpCatch + (enc.isNew ? cfg.game.xpNew : 0));
+  progressEvent({ kind: 'catch', group: sp.group, bio: enc.b.bio });
+  if (enc.isNew) progressEvent({ kind: 'newSpecies' });
 }
 
 function onModalClick(e) {
@@ -694,6 +772,10 @@ function onModalClick(e) {
   else if (act === 'clMark') { (checklist.items[a.dataset.id] ||= {}).m = a.dataset.v; saveChecklist(); openChecklist(); }
   else if (act === 'clSend') sendChecklist();
   else if (act === 'nick') saveNick(a.dataset.uid);
+  else if (act === 'quizRead' && enc) quizRead();
+  else if (act === 'quizGo' && enc) quizAsk();
+  else if (act === 'quizAns' && enc) quizAnswer(Number(a.dataset.i));
+  else if (act === 'profile') openProfile();
   else if (act.startsWith('look')) onLookClick(act, a);
 }
 function onModalChange(e) {
@@ -809,7 +891,7 @@ async function addRealPhoto(id, file) {
     let c = state.caught[id];
     if (!c) { c = { count: 0, best: null, verified: false, photos: [] }; state.caught[id] = c; }
     if (!c.count) { c.count = 1; c.best = { q: 100, stats: spStats(sp), date: Date.now() }; addAnimal(state, animalFrom(id, c.best.stats, 100, ''), maxPerSpecies()); }
-    if (!c.verified) { c.verified = true; c.best.stats = c.best.stats.map(v => Math.min(cfg.catch.maxStat, v + cfg.catch.realPhotoBonus)); }
+    if (!c.verified) { c.verified = true; c.best.stats = c.best.stats.map(v => Math.min(cfg.catch.maxStat, v + cfg.catch.realPhotoBonus)); state.counters.verified++; gainXP(cfg.game.xpVerified); progressEvent({ kind: 'photo' }); }
     c.photos = [pid, ...(c.photos || [])];
     saveState(); renderAtlas(); openDetail(id); toast(sp.name + ': fotka uložena.');
   } catch (e) { toast('Fotku se nepodařilo uložit.'); }

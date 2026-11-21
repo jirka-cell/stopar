@@ -192,8 +192,58 @@ export const DEFAULTS = {
   game: {
     maxBase: 5,             // kolik jedinců druhu smí mít hráč na 1. úrovni
     maxPerLevel: 1,         // + kolik za každou další úroveň
-    maxCap: 30              // strop jedinců jednoho druhu
+    maxCap: 30,             // strop jedinců jednoho druhu
+    levelBase: 100,         // XP na 2. úroveň
+    levelGrowth: 1.4,       // každá další úroveň potřebuje tolikrát víc XP
+    xpCatch: 10, xpNew: 50, xpVerified: 30, xpPerKm: 20, xpQuiz: 10, xpBadge: 25,
+    rarityLevel: '2:3, 3:6',  // vzácnost:úroveň – od které úrovně jde vzácnější zvíře chytit (do té doby silueta)
+    unlocks: 'release:2, shop:2, train:3, contests:3, evolve:4, hide:5', // funkce:úroveň
+    questsPerDay: 3, questsPerWeek: 2,
+    quizBonus: 3            // kolik bodů přidá správná odpověď v kvízu ke všem vlastnostem jedince
   },
+  // Odznaky: kind = species | catches | km | verified | quiz | level | stamps | released | evolved | album (album = id alba)
+  badges: [
+    { id: 'druhy5', name: '5 druhů', icon: '🌱', kind: 'species', value: 5, album: '' },
+    { id: 'druhy25', name: '25 druhů', icon: '🌿', kind: 'species', value: 25, album: '' },
+    { id: 'druhy50', name: '50 druhů', icon: '🌳', kind: 'species', value: 50, album: '' },
+    { id: 'druhy100', name: 'Všech 100', icon: '🏆', kind: 'species', value: 100, album: '' },
+    { id: 'ulovky10', name: '10 úlovků', icon: '📸', kind: 'catches', value: 10, album: '' },
+    { id: 'ulovky100', name: '100 úlovků', icon: '🎞️', kind: 'catches', value: 100, album: '' },
+    { id: 'km5', name: '5 km', icon: '👟', kind: 'km', value: 5, album: '' },
+    { id: 'km25', name: '25 km', icon: '🥾', kind: 'km', value: 25, album: '' },
+    { id: 'km100', name: '100 km', icon: '🗺️', kind: 'km', value: 100, album: '' },
+    { id: 'foto3', name: '3 skutečné fotky', icon: '📷', kind: 'verified', value: 3, album: '' },
+    { id: 'kviz10', name: '10 správných odpovědí', icon: '🧠', kind: 'quiz', value: 10, album: '' },
+    { id: 'uroven5', name: 'Úroveň 5', icon: '⭐', kind: 'level', value: 5, album: '' },
+    { id: 'uroven10', name: 'Úroveň 10', icon: '🌟', kind: 'level', value: 10, album: '' },
+    { id: 'alb_sovy', name: 'Album Sovy', icon: '🦉', kind: 'album', value: 1, album: 'sovy' },
+    { id: 'alb_voda', name: 'Album U vody', icon: '💧', kind: 'album', value: 1, album: 'voda' },
+    { id: 'alb_noc', name: 'Album Noční zvířata', icon: '🌙', kind: 'album', value: 1, album: 'noc' }
+  ],
+  // Sběratelská alba: id druhů oddělená čárkou
+  albums: [
+    { id: 'sovy', name: 'Sovy', icon: '🦉', species: 'pustik, vyr, sycek' },
+    { id: 'datli', name: 'Datlovití', icon: '🪵', species: 'datel, strakapoud, zluna' },
+    { id: 'dravci', name: 'Dravci', icon: '🦅', species: 'kane, postolka, krahujec, jestrab' },
+    { id: 'voda', name: 'U vody', icon: '💧', species: 'kachna, volavka, lednacek, labut, lyska, kormoran, potapka, bobr, vydra, kapr, stika, pstruh, okoun, lin, sumec' },
+    { id: 'zaby', name: 'Obojživelníci', icon: '🐸', species: 'skokan, ropucha, rosnicka, colek, mlok, kunka, ropuchazelena, skokanzeleny' },
+    { id: 'hmyz', name: 'Hmyz', icon: '🦋', species: 'babocka, cmelak, rohac, slunecko, vazka, otakarek, mravenec, chroust' },
+    { id: 'noc', name: 'Noční zvířata', icon: '🌙', species: 'pustik, jezek, netopyr, vyr, jezevec, kuna, bobr, rak, vydra, plch, ropuchazelena, sycek, mysice, tchor, sumec' }
+  ],
+  // Šablony úkolů: period day | week; kind catch | catchGroup (param = skupina) | catchBio (param = biotop) | newSpecies | walk (count v m) | photo | quiz
+  quests: [
+    { id: 'd_catch3', name: 'Chyť 3 zvířata', period: 'day', kind: 'catch', param: '', count: 3, xp: 30, cones: 20 },
+    { id: 'd_bird', name: 'Chyť ptáka', period: 'day', kind: 'catchGroup', param: 'Ptáci', count: 1, xp: 20, cones: 10 },
+    { id: 'd_mammal', name: 'Chyť savce', period: 'day', kind: 'catchGroup', param: 'Savci', count: 1, xp: 25, cones: 15 },
+    { id: 'd_water', name: 'Chyť zvíře u vody', period: 'day', kind: 'catchBio', param: 'voda', count: 1, xp: 25, cones: 15 },
+    { id: 'd_forest', name: 'Chyť zvíře v lese', period: 'day', kind: 'catchBio', param: 'les', count: 1, xp: 20, cones: 10 },
+    { id: 'd_walk1', name: 'Ujdi 1 km', period: 'day', kind: 'walk', param: '', count: 1000, xp: 25, cones: 20 },
+    { id: 'd_quiz', name: 'Správně odpověz v kvízu', period: 'day', kind: 'quiz', param: '', count: 1, xp: 15, cones: 10 },
+    { id: 'w_new', name: 'Objev 3 nové druhy', period: 'week', kind: 'newSpecies', param: '', count: 3, xp: 120, cones: 80 },
+    { id: 'w_walk5', name: 'Ujdi 5 km', period: 'week', kind: 'walk', param: '', count: 5000, xp: 100, cones: 80 },
+    { id: 'w_catch15', name: 'Chyť 15 zvířat', period: 'week', kind: 'catch', param: '', count: 15, xp: 100, cones: 60 },
+    { id: 'w_photo', name: 'Vyfoť skutečné zvíře', period: 'week', kind: 'photo', param: '', count: 1, xp: 80, cones: 50 }
+  ],
 };
 
 // Popis polí pro admin (generický formulář). [klíč, popisek, typ, volby]
@@ -295,7 +345,16 @@ export const SCHEMA = [
   { sec: 'game', title: 'Herní vrstva', fields: [
     ['maxBase', 'Jedinců druhu na 1. úrovni', 'number', { min: 1, max: 100, step: 1 }],
     ['maxPerLevel', 'Jedinců druhu navíc za úroveň', 'number', { min: 0, max: 10, step: 1 }],
-    ['maxCap', 'Strop jedinců druhu', 'number', { min: 1, max: 200, step: 1 }]
+    ['maxCap', 'Strop jedinců druhu', 'number', { min: 1, max: 200, step: 1 }],
+    ['levelBase', 'XP na 2. úroveň', 'number', { min: 10, max: 10000, step: 10 }],
+    ['levelGrowth', 'Růst XP na další úroveň (×)', 'number', { min: 1, max: 3, step: 0.05 }],
+    ['xpCatch', 'XP za úlovek', 'number', { min: 0, step: 1 }], ['xpNew', 'XP za nový druh', 'number', { min: 0, step: 1 }],
+    ['xpVerified', 'XP za skutečnou fotku', 'number', { min: 0, step: 1 }], ['xpPerKm', 'XP za 1 km chůze', 'number', { min: 0, step: 1 }],
+    ['xpQuiz', 'XP za správnou odpověď', 'number', { min: 0, step: 1 }], ['xpBadge', 'XP za odznak', 'number', { min: 0, step: 1 }],
+    ['rarityLevel', 'Vzácnost odemčená od úrovně (vzácnost:úroveň, …)', 'text'],
+    ['unlocks', 'Funkce od úrovně (funkce:úroveň, …)', 'text'],
+    ['questsPerDay', 'Denních úkolů', 'number', { min: 0, max: 10, step: 1 }], ['questsPerWeek', 'Týdenních úkolů', 'number', { min: 0, max: 10, step: 1 }],
+    ['quizBonus', 'Bonus za kvíz ke všem vlastnostem', 'number', { min: 0, max: 50, step: 1 }]
   ] }
 ];
 
@@ -325,6 +384,20 @@ export const LISTS = [
   { sec: 'rarities', title: 'Vzácnosti', label: o => o.id + ' – ' + o.name, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text'], ['weight', 'Váha spawnu', 'number', { min: 0, step: 0.01 }]] },
   { sec: 'rarityGame', title: 'Foto minihra podle vzácnosti', label: o => 'Vzácnost ' + o.id, fields: [['id', 'ID vzácnosti', 'text'], ['zone', 'Šířka zelené zóny (0–1)', 'number', { min: 0.02, max: 1, step: 0.01 }], ['speed', 'Rychlost značky', 'number', { min: 0.1, max: 20, step: 0.1 }]] },
   { sec: 'stats', title: 'Statistiky', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
+  { sec: 'badges', title: 'Odznaky', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'],
+    ['kind', 'Co se počítá', 'select', { options: [['species', 'druhy'], ['catches', 'úlovky'], ['km', 'km chůze'], ['verified', 'skutečné fotky'], ['quiz', 'správné odpovědi'], ['level', 'úroveň'], ['stamps', 'razítka'], ['released', 'vypuštěná zvířata'], ['evolved', 'vývoj zvířat'], ['album', 'hotové album']] }],
+    ['value', 'Kolik', 'number', { min: 1, step: 1 }], ['album', 'Album (id, jen u „hotové album“)', 'text']
+  ] },
+  { sec: 'albums', title: 'Sběratelská alba', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['species', 'Druhy (id oddělená čárkou)', 'textarea']
+  ] },
+  { sec: 'quests', title: 'Úkoly (šablony)', label: o => (o.period === 'week' ? '📅 ' : '☀️ ') + (o.name || o.id), fields: [
+    ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['period', 'Období', 'select', { options: [['day', 'denní'], ['week', 'týdenní']] }],
+    ['kind', 'Co splnit', 'select', { options: [['catch', 'chytit zvíře'], ['catchGroup', 'chytit ze skupiny'], ['catchBio', 'chytit v biotopu'], ['newSpecies', 'nový druh'], ['walk', 'ujít (m)'], ['photo', 'skutečná fotka'], ['quiz', 'správná odpověď v kvízu']] }],
+    ['param', 'Skupina nebo biotop (id)', 'text'], ['count', 'Kolik', 'number', { min: 1, step: 1 }],
+    ['xp', 'Odměna XP', 'number', { min: 0, step: 1 }], ['cones', 'Odměna šišky', 'number', { min: 0, step: 1 }]
+  ] },
   { sec: 'enclosures', title: 'Ubikace ve sbírce', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['groups', 'Skupiny (oddělené čárkou)', 'text']
   ] }
@@ -401,7 +474,7 @@ export function presetLayers(p) {
 }
 
 // Seznamy s id: ukládají se jen změny proti výchozím položkám, nové výchozí položky z aktualizací se doplní
-export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures'];
+export const ID_LISTS = ['species', 'biotopes', 'foods', 'rarities', 'rarityGame', 'stats', 'regions', 'enclosures', 'badges', 'albums', 'quests'];
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
