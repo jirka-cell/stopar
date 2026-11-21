@@ -1427,6 +1427,8 @@ function onModalClick(e) {
   else if (act === 'evAccept' && pendingEvent) { state.events = state.events.filter(e => e.id !== pendingEvent.id).concat(pendingEvent); pendingEvent = null; saveState(); closeM(); toast('Událost přidána – najdeš ji v profilu (tlačítko Úr.).'); }
   else if (act === 'card') shareCard($('animalActs')?.dataset.uid);
   else if (act === 'contests') openContests();
+  else if (act === 'toAtlas') { closeM(); show('atlasv'); openDetail(a.dataset.sp); }
+  else if (act === 'toCollection') { const sp = SP[a.dataset.sp]; closeM(); if (sp) colView.enc = enclosureOf(cfg, sp.group).id; colView.sort = 'species'; show('sbirkav'); }
   else if (act === 'planner') openPlanner();
   else if (act === 'trip') shareTrip();
   else if (act === 'family') openFamily();
@@ -1558,6 +1560,8 @@ async function openDetail(id) {
   } else {
     h += `<p class="msg">Ještě ho nemáš. Hledej: ${Object.keys(parseMap(sp.bio)).map(b => esc(String(BIO[b]?.name || b).toLowerCase())).join(', ')}${altHint(sp)}${sp.night ? ' (jen v noci)' : ''}.</p>`;
   }
+  const mine = state.animals.filter(x => x.sp === id).length;
+  if (mine) h += `<button class="btn full" data-act="toCollection" data-sp="${esc(id)}">Ve sbírce (${mine})</button>`;
   h += `<label class="btn primary full">Vyfotil jsem ho venku<input type="file" accept="image/*" capture="environment" data-real="${esc(id)}" hidden></label>
   <p class="msg small">Skutečná fotka dá jednorázově +${cfg.catch.realPhotoBonus} ke všem statistikám. Druh zatím určuješ ty.</p>
   <button class="btn full" data-act="close">Zavřít</button>`;
@@ -1606,6 +1610,7 @@ function openAnimal(uid) {
   <p class="msg small" id="nickErr"></p>
   <div id="animalActs" data-uid="${esc(uid)}">${animalActionsHTML(cfg, state, a, sp, can)}</div>
   <button class="btn full" data-act="card">Sdílet kartu (bez polohy)</button>
+  <button class="btn full" data-act="toAtlas" data-sp="${esc(a.sp)}">V atlasu: ${esc(sp.name)}</button>
   <button class="btn full" data-act="close">Zavřít</button>`);
 }
 function animalAct(act, uid, item) {
