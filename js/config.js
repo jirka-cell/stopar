@@ -8,7 +8,9 @@ import { BATCH3 } from './species-batch3.js';
 import { BATCH4 } from './species-batch4.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 4;
+export const CONFIG_VERSION = 5;
+// Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
+const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
 // Text do HTML: znaky, které by šlo zneužít k vložení kódu, se nahradí
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -21,7 +23,8 @@ export const DEFAULTS = {
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
-    testerFab: true,        // plovoucí tlačítko kontrolního seznamu pro testery (vpravo dole)
+    testerFab: true,
+    dataMonitor: true,      // ukazatel stahovaných dat v rohu mapy (ladění; v ostrém vydání vypnout)        // plovoucí tlačítko kontrolního seznamu pro testery (vpravo dole)
     monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
@@ -63,7 +66,7 @@ export const DEFAULTS = {
     highAccuracy: true
   },
   map: {
-    style: 'auto',          // auto = herní den/noc podle slunce, jinak hra | noc | data | papir | bio
+    style: 'papir',         // auto = herní den/noc podle slunce, jinak hra | noc | data | papir | bio
     compass: true,          // tlačítko režimu kompasu (mapa se otáčí podle telefonu)
     quickLook: true,        // tlačítko „Vzhled“ na mapě (rychlé přepínání bez PINu)
     vectorUrl: 'https://tiles.openfreemap.org/planet',
@@ -84,25 +87,13 @@ export const DEFAULTS = {
   layers: {                 // volitelné vrstvy mapy
     roadNames: true, waterNames: false, parkNames: false, places: true,
     poiShop: false, poiFood: false, poiTransport: false, poiEdu: false, poiHealth: false, poiTourism: false, poiParking: false, poiNames: false,
-    paths: true, rail: false, peaks: false, protected: false, landDetail: false,
-    hillshade: false, contours: false, biotopes: false,
-    buildings: 'flat',      // off | flat | 3d
-    trHiking: false, trCycling: false, trMtb: false, trSkating: false, trRiding: false, trSlopes: false
+    paths: true, rail: false, peaks: true, protected: true, landDetail: false,
+    hillshade: false, contours: true, biotopes: false,
+    buildings: '3d',        // off | flat | 3d
+    trHiking: true, trCycling: true, trMtb: false, trSkating: false, trRiding: false, trSlopes: false
   },
   // Uložené předvolby vzhledu (styl + vrstvy); vrstvy, které předvolba neuvádí, jsou vypnuté
-  mapPresets: [
-    { name: 'Úsporný', style: 'auto', layers: { places: true, paths: true, buildings: 'off' } },
-    { name: 'Výlet', style: 'auto', layers: { places: true, paths: true, peaks: true, protected: true, waterNames: true, contours: true, hillshade: true, trHiking: true, buildings: 'flat' } },
-    { name: 'Město', style: 'data', layers: { roadNames: true, places: true, paths: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiNames: true, buildings: 'flat' } },
-    { name: 'Les a hory', style: 'auto', layers: { places: true, paths: true, hillshade: true, contours: true, peaks: true, protected: true, trHiking: true, buildings: 'flat' } },
-    { name: 'Hledání zvířat', style: 'bio', layers: { places: true, paths: true, biotopes: true, waterNames: true, parkNames: true, buildings: 'flat' } },
-    { name: 'U vody', style: 'auto', layers: { places: true, paths: true, waterNames: true, biotopes: true, protected: true, buildings: 'flat' } },
-    { name: 'Na kole', style: 'auto', layers: { roadNames: true, places: true, paths: true, trCycling: true, trMtb: true, buildings: 'flat' } },
-    { name: 'Naučná procházka', style: 'papir', layers: { places: true, paths: true, trHiking: true, protected: true, parkNames: true, poiTourism: true, poiNames: true, peaks: true, buildings: 'flat' } },
-    { name: 'Zima', style: 'auto', layers: { places: true, paths: true, trSlopes: true, hillshade: true, contours: true, peaks: true, buildings: 'flat' } },
-    { name: 'Papírová mapa', style: 'papir', layers: { places: true, paths: true, contours: true, hillshade: true, peaks: true, waterNames: true, trHiking: true, buildings: 'flat' } },
-    { name: 'Maximum', style: 'data', layers: { roadNames: true, waterNames: true, parkNames: true, places: true, poiShop: true, poiFood: true, poiTransport: true, poiEdu: true, poiHealth: true, poiTourism: true, poiParking: true, poiNames: true, paths: true, rail: true, peaks: true, protected: true, landDetail: true, hillshade: true, contours: true, trHiking: true, trCycling: true, buildings: '3d' } }
-  ],
+  mapPresets: [],           // vestavěné předvolby odebrány (záloha v outputs/predvolby-zaloha.txt)
   osm: {
     // servery Overpass, jeden na řádek; při výpadku se automaticky zkusí další
     overpassUrl: 'https://overpass-api.de/api/interpreter\nhttps://overpass.private.coffee/api/interpreter\nhttps://overpass.kumi.systems/api/interpreter',
@@ -368,6 +359,7 @@ export const SCHEMA = [
     ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
     ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
     ['testerFab', 'Tlačítko kontrolního seznamu pro testery (vpravo dole)', 'bool'],
+    ['dataMonitor', 'Ukazatel stahovaných dat v rohu mapy', 'bool'],
     ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
@@ -760,6 +752,8 @@ export function mergeDefaults(cfg) {
     return m;
   });
   delete out.listsKnown; delete out.speciesKnown;
+  // Verze 4 → 5: vestavěné předvolby pryč, vlastní zůstanou
+  if (!(Number(cfg.version) >= 5)) out.mapPresets = out.mapPresets.filter(p => !(p && OLD_PRESETS.has(p.name)));
   // Verze 2 → 3: doplnit nové výchozí předvolby vzhledu (vlastní předvolby zůstanou)
   if (!(Number(cfg.version) >= 3) && Array.isArray(cfg.mapPresets)) {
     const names = new Set(out.mapPresets.map(p => p && p.name));

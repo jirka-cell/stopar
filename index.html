@@ -33,9 +33,18 @@
         <div class="pill" id="hdist">0,0 km</div>
       </div>
       <div class="banner" id="banner" hidden></div>
-      <button class="fab fab3" id="lookBtn" aria-label="Vzhled mapy" hidden>Vzhled</button>
-      <button class="fab fab2" id="compassBtn" aria-label="Režim kompasu" hidden>Kompas</button>
-      <button class="fab" id="centerBtn" aria-label="Vycentrovat">Na mě</button>
+      <div class="netmon" id="netmon" role="button" tabindex="0" aria-label="Stahovaná data" hidden></div>
+      <div class="tools" id="tools">
+        <button class="tool" data-tool="tester" id="clFab" hidden><span data-ic="tester"></span><b>Testeři</b></button>
+        <button class="tool" data-tool="data"><span data-ic="data"></span><b>Data</b></button>
+        <button class="tool" data-tool="offline"><span data-ic="offline"></span><b>Offline</b></button>
+        <button class="tool" data-tool="measure"><span data-ic="measure"></span><b>Měřit</b></button>
+        <button class="tool" id="lookBtn" hidden><span data-ic="layers"></span><b>Vrstvy</b></button>
+        <button class="tool" id="compassBtn" hidden><span data-ic="compass"></span><b>Kompas</b></button>
+      </div>
+      <button class="recenter" id="centerBtn" aria-label="Vycentrovat na mě"><span data-ic="center"></span> Na mě</button>
+      <div class="cards" id="cards" aria-live="polite"></div>
+      <button class="dial" id="dialBtn" aria-label="Otevřít nabídku" aria-expanded="false"><span data-ic="dial"></span></button>
       <div class="legend" id="legend"></div>
       <div class="plpanel" id="plpanel" hidden></div>
       <div class="mute" id="mute" aria-live="polite"><b>👀 Zastav se a rozhlédni se</b><span>Zvířata se ukážou, až zastavíš. Vibrace ti dá vědět, že je něco blízko.</span></div>
@@ -43,14 +52,16 @@
     </section>
     <section class="view" id="atlasv"></section>
     <section class="view" id="sbirkav"></section>
+    <section class="view" id="jav"></section>
     <section class="view" id="adminv"></section>
-    <button class="clfab" id="clFab" aria-label="Kontrolní seznam pro testery" hidden>📋</button>
     <div id="toast" role="status"></div>
   </main>
-  <nav>
-    <button class="on" data-v="mapv">Mapa</button>
-    <button data-v="atlasv">Atlas</button>
-    <button data-v="sbirkav">Sbírka</button>
+  <nav id="nav">
+    <button class="on" data-v="mapv"><span data-ic="map"></span>Mapa</button>
+    <button data-v="sbirkav"><span data-ic="collection"></span>Sbírka</button>
+    <button class="act" id="actBtn" aria-label="Akce"><i id="actIc"></i><span id="actLbl">Plánovat</span></button>
+    <button data-v="atlasv"><span data-ic="atlas"></span>Atlas</button>
+    <button data-v="jav"><span data-ic="me"></span>Já</button>
   </nav>
   <div id="modal"><div id="mbox"></div></div>
 </div>

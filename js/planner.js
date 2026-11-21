@@ -223,3 +223,15 @@ export function pointsHTML(L, names, minutes) {
     <span>${k ? `<button class="btn sm" data-act="ptUp" data-k="${k}" aria-label="Posunout dřív"${k < 2 ? ' disabled' : ''}>↑</button> <button class="btn sm" data-act="ptDown" data-k="${k}" aria-label="Posunout později"${k === n - 1 ? ' disabled' : ''}>↓</button> <button class="btn sm ghost" data-act="ptDel" data-k="${k}" aria-label="Smazat bod"${n <= 2 ? ' disabled' : ''}>✕</button>` : ''}</span></div>`).join('')}
   <button class="btn full ghost" data-act="close">Hotovo</button>`;
 }
+// Průběh po trase: kolik metrů od startu je místo nejblíž hráči (kolmý průmět na úseky) a jak daleko je od trasy
+export function progressAlong(pts, p) {
+  let acc = 0, best = { along: 0, off: Infinity };
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], d = dist(a, b);
+    const k = mPerDegLon(a[0]), bx = (b[1] - a[1]) * k, by = (b[0] - a[0]) * mPerDegLat, px = (p[1] - a[1]) * k, py = (p[0] - a[0]) * mPerDegLat;
+    const t = bx || by ? Math.max(0, Math.min(1, (px * bx + py * by) / (bx * bx + by * by))) : 0, off = Math.hypot(px - t * bx, py - t * by);
+    if (off < best.off) best = { along: acc + t * d, off };
+    acc += d;
+  }
+  return { along: best.along, off: best.off, total: acc };
+}

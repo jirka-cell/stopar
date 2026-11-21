@@ -131,11 +131,15 @@ export function makeStyle(id, o, ctx) {
   add({ id: 'peak', type: 'symbol', source: 'om', 'source-layer': 'mountain_peak', layout: { ...vis(o.peaks), 'text-field': ['concat', '▲ ', ['coalesce', ['get', 'name'], ''], ' ', ['to-string', ['coalesce', ['get', 'ele'], '']], ' m'], 'text-font': FONT, 'text-size': 11 }, paint: txt({ 'text-color': '#7a4b2a' }) });
   add({ id: 'place', type: 'symbol', source: 'om', 'source-layer': 'place', filter: cls(['city', 'town', 'village', 'suburb', 'quarter', 'neighbourhood']), layout: { ...vis(o.places), 'text-field': ['get', 'name'], 'text-font': FONT_B, 'text-size': ['match', ['get', 'class'], ['city', 'town'], 15, 12] }, paint: txt() });
 
+  // Poloha hráče jako vrstva mapy: na nakloněné mapě se kreslí ve správné perspektivě (i na kraji obrazovky)
+  add({ id: 'me-halo', type: 'circle', source: 'me', paint: { 'circle-radius': 16, 'circle-color': '#2f7d4f', 'circle-opacity': .18, 'circle-pitch-alignment': 'map' } });
+  add({ id: 'me-dot', type: 'circle', source: 'me', paint: { 'circle-radius': 9, 'circle-color': '#2f7d4f', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3, 'circle-pitch-alignment': 'map' } });
   const sources = {
     om: { type: 'vector', url: ctx.vectorUrl, attribution: ctx.attribution || '' },
     range: { type: 'geojson', data: g.range || EMPTY },
     acc: { type: 'geojson', data: g.acc || EMPTY },
     catch: { type: 'geojson', data: g.catch || EMPTY },
+    me: { type: 'geojson', data: g.me || EMPTY },
     biodebug: { type: 'geojson', data: g.bio || EMPTY }
   };
   if (ctx.demUrl) sources.dem = { type: 'raster-dem', tiles: [ctx.demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 13, attribution: 'Terén: Mapzen/AWS Terrain Tiles' };

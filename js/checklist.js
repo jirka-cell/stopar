@@ -20,6 +20,7 @@ export const CHECKS = [
   ['offline', 'Offline režim', 'Zapni režim letadlo na už prošlém místě. Funguje mapa, biotopy a atlas? Co se stane na novém místě?'],
   ['backup', 'Záloha a obnova', 'Menu → Uložit zálohu, pak Obnovit ze zálohy. Vrátí se úlovky i fotky? Chce obnova rodičovský PIN?'],
   ['wipe', 'Rodičovský PIN a smazání dat', 'Menu → Rodičovský PIN: nastav a změň PIN. Smazat všechna moje data se špatným PINem nesmí nic smazat, se správným smaže vše a ukáže znovu úvodní souhlas.'],
+  ['ui', 'Nový vzhled', 'Na mapě je běžně jen Aegon a tlačítko ✚. Ťukni na ✚: vysune se lišta (Mapa, Sbírka, akce, Atlas, Já) a nástroje. Velké tlačítko uprostřed: u zvířete Chytit, na trase Trasa, jinak Plánovat; podržením rychlé akce. Karty nad mapou (trasa, krmítko, bájný tvor) jdou schovat ✕. Najdeš vše v záložce Já?'],
   ['planner', 'Plánovač procházky', 'Menu → Naplánovat procházku: najdi místo (mapa se má přesunout a ukázat 🚩), navrhni trasy. Posuň bod prstem, podržením prstu na čáře přidej nový bod, zkus Body (pořadí, smazání, názvy), Okruh/Do cíle, tempo a profil (ťukni do něj). Sedí čas a převýšení?'],
   ['follow', 'Mapa se vrací na mě', 'Posuň mapu a 20 s se jí nedotýkej – vrátí se na tebe. Při plánování trasy a s otevřeným oknem se vracet nesmí.'],
   ['gifts', 'Odměny na trase a poklady', 'Vyraz po trase s odměnami: 🎁 i 💎 poklady musí při posouvání a oddalování mapy zůstat na svém místě. Sebere se odměna, když k ní dojdeš?'],

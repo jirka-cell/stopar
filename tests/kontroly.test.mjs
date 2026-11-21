@@ -111,7 +111,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 4);
+  assert.equal(m.version, 5);
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
   assert.equal(m.map.attribution, DEFAULTS.map.attribution);
   assert.equal(m.map.tileCacheMax, DEFAULTS.map.tileCacheMax);
@@ -193,14 +193,15 @@ test('druhy: nové výchozí se doplní, smazané výchozí se nevrátí, vlastn
   for (const s of DEFAULTS.species) for (const [k] of EDU_FIELDS) assert.ok(k in s.edu, `${s.id} nemá pole ${k}`);
 });
 
-test('verze 2 → 3: doplní nové výchozí předvolby vzhledu, vlastní zůstanou', () => {
-  const m = mergeDefaults({ version: 2, mapPresets: [{ name: 'Moje', style: 'hra', layers: { contours: true } }, { name: 'Úsporný', style: 'auto', layers: {} }] });
-  const names = m.mapPresets.map(p => p.name);
-  assert.ok(names.includes('Moje'));
-  assert.ok(names.includes('Les a hory') && names.includes('Maximum'));
-  assert.equal(names.filter(n => n === 'Úsporný').length, 1);
-  const again = mergeDefaults({ ...m, mapPresets: m.mapPresets.filter(p => p.name !== 'Zima') });
-  assert.ok(!again.mapPresets.some(p => p.name === 'Zima'), 'smazaná předvolba se ve verzi 3 nevrátí');
+test('verze 4 → 5: vestavěné předvolby vzhledu se odeberou, vlastní zůstanou; výchozí vzhled Papír a akvarel', () => {
+  const m = mergeDefaults({ version: 4, mapPresets: [{ name: 'Moje', style: 'hra', layers: { contours: true } }, { name: 'Úsporný', style: 'auto', layers: {} }, { name: 'Les a hory', style: 'auto', layers: {} }] });
+  assert.deepEqual(m.mapPresets.map(p => p.name), ['Moje']);
+  const again = mergeDefaults({ ...m, mapPresets: [...m.mapPresets, { name: 'Výlet', style: 'papir', layers: {} }] });
+  assert.equal(again.mapPresets.length, 2, 've verzi 5 si předvolbu se starým názvem jde znovu vytvořit');
+  const d = mergeDefaults(null);
+  assert.equal(d.map.style, 'papir'); assert.equal(d.layers.buildings, '3d');
+  assert.ok(d.layers.contours && d.layers.trHiking && d.layers.trCycling && d.layers.peaks && d.layers.protected && d.layers.roadNames);
+  assert.ok(!d.layers.hillshade && !d.layers.biotopes && !d.layers.poiShop);
 });
 
 test('výška z dlaždic Terrarium: dekódování a výpočet pixelu', async () => {
@@ -406,11 +407,11 @@ test('kontrolní seznam: text výsledku obsahuje všechny body a poznámky', asy
   const { CHECKS, checklistText, emptyChecklist } = await import('../js/checklist.js');
   const d = emptyChecklist(); d.name = 'Anička'; d.device = 'iPhone'; d.items.gps = { m: 'bad', n: 'skáče o 50 m' };
   const t = checklistText(d, 'info');
-  assert.equal(CHECKS.length, 25);
+  assert.equal(CHECKS.length, 26);
   assert.ok(t.includes('Anička · zařízení: iPhone'));
   assert.ok(t.includes('GPS a poloha: Problém'));
   assert.ok(t.includes('skáče o 50 m'));
-  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 25);
+  assert.equal(t.split('\n').filter(l => /^\d+\. /.test(l)).length, 26);
 });
 
 test('verze aplikace sedí se service workerem a SW ukládá všechny moduly', async () => {
@@ -947,4 +948,36 @@ test('biotopy: první se stahuje čtverec pod hráčem, po přesunu zase nejbli�
     assert.ok(inBox(boxes[1], 50.2455, 12.8955), 'po přesunu jde na řadu čtverec pod novou polohou');
     assert.ok(boxes.length > 3, 'po prvním úspěchu se stahuje víc najednou');
   } finally { globalThis.fetch = realFetch; }
+});
+
+test('správa dat: přírůstky z průběžných součtů, nový start SW, historie po sekundách a dnešní součet', async () => {
+  const D = await import('../js/datamon.js');
+  const m = D.createMeter();
+  D.ingest(m, { map: { bytes: 1000, req: 2, hit: 1, saved: 500 } });
+  const d = D.ingest(m, { map: { bytes: 3000, req: 3, hit: 1, saved: 500 }, osm: { bytes: 200, req: 1, hit: 0, saved: 0 } });
+  assert.equal(d.map.bytes, 2000); assert.equal(m.session.map.bytes, 3000);
+  D.ingest(m, { map: { bytes: 400, req: 1, hit: 0, saved: 0 } }); // SW se uspal a počítá od nuly
+  assert.equal(m.session.map.bytes, 3400, 'po novém startu SW se nic neztratí ani nezdvojí');
+  assert.equal(D.tickMeter(m), 3600); assert.equal(D.tickMeter(m), 0);
+  assert.equal(m.hist.length, 60); assert.equal(m.hist.at(-2), 3600); assert.equal(m.quiet, 1);
+  let day = D.addDay(null, '2026-11-21', d); day = D.addDay(day, '2026-11-21', d);
+  assert.equal(day.cats.map.bytes, 4000);
+  assert.equal(D.addDay(day, '2026-11-22', d).cats.map.bytes, 2000, 'nový den od nuly');
+  assert.equal(D.cleanDay({ day: 'x', cats: { map: { bytes: -5 }, zlo: { bytes: 1 } } }).cats.map.bytes, 0);
+  assert.deepEqual(Object.keys(D.cleanDay({ day: 'x', cats: { zlo: {} } }).cats), []);
+  assert.equal(D.fmtBytes(1536), '1,5 kB'); assert.equal(D.fmtBytes(5 * 1048576), '5,0 MB');
+});
+
+test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od trasy; ikony mají náhradní emoji', async () => {
+  const P = await import('../js/planner.js');
+  const pts = [[50, 14], [50, 14.01], [50.01, 14.01]];
+  const a = P.progressAlong(pts, [50.0001, 14.005]);
+  assert.ok(Math.abs(a.along - P.dist([50, 14], [50, 14.005])) < 2, 'polovina prvního úseku');
+  assert.ok(a.off > 5 && a.off < 20);
+  const b = P.progressAlong(pts, [50.005, 14.0101]);
+  assert.ok(b.along > P.dist([50, 14], [50, 14.01]), 'už na druhém úseku');
+  assert.ok(Math.abs(a.total - P.pathLength(pts)) < 1e-6);
+  const I = await import('../js/icons.js');
+  assert.match(I.ic('map'), /class="ic ic-map"/); assert.match(I.ic('neznama'), /•/);
+  I.ICON_FILES.add('atlas'); assert.match(I.ic('atlas'), /icons\/ui\/atlas\.svg/); I.ICON_FILES.delete('atlas');
 });

@@ -1,13 +1,13 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v3.2.0';
+const VERSION = 'stopar-v3.3.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
 const META = 'stopar-meta';
-const OFFLINE = 'stopar-offline';   // stažené oblasti (offline mapy) – nepromazává se        // drobná nastavení SW, která musí přežít jeho uspání prohlížečem
+const OFFLINE = 'stopar-offline';   // stažené oblasti (offline mapy) – nepromazává se
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/planner.js', 'js/offline.js', 'js/extras.js', 'js/minigames.js',
+  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/planner.js', 'js/offline.js', 'js/extras.js', 'js/minigames.js', 'js/datamon.js', 'js/icons.js',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];
@@ -40,8 +40,9 @@ const isTileJson = url => url.hostname === 'tiles.openfreemap.org' && /^\/planet
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // dotazy na Overpass (POST) a ostatní cizí služby jen změřit, nic neukládat
+  if (req.method !== 'GET') { if (url.origin !== location.origin) e.respondWith(fetch(req).then(r => countNet(url, r))); return; }
 
   // Ukázky v design/ nejsou součást aplikace: vždy čerstvé ze sítě, nic se neukládá
   if (url.origin === location.origin && url.pathname.includes('/design/')) return;
@@ -52,9 +53,9 @@ self.addEventListener('fetch', e => {
     e.respondWith(caches.open(name).then(async c => {
       await tileMaxReady;
       const hit = await c.match(req) || await (await caches.open(OFFLINE)).match(req);
-      if (hit) return hit;
+      if (hit) return countHit(url, hit);
       try {
-        const res = await fetch(req);
+        const res = countNet(url, await fetch(req));
         if (res.ok && (name === STATIC || tileMax > 0)) { c.put(req, res.clone()).then(() => name === TILES && trim(c)); }
         return res;
       } catch (err) {
@@ -68,7 +69,7 @@ self.addEventListener('fetch', e => {
   if (isTileJson(url)) {
     e.respondWith(caches.open(STATIC).then(async c => {
       try {
-        const res = await fetch(req);
+        const res = countNet(url, await fetch(req));
         if (res.ok) c.put(req, res.clone());
         return res;
       } catch (err) {
@@ -82,7 +83,7 @@ self.addEventListener('fetch', e => {
   if (url.origin === location.origin) {
     e.respondWith(caches.open(SHELL).then(async c => {
       try {
-        const res = await Promise.race([fetch(req, { cache: 'no-cache' }), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))]);
+        const res = countNet(url, await Promise.race([fetch(req, { cache: 'no-cache' }), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))]));
         if (res.ok) c.put(req, res.clone());
         return res;
       } catch (err) {
@@ -90,8 +91,34 @@ self.addEventListener('fetch', e => {
         return hit || (req.mode === 'navigate' ? c.match('index.html') : Response.error());
       }
     }));
+    return;
   }
+  // ostatní cizí služby (počasí, Wikipedie, hledání…): beze změny, jen změřit
+  e.respondWith(fetch(req).then(r => countNet(url, r)));
 });
+
+/* ---------- měření dat (správa dat v aplikaci) ---------- */
+const CATS = [['openfreemap', 'map'], ['elevation-tiles', 'dem'], ['amazonaws', 'dem'], ['overpass', 'osm'], ['waymarked', 'trails'], ['api.met.no', 'weather'], ['wikipedia', 'wiki'], ['nominatim', 'search']];
+const catOf = url => url.origin === location.origin ? 'app' : ((CATS.find(([h]) => url.hostname.includes(h)) || [, 'other'])[1]);
+const net = {}; let netTimer = 0;
+const bump = (cat, k, v) => { const c = net[cat] || (net[cat] = { bytes: 0, req: 0, hit: 0, saved: 0 }); c[k] += v; if (!netTimer) netTimer = setTimeout(flushNet, 1000); };
+async function flushNet() {
+  netTimer = 0;
+  const msg = { type: 'net', stats: net };
+  for (const cl of await self.clients.matchAll({ type: 'window' })) cl.postMessage(msg);
+}
+const lenOf = r => Number(r.headers.get('content-length')) || 0;
+// Ze sítě: velikost z hlavičky (komprimovaná), jinak se změří kopie odpovědi
+function countNet(url, res) {
+  try {
+    const cat = catOf(url), n = lenOf(res);
+    bump(cat, 'req', 1);
+    if (n) bump(cat, 'bytes', n);
+    else if (res.type !== 'opaque' && res.body) res.clone().blob().then(b => bump(cat, 'bytes', b.size)).catch(() => {});
+  } catch (e) {}
+  return res;
+}
+const countHit = (url, res) => { try { const cat = catOf(url); bump(cat, 'hit', 1); bump(cat, 'saved', lenOf(res)); } catch (e) {} return res; };
 
 let trimming = false;
 async function trim(c) {
