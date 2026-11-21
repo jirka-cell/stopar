@@ -3,7 +3,7 @@
 // Pole, sad a záhon dávají krmivo, pamlsky a návnady do batohu. Kapacitu zvířat určují příbytky a spižírna.
 // Nic se nekazí a nic se neztrácí, když hra týden neběží (jen se naplní sklad).
 import { esc } from './config.js';
-import { canPlace } from './farm3d.js';
+import { canPlace, tileType, neighbors } from './farm3d.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 export const RES = { wood: ['🪵', 'Dřevo'], stone: ['🪨', 'Kámen'], seeds: ['🌱', 'Semínka'] };
@@ -37,7 +37,7 @@ export const canAfford = (f, c, cones) => f.res.wood >= c.wood && f.res.stone >=
 export function newFarm(encIds, need = 5, now = Date.now(), seed = 1 + Math.floor(Math.random() * 99999)) {
   const lv = Object.fromEntries(BUILDINGS.map(b => [b.id, 0]));
   for (const id of encIds) lv['enc_' + id] = 0;
-  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {} };
+  return { t: now, res: { wood: 40, stone: 20, seeds: 10 }, lv, build: null, auto: true, frac: {}, walk: 0, made: {}, pos: {}, moved: 0, seed, guests: {}, deeds: {}, tiles: {}, roads: [] };
 }
 export const isEmpty = f => Object.values(f.lv).every(v => !v) && !f.build;
 export function cleanFarm(f, encIds) {
@@ -53,14 +53,39 @@ export function cleanFarm(f, encIds) {
   out.seed = Math.max(1, Math.round(num(f.seed, 1 + (Math.round(num(f.t)) % 99991))));
   out.guests = Object.fromEntries(Object.entries(f.guests || {}).map(([k, v]) => [String(k).slice(0, 30), (Array.isArray(v) ? v : []).map(String).slice(0, 8)]));
   out.guestDay = String(f.guestDay || '').slice(0, 10);
+  out.tiles = Object.fromEntries(Object.entries(f.tiles && typeof f.tiles === 'object' ? f.tiles : {}).filter(([k, v]) => /^-?\d+,-?\d+$/.test(k) && TILE_TYPES.includes(v)).slice(0, 200));
+  out.roads = (Array.isArray(f.roads) ? f.roads : []).filter(k => typeof k === 'string' && /^-?\d+,-?\d+\|-?\d+,-?\d+$/.test(k)).slice(0, 400);
   out.breedDay = String(f.breedDay || '').slice(0, 10);
   out.deeds = Object.fromEntries(Object.entries(f.deeds || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, num(v))]));
   out.made = Object.fromEntries(Object.entries(f.made || {}).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.round(num(v)))]));
   return out;
 }
 
+/* ---------- políčka farmy ---------- */
+export const TILE_TYPES = ['meadow', 'field', 'forest', 'pond'];
+export const TILE_INFO = { meadow: ['🌼', 'Louka', {}], field: ['🌾', 'Pole', { seeds: 5 }], forest: ['🌲', 'Les', { seeds: 4, wood: 2 }], pond: ['💧', 'Rybníček', { stone: 8 }] };
+// Bonus okolí: každé sousední políčko vhodného typu = +10 % výroby budovy
+export const BONUS_TILE = { lumber: 'forest', field: 'field', orchard: 'field', worms: 'meadow', nursery: 'meadow', quarry: '', enc_rybnik: 'pond' };
+export function farmBonus(f, W) {
+  const out = {};
+  for (const [id, p] of Object.entries(f.pos)) { const want = BONUS_TILE[id]; if (!want) continue; const n = neighbors(...p).filter(([q, r]) => !Object.values(f.pos).some(x => x[0] === q && x[1] === r) && tileType(W, f.tiles, q, r) === want).length; out[id] = 1 + 0.1 * n; }
+  return out;
+}
+export function setTile(f, W, q, r, type) {
+  const k = q + ',' + r, c = (W.cells || W).get(k);
+  if (!c || c.t === 'yard' || !TILE_TYPES.includes(type)) return { err: 'Tohle políčko upravit nejde.' };
+  if (Object.values(f.pos).some(p => p[0] === q && p[1] === r)) return { err: 'Na políčku stojí budova.' };
+  if (tileType(W, f.tiles, q, r) === type) return { err: 'Už je to ' + TILE_INFO[type][1].toLowerCase() + '.' };
+  const cost = TILE_INFO[type][2];
+  if (Object.entries(cost).some(([res, n]) => f.res[res] < n)) return { err: 'Chybí suroviny.' };
+  Object.entries(cost).forEach(([res, n]) => { f.res[res] -= n; });
+  if (c.t === type) delete f.tiles[k]; else f.tiles[k] = type;
+  return {};
+}
+export function toggleRoad(f, key) { const i = f.roads.indexOf(key); if (i >= 0) f.roads.splice(i, 1); else if (f.roads.length < 400) f.roads.push(key); return i < 0; }
+
 // Posun času: dokončení stavby, pasivní výroba (strop skladu), pěstování do batohu; vrací, co přibylo do batohu
-export function advance(f, now, inv) {
+export function advance(f, now, inv, bonus = {}) {
   const got = {};
   if (f.build && now >= f.build.until) { f.lv[f.build.id] = (f.lv[f.build.id] || 0) + 1; got.built = f.build.id; f.build = null; }
   const h = Math.max(0, Math.min(72, (now - f.t) / 3600000)); f.t = now;
@@ -68,9 +93,10 @@ export function advance(f, now, inv) {
   const cap = storeCap(f);
   for (const b of BUILDINGS) {
     const lv = f.lv[b.id] || 0; if (!lv) continue;
-    if (b.kind === 'res') f.res[b.res] = Math.min(cap, f.res[b.res] + b.rate * lv * h);
+    const m = bonus[b.id] || 1;
+    if (b.kind === 'res') f.res[b.res] = Math.min(cap, f.res[b.res] + b.rate * lv * m * h);
     if (b.kind === 'item') {
-      let x = (f.frac[b.id] || 0) + b.rate * lv * h;
+      let x = (f.frac[b.id] || 0) + b.rate * lv * m * h;
       while (x >= 1) {
         const use = b.use || {};
         if (Object.entries(use).some(([r, n]) => f.res[r] < n)) { x = Math.min(x, 1); break; } // bez semínek se čeká, nic se neztratí

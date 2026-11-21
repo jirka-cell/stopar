@@ -1,5 +1,5 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v3.7.0';
+const VERSION = 'stopar-v3.8.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
