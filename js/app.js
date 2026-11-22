@@ -1573,7 +1573,7 @@ function bindUI() {
   document.querySelectorAll('nav button[data-kid]').forEach(b => b.addEventListener('click', () => { if (b.dataset.kid === 'games') openGames(); }));
   $('lvlBtn').onclick = openProfile; hudLevel();
   $('coneBtn').onclick = openShop; hudCones();
-  $('hbio').addEventListener('click', openProtected);
+  $('hbio').addEventListener('click', () => { const err = errorAt(pos.lat, pos.lon); if (err && !protectedAt(pos.lat, pos.lon)) toast('⚠️ Mapová data okolí se teď nedaří stáhnout (' + err + '). Zvířata se zatím ukazují ze všech biotopů, stahování se samo zkouší znovu.'); else openProtected(); });
   $('plpanel').addEventListener('click', onModalClick);
   $('clFab').addEventListener('click', () => openChecklist(true));
   $('plpanel').addEventListener('change', e => { if (e.target.id === 'plKmhIn') { const v = Number(e.target.value); if (v >= 1 && v <= 8) { prefs.kmh = v; savePrefs(); } showPlanPanel(); } });

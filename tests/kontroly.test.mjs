@@ -29,10 +29,12 @@ test('chycený pták (gone) se znovu neukáže a noční druh je jen v noci', ()
   assert.ok(!den.birds.some(b => b.sp === 'pustik'), 've dne nesmí být puštík');
 });
 
-test('bez načtených biotopů hlásí čekání místo ptáků', () => {
+test('bez načtených biotopů se zatím ukážou zvířata ze všech biotopů (dočasná id) a hlásí čekání', () => {
   const r = visibleBirds(DEFAULTS, 50.2306, 12.8711, false, {}, NOW, () => null);
-  assert.equal(r.birds.length, 0);
+  assert.ok(r.birds.length > 0 && r.birds.every(b => b.id.endsWith('_p') && b.bio === '' && b.sp));
   assert.ok(r.pending > 0);
+  const ok = visibleBirds(DEFAULTS, 50.2306, 12.8711, false, {}, NOW, lesVsude);
+  assert.ok(!ok.birds.some(b => b.id.endsWith('_p')), 'po načtení jiná id → zvířata se vymění');
 });
 
 test('parseOverpass čte plochy, toky a multipolygon s dírou', () => {
@@ -228,7 +230,7 @@ test('rozmisťování podle výškových pásem a regionů', () => {
   assert.ok(high.every(b => b.zone === 'hory'));
   assert.ok(!high.some(b => b.sp === 'cizinec'), 'druh z jiného regionu se neobjeví');
   const wait = run(() => null);
-  assert.equal(wait.birds.length, 0); assert.ok(wait.pending > 0, 'výška se načítá → zvířata počkají');
+  assert.ok(wait.pending > 0 && wait.birds.some(b => b.sp === 'horak'), 'výška se načítá → zatím bez pásem');
   assert.ok(run(() => NaN).birds.some(b => b.sp === 'horak'), 'bez výšky se pásma ignorují');
   assert.deepEqual(run(() => 1000), run(() => 1000), 'stále deterministické');
 });

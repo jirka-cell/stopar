@@ -50,20 +50,21 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
     const blat = by / ky, blon = bx / kx;
     const d = dist(lat, lon, blat, blon);
     if (d > r || d < S.minDistance) continue;
-    const id = cx + '_' + cy + '_' + slot;
+    let id = cx + '_' + cy + '_' + slot;
+    let bio = bioAt(blat, blon);
+    // biotop se ještě načítá: zatím zvíře z jakéhokoli biotopu (vlastní id → po načtení se vymění za správné)
+    if (bio === null) { pending++; bio = ''; id += '_p'; }
     if (gone[id]) continue;
-    const bio = bioAt(blat, blon);
-    if (bio === null) { pending++; continue; }
-    const alt = zones.length ? altAt(blat, blon) : NaN;
-    if (alt === null) { pending++; continue; }
+    let alt = zones.length ? altAt(blat, blon) : NaN;
+    if (alt === null) { pending++; alt = NaN; }
     if (opts.allow && !opts.allow(blat, blon)) continue;
     const zone = Number.isNaN(alt) ? null : zoneFor(alt, zones);
-    const myth = opts.myth ? opts.myth(bio, zone, hash01(S.seed, cx, cy, slot, 11)) : '';
+    const myth = bio && opts.myth ? opts.myth(bio, zone, hash01(S.seed, cx, cy, slot, 11)) : '';
     if (myth) { out.push({ id, sp: '', myth, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d, variant: '', track: false }); continue; }
     let tot = 0;
     const cand = [];
     sps.forEach((s, i) => {
-      let w = (spBio[i][bio] || 0) * (rw[String(s.rarity)] ?? 1);
+      let w = (bio ? spBio[i][bio] || 0 : 1) * (rw[String(s.rarity)] ?? 1);
       // výšková pásma: prázdné = všude; neznámá výška = bez omezení
       if (zone && Object.keys(spAlt[i]).length) w *= spAlt[i][zone] || 0;
       if (s.night && !night) w = opts.twilight ? w * 0.5 : 0;
@@ -82,7 +83,7 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
 }
 
 // Verze algoritmu rozmisťování – zvýšit při každé změně, která mění, kde a jaká zvířata se objeví
-export const SPAWN_ALGO = 5;
+export const SPAWN_ALGO = 6;
 
 // Krátký kód z nastavení, které ovlivňuje rozmístění. Stejný kód = stejná zvířata na stejném místě.
 export function spawnCode(cfg) {
