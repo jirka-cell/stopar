@@ -99,7 +99,7 @@ export class Dog {
     if (pose !== this.cur) {
       const both = FRONT.includes(this.cur) && FRONT.includes(pose) && DOG_IMAGES.has(src);
       if (both && this.img.src) { // plynulé prolnutí mezi snímky vsedě, bez poskočení
-        let prev = this.el.querySelector('img.prev'); if (!prev) { prev = document.createElement('img'); prev.className = 'prev'; prev.alt = ''; prev.draggable = false; this.el.insertBefore(prev, this.img.nextSibling); }
+        let prev = this.el.querySelector('img.dogfade'); if (!prev) { prev = document.createElement('img'); prev.className = 'dogfade'; prev.alt = ''; prev.draggable = false; this.el.insertBefore(prev, this.img.nextSibling); }
         prev.style.transition = 'none'; prev.src = this.img.src; prev.style.transform = getComputedStyle(this.img).transform; prev.style.opacity = '1'; void prev.offsetWidth; prev.style.transition = ''; prev.style.opacity = '0';
       } else { this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop'); }
       this.cur = pose; this.img.src = dogURL(src);
