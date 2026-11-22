@@ -268,6 +268,23 @@ const TCOL = { yard: 0xd9c79a, meadow: 0x9fd06f, field: 0xe3bf4a, forest: 0x6aa5
 
 export async function mountFarm(el, items, onPick, opts = {}) {
   const THREE = await import('../vendor/three/three.module.min.js');
+  // volné 3D modely (CC0: Quaternius, Kenney – models/farm/LICENCE.txt); když se nenačtou, zůstanou tvary z kódu
+  const GLB = {};
+  try {
+    const { GLTFLoader } = await import('../vendor/three/addons/loaders/GLTFLoader.js'), ld = new GLTFLoader();
+    await Promise.all(['barn', 'small-barn', 'storage-shed', 'sawmill', 'minecart', 'windmill-a', 'well', 'bench', 'hay', 'house-b', 'house-c', 'train-front', 'train-wagon', 'truck', 'boat']
+      .map(n => ld.loadAsync(new URL('../models/farm/' + n + '.glb', import.meta.url).href).then(g => { GLB[n] = g.scene; }, () => {})));
+  } catch (e) { /* bez modelů */ }
+  // kopie modelu: delší strana půdorysu = size (long: delší strana podél osy z), stojí na zemi, střed v počátku
+  const glb = (n, size, long = false) => {
+    if (!GLB[n]) return null;
+    const o = GLB[n].clone(), b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3());
+    if (long && sz.x > sz.z) o.rotation.y = Math.PI / 2;
+    o.scale.setScalar(size / Math.max(sz.x, sz.z)); b.setFromObject(o);
+    o.position.set(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+    o.traverse(m => { if (m.isMesh) m.castShadow = m.receiveShadow = true; });
+    const g = new THREE.Group(); g.add(o); return g;
+  };
   const W = opts.rail ? opts.world : { ...opts.world, H: opts.world.Hn || opts.world.H }, tiles = opts.tiles || {}, roads = new Set(opts.roads || []), pos = opts.pos || {};
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -411,9 +428,9 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   }
   // vláček (lokomotiva + 2 vagony) jede z okraje na okraj a znovu
   const cars = [];
-  [[0xc0392b, 0.62], [0x2f7d4f, 0.55], [0xe0a82e, 0.55]].forEach(([c, l], i) => { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, l), mat(c)); b.position.y = 0.24; b.castShadow = true; g.add(b); if (!i) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), mat(0x2b2b2b)); ch.position.set(0, 0.48, 0.18); g.add(ch); } cars.push(g); scene.add(g); });
+  [[0xc0392b, 0.62], [0x2f7d4f, 0.55], [0xe0a82e, 0.55]].forEach(([c, l], i) => { const m3 = glb(i ? 'train-wagon' : 'train-front', l, true); if (m3) { m3.userData.glb = true; cars.push(m3); scene.add(m3); return; } const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, l), mat(c)); b.position.y = 0.24; b.castShadow = true; g.add(b); if (!i) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8), mat(0x2b2b2b)); ch.position.set(0, 0.48, 0.18); g.add(ch); } cars.push(g); scene.add(g); });
   if (!opts.rail) cars.forEach(c => { c.visible = false; });
-  cars.slice(1).forEach(c => { for (const dz of [-0.13, 0.13]) { const cr = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.22), mat(0xb98a4e)); cr.position.set(0, 0.49, dz); cr.castShadow = true; c.add(cr); } });
+  cars.slice(1).forEach(c => { if (c.userData.glb) return; for (const dz of [-0.13, 0.13]) { const cr = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.22), mat(0xb98a4e)); cr.position.set(0, 0.49, dz); cr.castShadow = true; c.add(cr); } });
   const railLen = []; let acc = 0; R.forEach((p, i) => { if (i) acc += Math.hypot(p[0] - R[i - 1][0], p[1] - R[i - 1][1]); railLen.push(acc); });
   const railAt = s => { s = Math.max(0, Math.min(acc, s)); let i = 1; while (i < railLen.length - 1 && railLen[i] < s) i++; const seg = railLen[i] - railLen[i - 1] || 1, t = (s - railLen[i - 1]) / seg, [ax, az] = R[i - 1], [bx, bz] = R[i], x = ax + (bx - ax) * t, z = az + (bz - az) * t; return [x, PR[i - 1] + (PR[i] - PR[i - 1]) * t, z, Math.atan2(bx - ax, bz - az), Math.atan2(PR[i - 1] - PR[i], seg)]; };
   let trainS = 0;
@@ -449,7 +466,7 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   const pathAt = (pts, L, d) => { d = Math.max(0, Math.min(L[L.length - 1], d)); let i = 1; while (i < L.length - 1 && L[i] < d) i++; const t = (d - L[i - 1]) / (L[i] - L[i - 1] || 1), [ax, az] = pts[i - 1], [bx, bz] = pts[i]; return [ax + (bx - ax) * t, az + (bz - az) * t, Math.atan2(bx - ax, bz - az)]; };
   // loďka pluje po řece tam a zpět (pod mosty proplouvá)
   const boat = new THREE.Group(), rivL = pathLen(W.river);
-  { const hull = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.55), mat(0x8a5a32)); hull.position.y = 0.04; const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.4, 4), mat(0x5a3a22)); mast.position.y = 0.26; const sail = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 3), mat(0xf6f2e6)); sail.scale.z = 0.15; sail.position.set(0, 0.28, 0.06); boat.add(hull, mast, sail); scene.add(boat); }
+  const boat3 = glb('boat', 0.55, true); if (boat3) { boat.add(boat3); scene.add(boat); } else { const hull = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.55), mat(0x8a5a32)); hull.position.y = 0.04; const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.4, 4), mat(0x5a3a22)); mast.position.y = 0.26; const sail = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 3), mat(0xf6f2e6)); sail.scale.z = 0.15; sail.position.set(0, 0.28, 0.06); boat.add(hull, mast, sail); scene.add(boat); }
   let boatS = rivL[rivL.length - 1] * 0.3, boatDir = 1;
   // zvěř: srny a zajíci se pasou na loukách, chodí od místa k místu
   const walkers = [], RW = rng(W.seed + 23);
@@ -485,8 +502,11 @@ export async function mountFarm(el, items, onPick, opts = {}) {
       const g = new THREE.Group(), y = W.H(hx, hz);
       const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.4), mat(WALLS[var2])); b.position.y = 0.17;
       const rf = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.3, 4), mat(ROOFS[var2])); rf.position.y = 0.5; rf.rotation.y = Math.PI / 4; rf.scale.z = 0.85;
-      b.castShadow = rf.castShadow = true; g.add(b, rf);
-      for (const wx of [-0.12, 0.12]) { const wn = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.02), winMat); wn.position.set(wx, 0.2, 0.205); g.add(wn); }
+      const m3 = glb(var2 % 2 ? 'house-c' : 'house-b', 0.55);
+      if (m3) g.add(m3); else {
+        b.castShadow = rf.castShadow = true; g.add(b, rf);
+        for (const wx of [-0.12, 0.12]) { const wn = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.02), winMat); wn.position.set(wx, 0.2, 0.205); g.add(wn); }
+      }
       if (var2 % 2 === 0) { const gd = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.03, 0.32), mat(0x7a5a3a)); gd.position.set(0, 0.015, -0.42); const gr = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.06), mat(winter ? 0xe8eef2 : 0x5f9a3e)); gr.position.set(0, 0.04, -0.42); g.add(gd, gr); }
       g.position.set(hx, y, hz); g.rotation.y = ha; scene.add(g);
     }
@@ -525,6 +545,7 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   // nákladní auta: jezdí z okraje mapy po cestě v krajině a po nakreslených cestách až ke skladu – jen když je síť se skladem propojená
   const trucks = [], truckG = new THREE.Group(); scene.add(truckG);
   function truckModel(c) {
+    const m3 = glb('truck', 0.42, true); if (m3) return m3;
     const g = new THREE.Group(), part = (w, h, d, col, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), col.isMaterial ? col : mat(col)); m.position.set(0, y, z); m.castShadow = true; g.add(m); };
     part(0.24, 0.06, 0.42, 0x2b2b2b, 0.05, 0); part(0.2, 0.17, 0.14, c, 0.16, 0.13); part(0.22, 0.17, 0.26, 0x8a6a44, 0.16, -0.08);
     if (night || dusk) part(0.16, 0.03, 0.01, winMat, 0.12, 0.205);
@@ -594,12 +615,14 @@ export async function mountFarm(el, items, onPick, opts = {}) {
 
   /* budovy */
   const bgroup = new THREE.Group(); scene.add(bgroup);
+  const BMOD = { home: ['house-b', 1.0], store: ['storage-shed', 0.95], pantry: ['small-barn', 0.85], lumber: ['sawmill', 0.95] };
   function model(kind, lv, x, z, y = TILE_H) {
     const g = new THREE.Group(), s = 0.75 + 0.05 * Math.min(10, lv);
     const box = (w, h, d, c, yy = h / 2, ox = 0, oz = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(ox, yy, oz); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
     const roof = (w, d, h, c, yy) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.001, w * 0.75, h, 4), mat(c)); m.rotation.y = Math.PI / 4; m.scale.set(1, 1, d / w); m.position.y = yy + h / 2; m.castShadow = true; g.add(m); };
     const fence = (rad, c = 0xc9a16a) => { for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; box(0.05, 0.3, 0.05, c, 0.15, Math.cos(a) * rad, Math.sin(a) * rad); } const t = new THREE.Mesh(new THREE.TorusGeometry(rad, 0.02, 4, 24), mat(c)); t.rotation.x = Math.PI / 2; t.position.y = 0.26; g.add(t); };
     if (!lv) { box(0.6, 0.05, 0.6, 0xb08a5a, 0.03); for (const [ox, oz] of [[-.25, -.25], [.25, -.25], [-.25, .25], [.25, .25]]) box(0.04, 0.5, 0.04, 0xc9a16a, 0.25, ox, oz); }
+    else if (BMOD[kind] && GLB[BMOD[kind][0]]) g.add(glb(...BMOD[kind]));
     else if (kind === 'home') { box(0.9, 0.5, 0.7, 0xf2e6cc); roof(0.9, 0.7, 0.4, 0xb8442e, 0.5); box(0.15, 0.25, 0.02, 0x7a4a2a, 0.13, 0, 0.36); }
     else if (kind === 'enc_voliera') { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.7, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0x9aa0a6, wireframe: true })); c.position.y = 0.35; g.add(c); const t = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.3, 10), mat(0x6a8a4a)); t.position.y = 0.85; g.add(t); box(0.1, 0.4, 0.1, 0x8a5a3a, 0.2); }
     else if (kind === 'enc_vybeh') { fence(0.6); box(0.35, 0.3, 0.3, 0xb07a4a, 0.15, 0.15, -0.1); roof(0.35, 0.3, 0.18, 0x7a4a2a, 0.3); }
@@ -607,7 +630,7 @@ export async function mountFarm(el, items, onPick, opts = {}) {
     else if (kind === 'enc_terarium') { const gl = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.45, 0.55), new THREE.MeshStandardMaterial({ color: 0xbfe6f0, transparent: true, opacity: 0.45, roughness: 0.1 })); gl.position.y = 0.3; g.add(gl); box(0.82, 0.08, 0.57, 0x7a5a3a, 0.04); }
     else if (kind === 'enc_insektarium') { box(0.5, 0.6, 0.25, 0xc98a4a, 0.3); roof(0.55, 0.3, 0.25, 0x8a5a2a, 0.6); for (let i = 0; i < 3; i++) box(0.12, 0.1, 0.02, 0x5a3a1a, 0.15 + i * 0.15, 0, 0.13); }
     else if (kind === 'lumber') { for (let i = 0; i < 3; i++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 8), mat(0x9a6a3a)); l.rotation.z = Math.PI / 2; l.position.set(0, 0.1 + i * 0.15, (i - 1) * 0.12); l.castShadow = true; g.add(l); } g.add(tree(0.45, 0, 0.35, 0.8)); }
-    else if (kind === 'quarry') { for (let i = 0; i < 4; i++) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2 + 0.05 * i), mat(0x8f8a80)); r.position.set((i % 2 - .5) * 0.4, 0.15 + (i > 1 ? 0.15 : 0), (i < 2 ? -0.15 : 0.15)); r.castShadow = true; g.add(r); } }
+    else if (kind === 'quarry') { for (let i = 0; i < 4; i++) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2 + 0.05 * i), mat(0x8f8a80)); r.position.set((i % 2 - .5) * 0.4, 0.15 + (i > 1 ? 0.15 : 0), (i < 2 ? -0.15 : 0.15)); r.castShadow = true; g.add(r); } const mc = glb('minecart', 0.35); if (mc) { mc.position.set(0.3, 0, 0.3); g.add(mc); } }
     else if (kind === 'nursery') { const gh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 12, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xdff2f8, transparent: true, opacity: 0.55, side: THREE.DoubleSide })); gh.rotation.z = Math.PI / 2; gh.position.y = 0.05; g.add(gh); box(0.7, 0.05, 0.55, 0x6a4a2a, 0.03); }
     else if (kind === 'field') { for (let i = -2; i <= 2; i++) box(0.9, 0.18, 0.12, 0xe0c24a, 0.1, 0, i * 0.18); }
     else if (kind === 'orchard') { for (const [ox, oz] of [[-.3, -.2], [.3, -.2], [0, .3]]) { g.add(tree(ox, 0, oz, 0.75, 0x5a9a3a)); const a = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), mat(0xd9304a)); a.position.set(ox + 0.1, 0.5, oz + 0.1); g.add(a); } }
@@ -620,9 +643,12 @@ export async function mountFarm(el, items, onPick, opts = {}) {
   scene.add(model('home', 2, ...axial(0, 0)));
   // ozdoby (jen vzhled)
   const decoG = new THREE.Group(); scene.add(decoG);
+  const DMOD = { barn: ['barn', 0.95], mill: ['windmill-a', 0.8], well: ['well', 0.55], bench: ['bench', 0.55], hay: ['hay', 0.6] };
   function decoModel(t, x, z) {
     const g = new THREE.Group(), box = (w, h, d, c, y = h / 2, ox = 0, oz = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(ox, y, oz); m.castShadow = true; g.add(m); return m; };
-    if (t === 'barn') { box(0.8, 0.45, 0.55, 0x9a3a2a); const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.62, 0.35, 4), mat(0x5a3a2a)); rf.rotation.y = Math.PI / 4; rf.scale.set(1, 1, 0.75); rf.position.y = 0.62; g.add(rf); box(0.25, 0.3, 0.02, 0xe8d6a8, 0.15, 0, 0.29); }
+    const m3 = DMOD[t] && glb(...DMOD[t]);
+    if (m3) g.add(m3);
+    else if (t === 'barn') { box(0.8, 0.45, 0.55, 0x9a3a2a); const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.62, 0.35, 4), mat(0x5a3a2a)); rf.rotation.y = Math.PI / 4; rf.scale.set(1, 1, 0.75); rf.position.y = 0.62; g.add(rf); box(0.25, 0.3, 0.02, 0xe8d6a8, 0.15, 0, 0.29); }
     else if (t === 'mill') { box(0.35, 0.8, 0.35, 0xf2e6cc, 0.4); const hub = new THREE.Group(); hub.position.set(0, 0.72, 0.2); for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.02), mat(0x8a6a44)); b.position.y = 0.27; const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; arm.add(b); hub.add(arm); } g.add(hub); }
     else if (t === 'well') { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.22, 10), mat(0x8f8a80)); c.position.y = 0.11; g.add(c); box(0.04, 0.4, 0.04, 0x7a5232, 0.32, -0.18); box(0.04, 0.4, 0.04, 0x7a5232, 0.32, 0.18); box(0.5, 0.04, 0.3, 0x6a3a22, 0.54); }
     else if (t === 'chapel') { box(0.35, 0.5, 0.35, 0xf6f2e6, 0.25); const rf = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.45, 4), mat(0x3a5a8a)); rf.rotation.y = Math.PI / 4; rf.position.y = 0.72; g.add(rf); box(0.03, 0.18, 0.03, 0xd9b84a, 1.02); box(0.12, 0.03, 0.03, 0xd9b84a, 1.04); }

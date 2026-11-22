@@ -1,0 +1,4 @@
+Zdroj: poly.pizza, autoři Quaternius a Kenney, licence Public Domain (CC0) – volné dílo, i komerční použití.
+Staženo 22. 11. 2026: 44 modelů GLB (seznam viz galerie.html).
+Ukázky: ukazka.html (8 budov kolem naší stodoly), galerie.html (všech 44)
+Otevřít přes http://localhost:8000/outputs/modely-test/galerie.html
