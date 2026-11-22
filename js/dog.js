@@ -55,14 +55,14 @@ export class Dog {
       dir = p.dir; pose = p.pose === 'sit' ? this.look : p.pose === 'walk' ? (this.frame % 2 ? 'walk2' : 'walk1') : p.pose;
       if (p.pose !== 'sit') this.idle = [];
     }
-    const { src, flip } = realPose(pose, dir, this.frame);
+    const { src, flip } = realPose(pose, dir, this.frame), oldT = getComputedStyle(this.img).transform; // natočení starého snímku ještě před přepnutím zrcadla
     this.el.classList.toggle('flip', flip);
     this.el.dataset.pose = pose;
     const key = src + (flip ? '~' : '');
     if (key !== this.cur) {
       if (this.cur && FRONT.includes(this.cur.replace('~', '')) && FRONT.includes(src)) { // plynulé prolnutí mezi snímky vsedě, bez poskočení
         let prev = this.el.querySelector('img.dogfade'); if (!prev) { prev = document.createElement('img'); prev.className = 'dogfade'; prev.alt = ''; prev.draggable = false; this.el.insertBefore(prev, this.img.nextSibling); }
-        prev.style.transition = 'none'; prev.src = this.img.src; prev.style.transform = getComputedStyle(this.img).transform; prev.style.opacity = '1'; void prev.offsetWidth; prev.style.transition = ''; prev.style.opacity = '0';
+        prev.style.transition = 'none'; prev.src = this.img.src; prev.style.transform = oldT; prev.style.opacity = '1'; void prev.offsetWidth; prev.style.transition = ''; prev.style.opacity = '0';
       } else { this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop'); }
       this.cur = key; this.img.src = 'images/dog/' + src + '.webp';
     }
