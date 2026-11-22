@@ -51,14 +51,18 @@ function shade(hex, k) {
 
 const cache = new Map();
 // URL obrázku druhu: vlastní obrázek z adminu → ilustrace images/species/{id}.png → kreslený pták / kresba třídy
-export function birdURL(sp) {
+// stage: 0 mládě, 1 dospělý (výchozí – druh v atlasu, setkání), 2 mistr; obrázky images/species/{druh}_{stádium+1}.webp
+export function birdURL(sp, stage = 1) {
   if (safeImage(sp.image)) return sp.image;
+  const k = sp.id + '_' + (Math.max(0, Math.min(2, Math.round(Number(stage) || 0))) + 1);
+  if (SPECIES_IMAGES.has(k)) return 'images/species/' + k + '.webp';
+  if (SPECIES_IMAGES.has(sp.id + '_2')) return 'images/species/' + sp.id + '_2.webp';
   if (SPECIES_IMAGES.has(sp.id)) return 'images/species/' + sp.id + '.png';
   const bird = !sp.group || sp.group === 'Ptáci';
   const key = sp.id + (bird ? JSON.stringify(sp.look) : '|' + sp.group);
   if (!cache.has(key)) cache.set(key, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(bird ? birdSVG(sp.look) : animalSVG(sp)));
   return cache.get(key);
 }
-export function birdImg(sp, cls = '') {
-  return `<img class="${cls}" src="${birdURL(sp)}" alt="${(sp.name || '').replace(/"/g, '')}" draggable="false">`;
+export function birdImg(sp, cls = '', stage = 1) {
+  return `<img class="${cls}" src="${birdURL(sp, stage)}" alt="${(sp.name || '').replace(/"/g, '')}" draggable="false">`;
 }

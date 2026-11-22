@@ -2,7 +2,7 @@
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
 export const TERMS_VERSION = 3;
-export const APP_VERSION = '3.15.0';
+export const APP_VERSION = '3.16.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };
@@ -39,7 +39,7 @@ export function pinSetHTML(hasPin) {
 }
 
 export function consentHTML(cfg) {
-  return `<h2>Vítej ve hře ${esc(cfg.general.appName)}</h2>
+  return `<img class="wavehi" src="images/dog/wave.webp" alt=""><h2>Vítej ve hře ${esc(cfg.general.appName)}</h2>
   <p class="msg">Chodíš venku po skutečné mapě, potkáváš českou faunu a sbíráš ji do atlasu.</p>
   <div class="fact">Než se cokoliv stáhne z internetu, potřebujeme tvůj souhlas. Aplikace nemá účty ani reklamy a tvůj postup zůstává jen v tomto telefonu. Mapové služby ale uvidí, kde přibližně jsi (podrobně v zásadách).</div>
   <div class="fld"><label for="cYear">Rok narození</label><input type="number" id="cYear" inputmode="numeric" min="1900" max="${new Date().getFullYear()}" placeholder="např. 2012"></div>

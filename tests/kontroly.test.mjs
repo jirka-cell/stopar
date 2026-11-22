@@ -722,6 +722,18 @@ test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, od
   const { realPose } = await import('../js/dog.js');
   for (const p of [...POSES, 'walk', 'sniff2']) assert.ok(DOG_IMAGES.has(realPose(p, -1, 1).src), 'každá póza má hotový obrázek: ' + p);
   assert.deepEqual(realPose('lookL'), { src: 'lookR', flip: true }, 'doleva zrcadlem');
+  assert.equal(dogPose({ ...base, speed: 9, walking: true }).pose, 'car', 'autem');
+  assert.equal(dogPose({ ...base, speed: 3, walking: true }).pose, 'run', 'běží');
+  assert.equal(dogPose({ ...base, speed: 1, walking: true }).pose, 'walk');
+  assert.equal(dogPose({ ...base, busy: true }).pose, 'think', 'přemýšlí, když aplikace pracuje');
+  assert.equal(dogPose({ ...base, offline: true }).pose, 'offline', 'bez signálu');
+  const { sitMood } = await import('../js/dog.js');
+  if (DOG_IMAGES.has('night')) assert.equal(sitMood({ night: true, weather: 'hot' }), 'night', 'noc má přednost');
+  if (DOG_IMAGES.has('cold')) assert.equal(sitMood({ weather: 'snow' }), 'cold');
+  assert.equal(sitMood({ weather: 'clear' }), '');
+  assert.ok(!idleChoices({ weather: 'clear' }).includes('shake') && (!DOG_IMAGES.has('shake') || idleChoices({ weather: 'rain' }).includes('shake')), 'otřepává se jen v dešti');
+  const { birdURL } = await import('../js/birds.js'), { SPECIES_IMAGES } = await import('../js/images.js');
+  if (SPECIES_IMAGES.has('kos_1')) { assert.equal(birdURL({ id: 'kos' }, 0), 'images/species/kos_1.webp', 'mládě'); assert.equal(birdURL({ id: 'kos' }), 'images/species/kos_2.webp', 'výchozí dospělý'); assert.equal(birdURL({ id: 'kos' }, 5), 'images/species/kos_3.webp', 'mistr i u vyššího stádia'); }
 });
 
 test('ztlumení při chůzi: rychlost z poloh i z GPS, zapnutí a vypnutí s odstupem', async () => {

@@ -128,17 +128,18 @@ function initDog() {
   const el = $('dog'); if (!el) return;
   el.hidden = !cfg.dog.enabled; el.style.setProperty('--dog', cfg.dog.size + 'px');
   if (!cfg.dog.enabled) { if (dog) { dog.stop(); dog = null; } return; }
-  if (!dog) { dog = new Dog(el, cfg); dog.start(); bindDogDrag(); placeDog(); dog.update({ inRange: false, near: false, dir: 1, walking: false, idleMs: 0, night: false }); } // obrázek hned, i bez polohy
+  if (!dog) { dog = new Dog(el, cfg); dog.start(); bindDogDrag(); placeDog(); dog.update({ inRange: false, near: false, dir: 1, walking: false, idleMs: 0, night: false }); dog.react('wave', 2500); } // obrázek hned, i bez polohy; na uvítanou zamává
   dog.cfg = cfg; updateDog();
 }
 // Co pes vidí: zvíře v dosahu (vystaví), blízko (čenichá), chůze hráče, jak dlouho je klid
 function updateDog() {
   if (!dog || pos.lat == null) return;
-  if (dogPrev && dist(dogPrev.lat, dogPrev.lon, pos.lat, pos.lon) > 3) lastMove = Date.now();
-  const walking = dogPrev && dist(dogPrev.lat, dogPrev.lon, pos.lat, pos.lon) > 3;
-  dogPrev = { lat: pos.lat, lon: pos.lon };
+  const moved = dogPrev ? dist(dogPrev.lat, dogPrev.lon, pos.lat, pos.lon) : 0, dt = dogPrev ? (Date.now() - dogPrev.t) / 1000 : 0;
+  if (moved > 3) lastMove = Date.now();
+  const walking = moved > 3, speed = dt > 0.5 && dt < 30 ? moved / dt : 0; // m/s: běh nad 2, auto nad 7
+  dogPrev = { lat: pos.lat, lon: pos.lon, t: Date.now() };
   const live = birds.filter(b => SP[b.sp] && !speciesLocked(SP[b.sp])).map(b => ({ b, d: dist(pos.lat, pos.lon, b.lat, b.lon) })).sort((x, y) => x.d - y.d)[0];
-  dog.update({ inRange: !!live && live.d <= catchRadius(), near: !!live && live.d <= cfg.dog.sniffRadius, dir: live && live.b.lon < pos.lon ? -1 : 1, walking, idleMs: Date.now() - lastMove, night: isNight() });
+  dog.update({ inRange: !!live && live.d <= catchRadius(), near: !!live && live.d <= cfg.dog.sniffRadius, dir: live && live.b.lon < pos.lon ? -1 : 1, walking, speed, idleMs: Date.now() - lastMove, night: isNight(), busy: $('dog').classList.contains('busy'), offline: !navigator.onLine, weather: cfg.world.weather ? weatherCond(weather) : '' });
 }
 // Aegon jde posouvat prstem (jako nálepka); puštění na boudu = proběhne se a za chvíli se vrátí
 let dogAway = 0, plBusy = false;
@@ -248,7 +249,7 @@ async function shareEventLink() {
 // Karta úlovku bez polohy – sdílení nebo stažení
 async function shareCard(uid) {
   const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
-  const blob = await cardBlob(birdURL(sp), a.nick || sp.name, sp.name + ' · síla ' + power(a), cfg.stats.map((st, i) => [st.name, a.stats[i] || 0]));
+  const blob = await cardBlob(birdURL(sp, a.stage), a.nick || sp.name, sp.name + ' · síla ' + power(a), cfg.stats.map((st, i) => [st.name, a.stats[i] || 0]));
   if (!blob) { toast('Kartu se nepodařilo vytvořit.'); return; }
   const file = new File([blob], 'stopar-' + sp.id + '.png', { type: 'image/png' });
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: sp.name }); return; } } catch (e) { if (e.name === 'AbortError') return; }
@@ -838,7 +839,7 @@ function renderJa() {
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const T = (g, a, i, n, extra = '') => `<button class="jtile g-${g}" data-act="${a}"${extra}>${ic(i)}${n}</button>`;
   $('jav').innerHTML = `<div class="ja">
-  <div class="jahead"><img src="${dogURL('joy')}" alt=""><div style="flex:1"><h2>${esc(state.nick || 'Ty')} a Aegon <button class="x" data-act="nickEdit" aria-label="Změnit přezdívku">✏️</button></h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
+  <div class="jahead"><img src="${dogURL('portrait')}" alt=""><div style="flex:1"><h2>${esc(state.nick || 'Ty')} a Aegon <button class="x" data-act="nickEdit" aria-label="Změnit přezdívku">✏️</button></h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
   <div class="jastats"><div><b>${sp}</b>druhů</div><div><b>${km(state.dist)}</b>km celkem</div><div><b>${Math.floor(state.cones)}</b>šišek</div></div>
   <div class="jagrp">Ven</div><div class="jatiles">${T('ven', 'planner', 'planner', 'Plánovač')}${T('ven', 'treasures', 'treasure', 'Poklady')}${T('ven', 'trip', 'trip', 'Karta výletu')}${T('ven', 'family', 'family', 'Rodinná výprava')}${state.walk && !state.walk.done ? T('ven', 'walkMgr', 'route', 'Moje trasa') : ''}</div>
   <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'profile', 'quests', 'Úkoly a odznaky')}${T('hraj', 'shop', 'shop', 'Obchod')}${T('hraj', 'contests', 'contests', 'Závody')}</div>
@@ -1374,7 +1375,7 @@ async function shareTrip() {
   const newSp = Object.values(state.caught).filter(c => c.best && c.best.date >= d0.getTime() && c.count === 1).length;
   const blob = await tripCardBlob({ date: new Date().toLocaleDateString('cs-CZ'), km: ((state.walkDays[dayStr(new Date())] || 0) / 1000).toFixed(1).replace('.', ','),
     catches: todays.length, newSp, stamps: Object.values(state.stamps).filter(s => s.d >= d0.getTime()).length,
-    shape: state.walk ? decodePolyline(state.walk.p) : null, animals: todays.map(a => ({ url: birdURL(SP[a.sp]), name: a.nick || SP[a.sp].name })) });
+    shape: state.walk ? decodePolyline(state.walk.p) : null, animals: todays.map(a => ({ url: birdURL(SP[a.sp], a.stage), name: a.nick || SP[a.sp].name })) });
   if (!blob) { toast('Kartu se nepodařilo vytvořit.'); return; }
   const file = new File([blob], 'stopar-vylet.png', { type: 'image/png' });
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Můj výlet' }); return; } } catch (e) { if (e.name === 'AbortError') return; }
@@ -1675,7 +1676,7 @@ function farmTick(quiet) {
   const gd = today(), n = Object.values(f.guests).reduce((a, g) => a + g.length, 0);
   if (f.breedDay !== gd) { f.breedDay = gd; const born = breedOne(f); if (born && !quiet) toast('🐣 Na farmě se narodilo mládě: ' + SP[born.sp].name + '!'); }
   if (n && f.guestDay !== gd) { f.guestDay = gd; f.res.seeds += n * 2; if (!quiet) toast('🐾 Hosté na farmě přinesli ' + n * 2 + ' semínek.'); }
-  const tc = trainDelivery(f, gd); if (tc) { state.cones += tc; hudCones(); toast('🚂 Nákladní vlak přivezl na nádraží ' + tc + ' šišky.'); }
+  const tc = trainDelivery(f, gd); if (tc) { state.cones += tc; hudCones(); if (dog) dog.react('cone', 2500); toast('🚂 Nákladní vlak přivezl na nádraží ' + tc + ' šišky.'); }
   const pick = autoPick(f, BUILDINGS.map(b => b.id)); if (pick) startBuild(f, pick, state.cones);
   if (got.built && !quiet) { const b = BUILDINGS.find(x => x.id === got.built), e = cfg.enclosures.find(x => 'enc_' + x.id === got.built); toast('🏡 Farma: hotovo – ' + (b ? b.name : e ? e.name : got.built) + ' úr. ' + f.lv[got.built]); }
   if (modal.classList.contains('on') && $('mbox').querySelector('.fres')) openFarm(true);
@@ -1850,7 +1851,7 @@ function farmSheetHTML(id) {
     const avg = list.length ? Math.round(list.reduce((s, a) => s + power(a), 0) / list.length) : 0;
     body = `<div class="atabs">${cfg.enclosures.map(e => `<button class="${e.id === enc.id ? 'on' : ''}" data-fsel="enc_${e.id}">${e.icon} ${esc(e.name)}</button>`).join('')}</div>
     <p class="msg small">Ubytováno ${list.length} zvířat · ${new Set(list.map(a => a.sp)).size} druhů · místa pro každý druh ${encCap(f, enc.id, cfg.farm.maxCap)} (nejvíc obsazeno ${encOcc(enc.id)}) · průměrná síla ${avg}</p>
-    ${list.length ? `<div class="grid">${list.slice(0, 60).map(a => `<div class="acard" data-animal="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp])}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}</div></div>`).join('')}</div>` : '<p class="msg">Zatím prázdné.</p>'}`;
+    ${list.length ? `<div class="grid">${list.slice(0, 60).map(a => `<div class="acard" data-animal="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp], '', a.stage)}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}</div></div>`).join('')}</div>` : '<div class="empty"><img src="images/dog/search.webp" alt=""><p class="msg">Zatím prázdné – Aegon hledá. Vyraz ven!</p></div>'}`;
   }
   const up = b ? `<p class="msg small">Staví se – hotovo za ${Math.max(1, Math.ceil((f.build.until - Date.now()) / 60000))} min</p>`
     : lv >= 10 ? '<p class="msg small">Nejvyšší úroveň.</p>' : `<button class="btn full${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-act="farmBuild" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${lv ? 'Vylepšit na úr. ' + (lv + 1) : 'Postavit'}: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${buildMinutes(lv)} min</button>${f.build ? '<p class="msg small">Najednou se staví jen jedna budova.</p>' : ''}`;
@@ -1976,13 +1977,13 @@ function progressEvent(ev) {
   for (let i = 0; i < 5; i++) { // odznak dá XP, to může dát úroveň a další odznak
     const got = checkBadges(cfg, state, playerLevel());
     if (!got.length) break;
-    for (const b of got) { toast('Nový odznak: ' + b.icon + ' ' + b.name); gainXP(Number(cfg.game.xpBadge) || 0); }
+    for (const b of got) { toast('Nový odznak: ' + b.icon + ' ' + b.name); gainXP(Number(cfg.game.xpBadge) || 0); if (dog) dog.react('trophy', 3000); }
   }
   saveState();
 }
 // Vědomosti 📖: za učení (kvíz, stopa, úkol místa, deník, nový druh, určení klíčem); utrácí se za vývoj
 function gainKnow(kind, why) { const n = Number(parseMap(cfg.game.know || '')[kind]) || 0; if (!n) return; state.points += n; setTimeout(() => toast('+' + n + ' 📖 ' + (why || 'vědomostí')), 900); }
-function addCones(n) { if (n > 0) { state.cones += n; hudCones(); } }
+function addCones(n) { if (n > 0) { state.cones += n; hudCones(); if (dog) dog.react('cone', 2500); } }
 function hudCones() { const b = $('coneBtn'); if (b) b.innerHTML = coneIcon + ' ' + Math.floor(state.cones); refreshJa(); }
 // Záložka Já ukazuje šišky, úroveň a statistiky – při změně se překreslí (jen když je otevřená)
 let jaT = 0;
@@ -2386,7 +2387,7 @@ function renderCollection() { $('sbirkav').innerHTML = (cfg.farm.enabled ? `<but
 function openAnimal(uid) {
   const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
   const e = enclosureOf(cfg, sp.group);
-  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${esc(stageNames(cfg, sp.group)[a.stage] || '')}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
+  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp, '', a.stage)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${esc(stageNames(cfg, sp.group)[a.stage] || '')}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
   ${statsHTML(a.stats)}<div class="kv"><span>Síla:</span> ${power(a)} · <span>chycen:</span> ${new Date(a.date).toLocaleDateString('cs-CZ')}${a.bio ? ' · <span>biotop:</span> ' + esc(BIO[a.bio]?.name || a.bio) : ''}${a.variant ? ' · <span>vzácná forma:</span> ' + esc(variantName(a.variant)) : ''}</div>
   <div class="kv"><span>Ubikace:</span> ${esc(e.icon)} ${esc(e.name)}</div>
   <div class="presetnew"><input type="text" id="nick" maxlength="20" placeholder="Přezdívka" aria-label="Přezdívka" value="${esc(a.nick || '')}"><button class="btn" data-act="nick" data-uid="${esc(uid)}">Uložit</button></div>

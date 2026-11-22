@@ -307,7 +307,9 @@ body.ui-open .cards{display:none}
 /* Já */
 .ja{padding:16px 14px 24px;max-width:640px;margin:0 auto}
 .jahead{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
-.jahead img{width:76px;height:66px;object-fit:contain}
+.jahead img{width:66px;height:66px;object-fit:cover;border-radius:50%;background:var(--acc-soft,#e7f0e3)}
+.wavehi{display:block;width:110px;height:auto;margin:0 auto 4px}
+.empty{text-align:center}.empty img{width:120px;height:auto;margin:6px auto 0;display:block}
 .jahead h2{margin:0 0 2px;font-size:19px}
 .jahead .prog{margin:6px 0 2px}
 .jastats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}

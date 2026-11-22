@@ -71,7 +71,7 @@ export function collectionHTML(cfg, state, SP, view) {
   <div class="ahead"><b>${esc(cur.e.icon)} ${esc(cur.e.name)}</b><select data-sort aria-label="Řazení">${SORTS.map(([k, n]) => `<option value="${k}"${view.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
   ${list.length ? `<div class="grid">${list.map(a => {
     const sp = SP[a.sp];
-    return `<div class="acard" data-animal="${esc(a.uid)}"><div class="im${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp)}</div><div class="nm">${esc(a.nick || sp.name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}${a.variant ? ' · ' + esc(variantName(a.variant)) : ''}</div></div>`;
+    return `<div class="acard" data-animal="${esc(a.uid)}"><div class="im${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp, '', a.stage)}</div><div class="nm">${esc(a.nick || sp.name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}${a.variant ? ' · ' + esc(variantName(a.variant)) : ''}</div></div>`;
   }).join('')}</div>` : `<p class="msg">${esc(cur.e.name)} je zatím prázdná. Chyť zvíře z této skupiny.</p>`}`;
 }
 // Přezdívka: krátká, jen písmena, číslice, mezera a pomlčka

@@ -1,3 +1,3 @@
 // Vygenerováno příkazem node tools/obrazky.mjs – neupravovat ručně
-export const SPECIES_IMAGES = new Set([]);
-export const DOG_IMAGES = new Set(["joy","jump","lie","lookR","point","sad","scratch","scratch2","sit","sleep","sniff","sniff2","stand","wag","walk1","walk2","yawn","yawn1"]);
+export const SPECIES_IMAGES = new Set(["datel_1","datel_2","datel_3","holub_1","holub_2","holub_3","kachna_1","kachna_2","kachna_3","kane_1","kane_2","kane_3","konadra_1","konadra_2","konadra_3","kos_1","kos_2","kos_3","lednacek_1","lednacek_2","lednacek_3","pustik_1","pustik_2","pustik_3","volavka_1","volavka_2","volavka_3","vrabec_1","vrabec_2","vrabec_3"]);
+export const DOG_IMAGES = new Set(["car1","car2","cold","cone","joy","joy2","jump","lie","lookR","night","offline","pant","pant2","point","portrait","run1","run2","sad","scratch","scratch2","search","shake","shake2","sit","sleep","sleep2","sniff","sniff2","stand","think","trophy","wag","walk1","walk1b","walk2","walk2b","wave","yawn","yawn1"]);

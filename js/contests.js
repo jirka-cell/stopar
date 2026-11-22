@@ -88,7 +88,7 @@ export function pickHTML(cfg, st, SP, game, mode = 'race') {
   const g = GAMES.find(x => x.id === game), si = cfg.stats.findIndex(s => s.id === g.stat);
   const list = st.animals.filter(a => SP[a.sp]).sort((a, b) => (b.stats[si] || 0) - (a.stats[si] || 0)).slice(0, 30);
   return `<h2>${g.icon} ${g.name}${mode === 'train' ? ' – trénink' : ''}</h2><p class="msg small">${mode === 'train' ? 'Vyber zvíře, které chceš trénovat – zlepší se mu' : 'Vyber zvíře – počítá se jeho'} ${esc((cfg.stats[si] || {}).name || '').toLowerCase()}.</p>
-  ${list.length ? `<div class="grid">${list.map(a => `<button class="acard" data-act="cStart" data-mode="${mode}" data-uid="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp])}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}</div><div class="rr">${esc((cfg.stats[si] || {}).name || '')} ${a.stats[si] || 0}</div></button>`).join('')}</div>` : '<p class="msg">Nejdřív chyť nějaké zvíře.</p>'}
+  ${list.length ? `<div class="grid">${list.map(a => `<button class="acard" data-act="cStart" data-mode="${mode}" data-uid="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp], '', a.stage)}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}</div><div class="rr">${esc((cfg.stats[si] || {}).name || '')} ${a.stats[si] || 0}</div></button>`).join('')}</div>` : '<p class="msg">Nejdřív chyť nějaké zvíře.</p>'}
   <button class="btn full ghost" data-act="contests">Zpět</button>`;
 }
 export function compareText(code, st) {
