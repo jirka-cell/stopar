@@ -264,9 +264,10 @@ export function errorAt(lat, lon) {
 
 // Biotop v bodě; null = data ještě nejsou načtená
 export function biotopeAt(lat, lon) {
-  const key = chunkKey(lat, lon);
-  const feats = chunks.get(key);
-  if (!feats) return null;
+  const feats = chunks.get(chunkKey(lat, lon));
+  return feats ? pickBio(feats, lat, lon) : null;
+}
+function pickBio(feats, lat, lon) {
   let best = null;
   for (const f of feats) {
     if (!f.b) continue;
@@ -283,6 +284,32 @@ export function biotopeAt(lat, lon) {
   }
   const b = best ? best.b : CFG.osm.defaultBiotope;
   return villageMap[b] ? villageOrTown(feats, lat, lon, b) : b;
+}
+
+// Záloha z dlaždic mapy (OpenMapTiles), dokud čtverec z Overpassu nedorazí (nové místo): jen v paměti, zvířata z ní mají dočasné id
+let tileFeats = [], tileArea = null;
+const OMT = {
+  landcover: { wood: 'les', wetland: 'mokrad', farmland: 'pole', grass: 'louka', rock: 'skaly', sand: 'skaly', orchard: 'sad', vineyard: 'sad', allotments: 'sad', park: 'park', garden: 'park' }, // podtřída má přednost
+  landuse: { pitch: 'park', playground: 'park', stadium: 'park', residential: 'mesto', commercial: 'mesto', retail: 'mesto', industrial: 'mesto', railway: 'mesto', cemetery: 'park', quarry: 'skaly', farmyard: 'vesnice', orchard: 'sad', vineyard: 'sad', allotments: 'sad' }
+};
+// feats: [{ sourceLayer, properties: { class }, geometry: GeoJSON }]; area: [jih, západ, sever, východ] pokryté načtenými dlaždicemi
+export function tileBiotopes(feats, area) {
+  const prio = Object.fromEntries(CFG.biotopes.map(b => [b.id, Number(b.priority) || 99])), out = [], flip = r => r.map(([x, y]) => [y, x]);
+  for (const f of feats) {
+    const L = f.sourceLayer, c = (f.properties || {}).class, g = f.geometry; if (!g) continue;
+    if (L === 'place') { if (g.type === 'Point') out.push({ pl: c, lat: g.coordinates[1], lon: g.coordinates[0] }); continue; }
+    // vrstva park = chráněná území (ne parky), odpadní a bazény nejsou biotop
+    const sub = (f.properties || {}).subclass, b = L === 'water' ? (c === 'swimming_pool' ? '' : 'voda') : L === 'waterway' ? (/^(river|stream|canal)$/.test(c) ? 'voda' : '') : (OMT[L] || {})[sub] || (OMT[L] || {})[c];
+    if (!b || !(b in prio)) continue;
+    if (/LineString/.test(g.type)) { if (L === 'waterway') for (const l of g.type === 'LineString' ? [g.coordinates] : g.coordinates) { const pts = flip(l); out.push({ b, p: prio[b], line: true, outer: [pts], inner: [], bb: bboxOf([pts]) }); } }
+    else if (/Polygon/.test(g.type)) for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) { const outer = [flip(poly[0])]; out.push({ b, p: prio[b], line: false, outer, inner: poly.slice(1).map(flip), bb: bboxOf(outer) }); }
+  }
+  tileFeats = out; tileArea = area || null;
+}
+// Biotop z mapy; null = mapa toto místo nemá načtené
+export function biotopeGuess(lat, lon) {
+  const a = tileArea; if (!CFG || !a || lat < a[0] || lat > a[2] || lon < a[1] || lon > a[3]) return null;
+  return pickBio(tileFeats, lat, lon);
 }
 
 // Zástavba u vesnice → biotop vesnice: rozhoduje nejbližší název obce v okolí (stejná data pro všechny hráče)

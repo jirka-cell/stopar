@@ -1,7 +1,7 @@
 import { esc, parseMonths, DEFAULTS, mergeDefaults, parseMap, parseNums, clone, safeImage, presetLayers, EDU_FIELDS, parseZones, zoneFor, zoneName, formatMonths, compactConfig } from './config.js';
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
-import { osmSetConfig, ensureArea, biotopeAt, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt, overpassQuery, chunkProgress, queueSize } from './osm.js';
+import { osmSetConfig, ensureArea, biotopeAt, biotopeGuess, tileBiotopes, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt, overpassQuery, chunkProgress, queueSize } from './osm.js';
 import { refreshWeather, weatherCond, WEATHER_ICON, WEATHER_NAME, activeEvents, speciesMult, inQuietMonths, variantFor, protectedHTML, protectedType, wikiSummary, calendarHTML, cleanStamps, stampsHTML } from './world.js';
 import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
@@ -525,7 +525,7 @@ function initMap() {
   });
   map.on('styledata', () => { kctPending = planPending = true; flushMap(); });
   map.on('moveend', refreshTrails); map.on('moveend', occSoon); map.on('idle', occSoon);
-  map.on('idle', flushMap);
+  map.on('idle', flushMap); map.on('idle', tileBio);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
 
@@ -946,6 +946,7 @@ function refreshBirds() {
   const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now), myWin = cfg.world.mythTest ? { season: 'test', from: 0, to: Infinity } : activeWindow(cfg, now.getTime());
   const quietSet = new Set(String(cfg.world.quietBiotopes || '').split(',').map(x => x.trim()));
   const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone, now.getTime(), biotopeAt, elevationAt, {
+    guess: biotopeGuess,
     myth: (bio, zone, h) => mythFor(cfg, { window: myWin, now: now.getTime(), bio, zone, night: isNight() }, h),
     allow: (la, lo) => insideBound(parentCfg, la, lo) && spawnAllowed(la, lo), twilight: ctx.twilight, variant: (sp, h) => variantFor(cfg, sp, h), track: (sp, h) => isTrack(cfg, sp, h),
     mult: (sp, bio, la, lo) => quiet && quietSet.has(bio) && protectedAt(la, lo) ? 0 : base.get(sp.id) ?? 1
@@ -1482,7 +1483,8 @@ function clearMarkers() { [...markers.keys()].forEach(removeMarker); }
 function hudBio() {
   const b = biotopeAt(pos.lat, pos.lon);
   const hb = $('hbio');
-  let t = b === null ? 'načítám…' : (BIO[b] ? BIO[b].name : b);
+  const g = b === null ? biotopeGuess(pos.lat, pos.lon) : null;
+  let t = b === null ? (g ? (BIO[g] ? BIO[g].name : g) + ' (z mapy)' : 'načítám…') : (BIO[b] ? BIO[b].name : b);
   const alt = elevationAt(pos.lat, pos.lon);
   if (Number.isFinite(alt)) t += ' · ' + alt + ' m';
   if (isNight()) t += ' · noc'; else if (isTwilight()) t += ' · šero';
@@ -2529,6 +2531,18 @@ function biotopeGeo() {
     else for (const o of f.outer) features.push({ type: 'Feature', properties: { color }, geometry: { type: 'Polygon', coordinates: [flip(o), ...f.inner.map(flip)] } });
   }
   return { type: 'FeatureCollection', features };
+}
+// Biotopy z načtených dlaždic mapy – záloha na nových místech, než dorazí data z Overpassu
+function tileBio() {
+  if (!map || !map.getSource('om') || map.getZoom() < 12) return;
+  const feats = [];
+  for (const sourceLayer of ['landcover', 'landuse', 'water', 'waterway', 'place']) try { for (const f of map.querySourceFeatures('om', { sourceLayer })) feats.push({ sourceLayer, properties: f.properties, geometry: f.geometry }); } catch (e) {}
+  // pokrytí = dlaždice (nejvýš z14, víc vektorová mapa nemá) přes celý výřez mapy
+  const z = Math.min(14, Math.floor(map.getZoom())), n = 2 ** z, bd = map.getBounds(), rad = Math.PI / 180;
+  const tx = lon => Math.floor((lon + 180) / 360 * n), ty = lat => Math.floor((1 - Math.log(Math.tan(lat * rad) + 1 / Math.cos(lat * rad)) / Math.PI) / 2 * n);
+  const lonOf = x => x / n * 360 - 180, latOf = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) / rad;
+  tileBiotopes(feats, [latOf(ty(bd.getSouth()) + 1), lonOf(tx(bd.getWest())), latOf(ty(bd.getNorth())), lonOf(tx(bd.getEast()) + 1)]);
+  if (pos.lat != null) { refreshBirds(); hudBio(); }
 }
 function drawBiotopes() { bioPending = true; flushMap(); }
 

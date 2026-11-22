@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, mergeDefaults, safeImage, clone, presetLayers, parseMonths, parseZones, zoneFor, EDU_FIELDS, formatMonths, compactConfig } from '../js/config.js';
 import { visibleBirds } from '../js/spawn.js';
-import { parseOverpass, osmSetConfig, ensureArea, errorAt, status, biotopeAt, clearOsmCache } from '../js/osm.js';
+import { parseOverpass, osmSetConfig, ensureArea, errorAt, status, biotopeAt, clearOsmCache, tileBiotopes, biotopeGuess } from '../js/osm.js';
 import { makeStyle, styleIdFor, circle, STYLES } from '../js/mapstyle.js';
 
 const NOW = Date.UTC(2026, 10, 20, 10, 0);
@@ -32,6 +32,9 @@ test('chycený pták (gone) se znovu neukáže a noční druh je jen v noci', ()
 test('bez načtených biotopů se zatím ukážou zvířata ze všech biotopů (dočasná id) a hlásí čekání', () => {
   const r = visibleBirds(DEFAULTS, 50.2306, 12.8711, false, {}, NOW, () => null);
   assert.ok(r.birds.length > 0 && r.birds.every(b => b.id.endsWith('_p') && b.bio === '' && b.sp));
+  const many = []; for (let i = 0; i < 40; i++) many.push(...visibleBirds(DEFAULTS, 50.2306 + i * 0.01, 12.8711, false, {}, NOW, () => null).birds);
+  const aqua = new Set(DEFAULTS.species.filter(s => Object.keys(Object.fromEntries(String(s.bio).split(',').map(x => [x.split(':')[0].trim(), 1]))).every(b => b === 'voda' || b === 'mokrad')).map(s => s.id));
+  assert.ok(many.length > 50 && !many.some(b => aqua.has(b.sp)), 'bez biotopu žádné jen vodní druhy (ryby, rak…)');
   assert.ok(r.pending > 0);
   const ok = visibleBirds(DEFAULTS, 50.2306, 12.8711, false, {}, NOW, lesVsude);
   assert.ok(!ok.birds.some(b => b.id.endsWith('_p')), 'po načtení jiná id → zvířata se vymění');
@@ -1198,4 +1201,26 @@ test('zmenšení 3D modelu: polohy po zmenšení odpovídají původním (int16 
   assert.equal(a.componentType, 5122); assert.ok(a.normalized); assert.ok(Q.nodes[0].children.length === 1 && Q.nodes[0].mesh === undefined);
   P.forEach((p, i) => p.forEach((x, k) => assert.ok(Math.abs(n.translation[k] + b.readInt16LE(v.byteOffset + i * v.byteStride + k * 2) / 32767 * n.scale[k] - x) < 1e-3, 'poloha ' + i)));
   const nv = Q.bufferViews[Q.accessors[1].bufferView]; assert.equal(b.readInt8(nv.byteOffset + 1), 127, 'normála nahoru');
+});
+
+test('biotop z dlaždic mapy: převod tříd, priorita (voda nad lesem), mimo načtené dlaždice nic; zvířata z něj mají dočasné id', () => {
+  osmSetConfig(DEFAULTS);
+  const sq = (w, s, e, n) => ({ type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] });
+  tileBiotopes([
+    { sourceLayer: 'landcover', properties: { class: 'wood' }, geometry: sq(14.0, 50.0, 14.02, 50.02) },
+    { sourceLayer: 'water', properties: { class: 'lake' }, geometry: sq(14.005, 50.005, 14.006, 50.006) },
+    { sourceLayer: 'landcover', properties: { class: 'farmland', subclass: 'orchard' }, geometry: sq(14.03, 50.0, 14.04, 50.01) },
+    { sourceLayer: 'park', properties: { class: 'protected_area' }, geometry: sq(14.0, 50.0, 14.05, 50.05) },
+    { sourceLayer: 'water', properties: { class: 'swimming_pool' }, geometry: sq(14.02, 50.03, 14.04, 50.05) },
+    { sourceLayer: 'waterway', properties: { class: 'stream' }, geometry: { type: 'LineString', coordinates: [[14.045, 50.0], [14.045, 50.02]] } }
+  ], [49.99, 13.99, 50.06, 14.06]);
+  assert.equal(biotopeGuess(50.01, 14.01), 'les');
+  assert.equal(biotopeGuess(50.0055, 14.0055), 'voda', 'voda má přednost před lesem');
+  assert.equal(biotopeGuess(50.005, 14.035), 'sad');
+  assert.equal(biotopeGuess(50.01, 14.0451), 'voda', 'potok jako čára s okolím');
+  assert.equal(biotopeGuess(50.04, 14.03), DEFAULTS.osm.defaultBiotope, 'chráněné území není park → výchozí biotop');
+  assert.equal(biotopeGuess(51, 15), null, 'mimo načtené dlaždice');
+  const r = visibleBirds(DEFAULTS, 50.02, 14.02, false, {}, NOW, () => null, () => NaN, { guess: biotopeGuess });
+  assert.ok(r.birds.length && r.birds.every(b => b.id.endsWith('_p')) && r.birds.some(b => b.bio === 'les'), 'zvířata z biotopu mapy');
+  tileBiotopes([], null);
 });

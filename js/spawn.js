@@ -38,6 +38,8 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
   const sps = cfg.species.filter(s => s.active && inRegion(s) && parseMonths(s.months).has(month)); // tažní a zimující jen ve své sezóně
   const spBio = sps.map(s => parseMap(s.bio));
   const spAlt = sps.map(s => parseMap(s.alt));
+  // biotop neznámý: druh podle nejlepšího suchozemského biotopu – ryby a jiné jen vodní druhy se neukážou uprostřed pole
+  const spLand = spBio.map(m => Math.max(0, ...Object.entries(m).filter(([b]) => b !== 'voda' && b !== 'mokrad').map(([, v]) => v)));
   const out = [];
   let pending = 0;
   const c0x = Math.floor((x - r) / cell), c1x = Math.floor((x + r) / cell);
@@ -52,19 +54,19 @@ export function visibleBirds(cfg, lat, lon, night, gone, now = Date.now(), bioAt
     if (d > r || d < S.minDistance) continue;
     let id = cx + '_' + cy + '_' + slot;
     let bio = bioAt(blat, blon);
-    // biotop se ještě načítá: zatím zvíře z jakéhokoli biotopu (vlastní id → po načtení se vymění za správné)
-    if (bio === null) { pending++; bio = ''; id += '_p'; }
+    // biotop se ještě načítá: zatím biotop z mapy, jinak zvíře ze suchozemských biotopů (vlastní id → po načtení se vymění za správné)
+    if (bio === null) { pending++; bio = (opts.guess && opts.guess(blat, blon)) || ''; id += '_p'; } // nejdřív zkusit biotop z mapy
     if (gone[id]) continue;
     let alt = zones.length ? altAt(blat, blon) : NaN;
     if (alt === null) { pending++; alt = NaN; }
     if (opts.allow && !opts.allow(blat, blon)) continue;
     const zone = Number.isNaN(alt) ? null : zoneFor(alt, zones);
-    const myth = bio && opts.myth ? opts.myth(bio, zone, hash01(S.seed, cx, cy, slot, 11)) : '';
+    const myth = !id.endsWith('_p') && opts.myth ? opts.myth(bio, zone, hash01(S.seed, cx, cy, slot, 11)) : '';
     if (myth) { out.push({ id, sp: '', myth, lat: blat, lon: blon, bio, alt: Number.isNaN(alt) ? null : alt, zone, d, variant: '', track: false }); continue; }
     let tot = 0;
     const cand = [];
     sps.forEach((s, i) => {
-      let w = (bio ? spBio[i][bio] || 0 : 1) * (rw[String(s.rarity)] ?? 1);
+      let w = (bio ? spBio[i][bio] || 0 : spLand[i]) * (rw[String(s.rarity)] ?? 1);
       // výšková pásma: prázdné = všude; neznámá výška = bez omezení
       if (zone && Object.keys(spAlt[i]).length) w *= spAlt[i][zone] || 0;
       if (s.night && !night) w = opts.twilight ? w * 0.5 : 0;
