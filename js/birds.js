@@ -51,11 +51,12 @@ function shade(hex, k) {
 
 const cache = new Map();
 // URL obrázku druhu: vlastní obrázek z adminu → ilustrace images/species/{id}.png → kreslený pták / kresba třídy
-// stage: 0 mládě, 1 dospělý (výchozí – druh v atlasu, setkání), 2 mistr; obrázky images/species/{druh}_{stádium+1}.webp
-export function birdURL(sp, stage = 1) {
+// stage: 0 mládě, 1 dospělý (výchozí – druh v atlasu, setkání), 2 mistr (u 4 stádií 3); obrázky images/species/{druh}_{stádium+1}.webp
+const FOUR = ['Obojživelníci', 'Hmyz', 'Ryby']; // pulec/larva/plůdek → … → dospělý je až 3. stádium
+export function birdURL(sp, stage) {
+  if (stage == null) stage = FOUR.includes(sp.group) ? 2 : 1; // bez stádia (atlas, setkání) = dospělý
   if (safeImage(sp.image)) return sp.image;
-  const k = sp.id + '_' + (Math.max(0, Math.min(2, Math.round(Number(stage) || 0))) + 1);
-  if (SPECIES_IMAGES.has(k)) return 'images/species/' + k + '.webp';
+  for (let i = Math.max(0, Math.min(3, Math.round(Number(stage) || 0))); i >= 0; i--) { const k = sp.id + '_' + (i + 1); if (SPECIES_IMAGES.has(k)) return 'images/species/' + k + '.webp'; } // nejvyšší dostupné stádium (hmyz, ryby a obojživelníci mají 4)
   if (SPECIES_IMAGES.has(sp.id + '_2')) return 'images/species/' + sp.id + '_2.webp';
   if (SPECIES_IMAGES.has(sp.id)) return 'images/species/' + sp.id + '.png';
   const bird = !sp.group || sp.group === 'Ptáci';
@@ -63,6 +64,6 @@ export function birdURL(sp, stage = 1) {
   if (!cache.has(key)) cache.set(key, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(bird ? birdSVG(sp.look) : animalSVG(sp)));
   return cache.get(key);
 }
-export function birdImg(sp, cls = '', stage = 1) {
+export function birdImg(sp, cls = '', stage) {
   return `<img class="${cls}" src="${birdURL(sp, stage)}" alt="${(sp.name || '').replace(/"/g, '')}" draggable="false">`;
 }

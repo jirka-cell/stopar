@@ -734,6 +734,7 @@ test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, od
   assert.ok(!idleChoices({ weather: 'clear' }).includes('shake') && (!DOG_IMAGES.has('shake') || idleChoices({ weather: 'rain' }).includes('shake')), 'otřepává se jen v dešti');
   const { birdURL } = await import('../js/birds.js'), { SPECIES_IMAGES } = await import('../js/images.js');
   if (SPECIES_IMAGES.has('kos_1')) { assert.equal(birdURL({ id: 'kos' }, 0), 'images/species/kos_1.webp', 'mládě'); assert.equal(birdURL({ id: 'kos' }), 'images/species/kos_2.webp', 'výchozí dospělý'); assert.equal(birdURL({ id: 'kos' }, 5), 'images/species/kos_3.webp', 'mistr i u vyššího stádia'); }
+  assert.equal(birdURL({ id: 'xx', group: 'Hmyz', look: {} }).startsWith('data:'), true, 'bez obrázků kresba');
 });
 
 test('ztlumení při chůzi: rychlost z poloh i z GPS, zapnutí a vypnutí s odstupem', async () => {
