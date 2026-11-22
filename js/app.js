@@ -1965,7 +1965,7 @@ function openFarm(refresh) {
 function playerLevel() { return levelFor(state.xp, cfg.game).level; }
 // Zamčené funkce a vzácnosti podle úrovně hráče
 const unlocked = k => playerLevel() >= levelNeeded(cfg.game.unlocks, k);
-const speciesLocked = sp => playerLevel() < levelNeeded(cfg.game.rarityLevel, String(sp.rarity));
+const speciesLocked = sp => !cfg.general.unlockAll && playerLevel() < levelNeeded(cfg.game.rarityLevel, String(sp.rarity));
 // Přidá XP; při nové úrovni ohlásí, co se odemklo
 function gainXP(n) {
   if (!(n > 0)) return;
@@ -2308,8 +2308,8 @@ function renderAtlas() {
   const nAll = all.filter(s => state.caught[s.id]?.count).length;
   $('atlasv').innerHTML = atlasTabs() + `<div class="ahead"><b>Atlas zvířat</b><span>${nAll} / ${all.length}</span></div><div class="prog"><div style="width:${all.length ? nAll / all.length * 100 : 0}%"></div></div>${filterBar(all)}${act.length ? '' : '<p class="msg">Filtru nic neodpovídá.</p>'}` +
     groups.map(g => `${groups.length > 1 ? `<div class="grp">${esc(g)}</div>` : ''}<div class="grid">${act.filter(s => (s.group || 'Ostatní') === g).map(s => {
-      const c = state.caught[s.id], ok = c && c.count;
-      return `<div class="acard${ok ? '' : ' miss'}" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${ok ? esc(s.name) : '???'}</div><div class="rr">${esc(RAR[s.rarity]?.name || '')}${ok ? ' · ×' + c.count : ''}${c && c.verified ? ' · ověřen' : ''}</div></div>`;
+      const c = state.caught[s.id], ok = (c && c.count) || cfg.general.unlockAll;
+      return `<div class="acard${ok ? '' : ' miss'}" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${ok ? esc(s.name) : '???'}</div><div class="rr">${esc(RAR[s.rarity]?.name || '')}${c && c.count ? ' · ×' + c.count : ''}${c && c.verified ? ' · ověřen' : ''}</div></div>`;
     }).join('')}</div>`).join('') + mythsHTML(cfg, state);
 }
 // Vzdělávací údaje v atlasu, odemykané podle počtu úlovků a skutečné fotky
@@ -2348,10 +2348,10 @@ function stageSwipe() {
   sw.addEventListener('scroll', () => { const i = Math.round(sw.scrollLeft / sw.clientWidth); dots.forEach((d, k) => d.classList.toggle('on', k === i)); }, { passive: true });
 }
 async function openDetail(id) {
-  const sp = SP[id], c = state.caught[id], ok = c && c.count;
+  const sp = SP[id], c = state.caught[id], ok = c && c.count, all = !!cfg.general.unlockAll;
   const names = stageNames(cfg, sp.group), known = knownStages(c, state.animals, id), adult = names.length >= 4 ? 2 : 1;
-  let h = `<div class="stagesw" id="stagesw">${names.map((nm, i) => { const k = ok && known.has(i); return `<div class="stg"><div class="encimg${k ? '' : ' sil'}">${birdImg(sp, '', i)}</div><div class="stgn">${k ? esc(nm) : '???'}</div>${k ? `<div class="stgf">jí: ${esc(foodFor(cfg, sp, i) ? Object.keys(parseMap(foodFor(cfg, sp, i))).map(f => FN[f] || f).join(', ') : 'nejí (kukla)')}</div>` : ''}</div>`; }).join('')}</div>
-  <div class="stgdots">${names.map((_, i) => `<i class="${ok && known.has(i) ? 'k' : ''}${i === adult ? ' on' : ''}"></i>`).join('')}</div><h2>${ok ? esc(sp.name) : '???'}</h2>`;
+  let h = `<div class="stagesw" id="stagesw">${names.map((nm, i) => { const k = all || (ok && known.has(i)); return `<div class="stg"><div class="encimg${k ? '' : ' sil'}">${birdImg(sp, '', i)}</div><div class="stgn">${k ? esc(nm) : '???'}</div>${k ? `<div class="stgf">jí: ${esc(foodFor(cfg, sp, i) ? Object.keys(parseMap(foodFor(cfg, sp, i))).map(f => FN[f] || f).join(', ') : 'nejí (kukla)')}</div>` : ''}</div>`; }).join('')}</div>
+  <div class="stgdots">${names.map((_, i) => `<i class="${all || (ok && known.has(i)) ? 'k' : ''}${i === adult ? ' on' : ''}"></i>`).join('')}</div><h2>${ok || all ? esc(sp.name) : '???'}</h2>`;
   if (ok) {
     h += `<div class="sub">${esc(sp.lat)}</div>${chips(sp)}${statsHTML(c.best.stats)}
     <div class="kv"><span>Úlovků:</span> ${c.count} · <span>nejlepší fotka:</span> ${c.best.q} %${c.verified ? ' · <span>ověřen v terénu</span>' : ''}</div>
@@ -2361,6 +2361,11 @@ async function openDetail(id) {
     const ph = [];
     for (const pid of (c.photos || [])) { try { const p = await store.get(pid, 'photos'); if (p) ph.push(p); } catch (e) {} }
     if (ph.length) h += `<div class="kv"><span>Tvoje fotky z terénu:</span></div><div class="thumbs">${ph.map(p => safeImage(p.img) ? `<img src="${esc(p.img)}" alt="">` : '').join('')}</div>`;
+  } else if (all) { // odemčeno v adminu: údaje o druhu bez úlovků
+    h += `<div class="sub">${esc(sp.lat)}</div>${chips(sp)}
+    ${formatMonths(sp.months) ? `<div class="kv"><span>U nás:</span> ${esc(formatMonths(sp.months))}</div>` : ''}
+    <div class="kv"><span>Potrava:</span> ${Object.keys(parseMap(sp.food)).map(f => esc(String(FN[f] || f).toLowerCase())).join(', ')}</div>
+    <div class="fact">${esc(sp.fact)}</div>`;
   } else {
     h += `<p class="msg">Ještě ho nemáš. Hledej: ${Object.keys(parseMap(sp.bio)).map(b => esc(String(BIO[b]?.name || b).toLowerCase())).join(', ')}${altHint(sp)}${sp.night ? ' (jen v noci)' : ''}.</p>`;
   }
