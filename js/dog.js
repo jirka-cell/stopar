@@ -1,6 +1,6 @@
 // Pes průvodce Aegon (maďarský ohař s růžovými brýlemi) v rohu mapy.
 // Základ: sedí zepředu, občas se podívá doleva/doprava. Když se něco stane, vstane, provede činnost a zase si sedne.
-// Zástupná kresba; vlastní obrázky images/dog/{póza}.png mají přednost (seznam v js/images.js).
+// Zástupná kresba; vlastní obrázky images/dog/{póza}.webp mají přednost (seznam v js/images.js).
 import { DOG_IMAGES } from './images.js';
 
 const C = '#c8743a', D = '#a85a2a', L = '#e09a62', G = '#ff6fae', N = '#7a3a2a';
@@ -48,7 +48,7 @@ function side(pose) {
 export const POSES = ['sit', 'lookL', 'lookR', 'sad', 'stand', 'walk1', 'walk2', 'point', 'sniff', 'joy', 'jump', 'lie', 'sleep'];
 const cache = new Map();
 export function dogURL(pose) {
-  if (DOG_IMAGES.has(pose)) return 'images/dog/' + pose + '.png';
+  if (DOG_IMAGES.has(pose)) return 'images/dog/' + pose + '.webp';
   if (!cache.has(pose)) {
     const svg = pose === 'sit' ? front(0) : pose === 'lookL' ? front(-1) : pose === 'lookR' ? front(1) : pose === 'sad' ? front(0, 'sad') : side(pose);
     cache.set(pose, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
@@ -68,8 +68,19 @@ export function dogPose(ctx) {
   return { pose: 'sit', dir: 1 };
 }
 
+// Klidové chvilky vsedě: [póza, počet kroků po 350 ms]; nabízí se jen ty, jejichž obrázky existují
+const IDLE = {
+  lookL: [['lookL', 6]], lookR: [['lookR', 6]],
+  yawn: [['yawn1', 1], ['yawn', 4], ['yawn1', 1]],
+  scratch: [['scratch', 1], ['scratch2', 1], ['scratch', 1], ['scratch2', 1], ['scratch', 1], ['scratch2', 1]],
+  wag: [['wag', 1], ['sit', 1], ['wag', 1], ['sit', 1], ['wag', 1]]
+};
+const hasImg = p => DOG_IMAGES.has(p) || (p === 'lookL' && DOG_IMAGES.has('lookR'));
+export const idleChoices = () => Object.keys(IDLE).filter(k => IDLE[k].every(([p]) => p === 'sit' || hasImg(p)));
+const FRONT = ['sit', 'lookL', 'lookR', 'sad', 'yawn1', 'yawn', 'scratch', 'scratch2', 'wag'];
+
 export class Dog {
-  constructor(el, cfg) { this.el = el; this.cfg = cfg; this.img = el.querySelector('img'); this.event = ''; this.eventUntil = 0; this.dir = 1; this.cur = ''; this.frame = 0; this.look = 'sit'; this.t = 0; }
+  constructor(el, cfg) { this.el = el; this.cfg = cfg; this.img = el.querySelector('img'); this.event = ''; this.eventUntil = 0; this.dir = 1; this.cur = ''; this.frame = 0; this.look = 'sit'; this.t = 0; this.idle = []; this.el.classList.toggle('real', DOG_IMAGES.has('sit')); }
   // radost (úlovek), skok (nový druh), smutek (zvíře uteklo) – na pár sekund, pak zase sedne
   react(event, ms = 3000) { this.event = event; this.eventUntil = Date.now() + ms; this.render(); }
   update(ctx) { this.ctx = ctx; this.render(); }
@@ -78,18 +89,29 @@ export class Dog {
     const now = Date.now(), p = dogPose({ ...this.ctx, event: this.event, eventUntil: this.eventUntil, now, sleepMs: this.cfg.dog.sleepMinutes * 60000, lieMs: this.cfg.dog.lieMinutes * 60000 });
     let pose = p.pose;
     if (pose === 'walk') pose = this.frame % 2 ? 'walk2' : 'walk1';
-    if (pose === 'sit') pose = this.look;
+    if (pose === 'sit') pose = this.look; else this.idle = [];
     if (pose === 'jump' && now > this.eventUntil - 1500) pose = 'joy';
-    this.el.classList.toggle('flip', p.dir < 0 && !['sit', 'lookL', 'lookR', 'sad'].includes(pose));
+    if (pose === 'joy' && !DOG_IMAGES.has('joy') && DOG_IMAGES.has('wag')) pose = this.frame % 2 ? 'wag' : 'sit'; // než bude radost z boku, vrtí ocasem
+    let src = pose, flip = p.dir < 0 && !FRONT.includes(pose);
+    if (pose === 'lookL' && !DOG_IMAGES.has('lookL') && DOG_IMAGES.has('lookR')) { src = 'lookR'; flip = true; } // doleva = zrcadlo
+    this.el.classList.toggle('flip', flip);
     this.el.dataset.pose = pose;
-    if (pose !== this.cur) { this.cur = pose; this.img.src = dogURL(pose); this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop'); }
+    if (pose !== this.cur) {
+      const both = FRONT.includes(this.cur) && FRONT.includes(pose) && DOG_IMAGES.has(src);
+      if (both && this.img.src) { // plynulé prolnutí mezi snímky vsedě, bez poskočení
+        let prev = this.el.querySelector('img.prev'); if (!prev) { prev = document.createElement('img'); prev.className = 'prev'; prev.alt = ''; prev.draggable = false; this.el.insertBefore(prev, this.img.nextSibling); }
+        prev.style.transition = 'none'; prev.src = this.img.src; prev.style.transform = getComputedStyle(this.img).transform; prev.style.opacity = '1'; void prev.offsetWidth; prev.style.transition = ''; prev.style.opacity = '0';
+      } else { this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop'); }
+      this.cur = pose; this.img.src = dogURL(src);
+    }
   }
   // animace: kroky při chůzi, občasné rozhlédnutí vsedě
   start() {
     this.t = setInterval(() => {
       this.frame++;
-      if (this.frame % 10 === 0) this.look = ['lookL', 'lookR', 'sit', 'sit'][Math.floor(Math.random() * 4)];
-      else if (this.frame % 10 === 3) this.look = 'sit';
+      if (this.idle.length) { const step = this.idle[0]; this.look = step[0]; if (--step[1] <= 0) this.idle.shift(); }
+      else if (this.look !== 'sit') this.look = 'sit';
+      else if (this.frame % 12 === 0 && Math.random() < 0.7) { const ch = idleChoices(), k = ch.length ? ch[Math.floor(Math.random() * ch.length)] : ''; if (k) this.idle = IDLE[k].map(s => s.slice()); else this.look = ['lookL', 'lookR'][this.frame % 2]; }
       this.render();
     }, 350);
   }

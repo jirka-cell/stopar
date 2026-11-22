@@ -715,7 +715,10 @@ test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, od
   assert.equal(dogPose({ ...base, event: 'joy', eventUntil: 500 }).pose, 'sit', 'po události zase sedne');
   assert.equal(dogPose({ ...base, idleMs: 130000 }).pose, 'lie');
   assert.equal(dogPose({ ...base, idleMs: 200000, night: true }).pose, 'sleep', 'v noci usne dřív');
-  for (const p of POSES) { const u = decodeURIComponent(dogURL(p)); assert.ok(u.includes('<svg') && u.includes('</svg>') && !/undefined|NaN/.test(u), p); }
+  for (const p of POSES) { const u = decodeURIComponent(dogURL(p)); assert.ok(/^images\/dog\/\w+\.webp$/.test(u) || (u.includes('<svg') && u.includes('</svg>') && !/undefined|NaN/.test(u)), p); }
+  const { idleChoices } = await import('../js/dog.js'), { DOG_IMAGES } = await import('../js/images.js'), { existsSync, readFileSync } = await import('node:fs');
+  for (const p of DOG_IMAGES) { assert.ok(existsSync(new URL('../images/dog/' + p + '.webp', import.meta.url)), 'obrázek psa existuje: ' + p); assert.ok(readFileSync(new URL('../sw.js', import.meta.url), 'utf8').includes("'images/dog/" + p + ".webp'"), 'sw.js ukládá offline: ' + p); }
+  if (DOG_IMAGES.has('wag')) assert.ok(idleChoices().includes('wag') && idleChoices().includes('lookL'), 'klidové chvilky podle obrázků');
 });
 
 test('ztlumení při chůzi: rychlost z poloh i z GPS, zapnutí a vypnutí s odstupem', async () => {
