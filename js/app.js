@@ -1667,7 +1667,10 @@ function ensureFarm() {
     state.farm = newFarm(cfg.enclosures.map(e => e.id), most);
   }
   for (const e of cfg.enclosures) if (!(('enc_' + e.id) in state.farm.lv)) state.farm.lv['enc_' + e.id] = 0;
-  if (cfg.general.infiniteRes) { for (const k of Object.keys(state.farm.res)) state.farm.res[k] = 99999; state.cones = Math.max(state.cones, 99999); } // test z adminu: doplní se před každou akcí
+  if (cfg.general.infiniteRes) { // test z adminu: před každou akcí doplnit suroviny a hned dokončit stavbu (jinak blokuje další)
+    const f = state.farm; if (f.build) { f.lv[f.build.id] = (f.lv[f.build.id] || 0) + 1; f.build = null; }
+    for (const k of Object.keys(f.res)) f.res[k] = 99999; state.cones = Math.max(state.cones, 99999);
+  }
   return state.farm;
 }
 // Chov: druh s aspoň 2 jedinci v postaveném příbytku úrovně 2+ → šance na mládě (průměr rodičů, stádium 0)
@@ -1683,6 +1686,7 @@ function breedOne(f, rnd = Math.random) {
 function farmTick(quiet) {
   if (!cfg.farm.enabled) return;
   const f = ensureFarm(), got = farmAdvance(f, Date.now(), state.inv, farmBonus(f, farmTerrain()));
+  if (cfg.general.infiniteRes) ensureFarm(); // výroba ořízne suroviny na strop skladu
   const gd = today(), n = Object.values(f.guests).reduce((a, g) => a + g.length, 0);
   if (f.breedDay !== gd) { f.breedDay = gd; const born = breedOne(f); if (born && !quiet) toast('🐣 Na farmě se narodilo mládě: ' + SP[born.sp].name + '!'); }
   if (n && f.guestDay !== gd) { f.guestDay = gd; f.res.seeds += n * 2; if (!quiet) toast('🐾 Hosté na farmě přinesli ' + n * 2 + ' semínek.'); }
