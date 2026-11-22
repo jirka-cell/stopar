@@ -134,11 +134,11 @@ for (const s of list) {
     items.push({ sp: s.id, file: `${s.id}_3.png`, text: `Mistr – ${who}: ${t[1]}.` });
   }
 }
-// dávky po celých druzích, nejvýš 12 obrázků
+// dávky po celých druzích, nejvýš 24 obrázků (G zvládne 10–30 ilustrací ve společném stylu)
 const batches = []; let cur = [];
 for (const sp of [...new Set(items.map(i => i.sp))]) {
   const its = items.filter(i => i.sp === sp);
-  if (cur.length + its.length > 12) { batches.push(cur); cur = []; }
+  if (cur.length + its.length > 24) { batches.push(cur); cur = []; }
   cur.push(...its);
 }
 if (cur.length) batches.push(cur);
@@ -148,7 +148,7 @@ out += 'Ke KAŽDÉ dávce přilož ze složky outputs/zvirata-predlohy: kos_2.pn
 out += 'Výsledky ukládej do outputs/zvirata-predlohy. Každou dávku pošli jako nový požadavek. Když G skončí dřív: „Pokračuj od čísla X, stejné zadání.“\n';
 batches.forEach((b, bi) => {
   out += `\n\n==================== DÁVKA ${bi + 1} / ${batches.length} ====================\n`;
-  out += `Vytvoř postupně ${b.length} samostatných obrázků a každý mi dej ke stažení přesně pod uvedeným názvem. Styl přesně jako na přiložených obrázcích kosa a ledňáčka (realistická anatomie, digitální malba se sytými barvami a světlými odlesky, tenký tmavý obrys). Zbarvení a tvar každého zvířete přesně podle skutečného druhu, aby šlo bezpečně poznat. Jen zvíře (a uvedená drobná podložka, voda či rostlina), žádný text, průhledné pozadí, čtverec, zvíře celé v záběru uprostřed; dospělý a mistr asi 80 % výšky obrázku (u protáhlých zvířat – had, ryba, ještěrka, slepýš – asi 80 % šířky), mládě, larva, pulec, plůdek a kukla menší, asi 50–60 %. Spodní okraj zvířete asi 8 % nad spodním okrajem obrázku.\n`;
+  out += `Vytvoř postupně ${b.length} samostatných obrázků a každý mi dej ke stažení přesně pod uvedeným názvem. Styl přesně jako na přiložených obrázcích kosa a ledňáčka (realistická anatomie, digitální malba se sytými barvami a světlými odlesky, tenký tmavý obrys). Zbarvení a tvar každého zvířete přesně podle skutečného druhu, aby šlo bezpečně poznat. Jen zvíře (a uvedená drobná podložka, voda či rostlina), žádný text, průhledné pozadí, čtverec, zvíře celé v záběru uprostřed; dospělý a mistr asi 80 % výšky obrázku (u protáhlých zvířat – had, ryba, ještěrka, slepýš – asi 80 % šířky), mládě, larva, pulec, plůdek a kukla menší, asi 50–60 %. Spodní okraj zvířete asi 8 % nad spodním okrajem obrázku. Každý PNG zvlášť a všechny také v jednom ZIPu.\n`;
   for (const it of b) out += `\n${String(++n).padStart(3, '0')} – ${it.file}\n${it.text}\n`;
 });
 writeFileSync(new URL('../outputs/G-zbyva/9-zvirata-zbytek.txt', import.meta.url), out);
