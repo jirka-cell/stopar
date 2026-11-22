@@ -190,6 +190,7 @@ body.kid .bmk,body.kid .bmk img{width:60px;height:52px}
 .dog.flip img{transform:scaleX(-1)}
 .dog.hop{animation:hop .35s ease-out}
 .dog.real{width:calc(var(--dog,96px) * .9);height:calc(var(--dog,96px) * 1.18)}
+.dog.real.side{width:calc(var(--dog,96px) * 1.3);height:calc(var(--dog,96px) * 1.0)}
 .dog img.dogfade{position:absolute;inset:0;transition:opacity .2s ease;pointer-events:none}
 @keyframes hop{40%{transform:translateY(-6px)}}
 .dog[data-pose="jump"]{animation:jump .7s ease-out}

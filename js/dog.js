@@ -53,10 +53,13 @@ export class Dog {
     if (!this.demo) {
       const p = dogPose({ ...this.ctx, event: this.event, eventUntil: this.eventUntil, now, sleepMs: this.cfg.dog.sleepMinutes * 60000, lieMs: this.cfg.dog.lieMinutes * 60000 });
       dir = p.dir; pose = p.pose === 'sit' ? this.look : p.pose === 'walk' ? (this.frame % 2 ? 'walk2' : 'walk1') : p.pose;
+      if (pose === 'sniff' && DOG_IMAGES.has('sniff2') && Math.floor(this.frame / 2) % 2) pose = 'sniff2'; // čenichá krok za krokem
+      if (pose === 'jump' && now > this.eventUntil - 1500) pose = 'joy'; // po skoku radost
       if (p.pose !== 'sit') this.idle = [];
     }
     const { src, flip } = realPose(pose, dir, this.frame), oldT = getComputedStyle(this.img).transform; // natočení starého snímku ještě před přepnutím zrcadla
     this.el.classList.toggle('flip', flip);
+    this.el.classList.toggle('side', SIDE.includes(src)); // z boku je rámeček na šířku
     this.el.dataset.pose = pose;
     const key = src + (flip ? '~' : '');
     if (key !== this.cur) {
