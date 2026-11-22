@@ -1667,6 +1667,7 @@ function ensureFarm() {
     state.farm = newFarm(cfg.enclosures.map(e => e.id), most);
   }
   for (const e of cfg.enclosures) if (!(('enc_' + e.id) in state.farm.lv)) state.farm.lv['enc_' + e.id] = 0;
+  if (cfg.general.infiniteRes) { for (const k of Object.keys(state.farm.res)) state.farm.res[k] = 99999; state.cones = Math.max(state.cones, 99999); } // test z adminu: doplní se před každou akcí
   return state.farm;
 }
 // Chov: druh s aspoň 2 jedinci v postaveném příbytku úrovně 2+ → šance na mládě (průměr rodičů, stádium 0)

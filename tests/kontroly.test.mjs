@@ -1179,3 +1179,21 @@ test('Farma: úkoly s odměnou (jednou) a nádraží s denním vlakem', async ()
   const g = F.cleanFarm(JSON.parse(JSON.stringify(f)), ['a', 'b']); assert.ok(g.tasks.decor2 && g.trainDay === '2026-11-21' && g.rail === true, 'přežije uložení');
   assert.deepEqual(F.cleanFarm({ ...f, tasks: { hack: 1 } }, ['a', 'b']).tasks, {}, 'neznámé úkoly pryč');
 });
+
+test('zmenšení 3D modelu: polohy po zmenšení odpovídají původním (int16 + posun a měřítko v uzlu)', async () => {
+  const { quantize } = await import('../tools/glb_quant.mjs');
+  const P = [[-2, 0, 1], [3, 5, -1], [0.5, 2, 4]], bin = Buffer.alloc(72);
+  P.flat().forEach((v, i) => bin.writeFloatLE(v, i * 4)); [0, 1, 0, 0, 1, 0, 0, 1, 0].forEach((v, i) => bin.writeFloatLE(v, 36 + i * 4));
+  const J = { asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }], meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1 } }] }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [-2, 0, -1], max: [3, 5, 4] }, { bufferView: 0, byteOffset: 36, componentType: 5126, count: 3, type: 'VEC3' }],
+    bufferViews: [{ buffer: 0, byteLength: 72 }], buffers: [{ byteLength: 72 }] };
+  let js = Buffer.from(JSON.stringify(J)); js = Buffer.concat([js, Buffer.alloc((4 - js.length % 4) % 4, 0x20)]);
+  const ch = (b, t) => { const x = Buffer.alloc(8); x.writeUInt32LE(b.length, 0); x.writeUInt32LE(t, 4); return Buffer.concat([x, b]); }, h = Buffer.alloc(12);
+  h.write('glTF'); h.writeUInt32LE(2, 4); h.writeUInt32LE(12 + 8 + js.length + 8 + 72, 8);
+  const out = quantize(Buffer.concat([h, ch(js, 0x4e4f534a), ch(bin, 0x004e4942)])), jl = out.readUInt32LE(12), Q = JSON.parse(out.subarray(20, 20 + jl)), b = out.subarray(20 + jl + 8);
+  assert.ok(Q.extensionsRequired.includes('KHR_mesh_quantization'));
+  const a = Q.accessors[0], v = Q.bufferViews[a.bufferView], n = Q.nodes.find(x => x.mesh === 0);
+  assert.equal(a.componentType, 5122); assert.ok(a.normalized); assert.ok(Q.nodes[0].children.length === 1 && Q.nodes[0].mesh === undefined);
+  P.forEach((p, i) => p.forEach((x, k) => assert.ok(Math.abs(n.translation[k] + b.readInt16LE(v.byteOffset + i * v.byteStride + k * 2) / 32767 * n.scale[k] - x) < 1e-3, 'poloha ' + i)));
+  const nv = Q.bufferViews[Q.accessors[1].bufferView]; assert.equal(b.readInt8(nv.byteOffset + 1), 127, 'normála nahoru');
+});

@@ -26,6 +26,7 @@ export const DEFAULTS = {
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
     testerFab: true,
     dataMonitor: false,     // ukazatel stahovaných dat v rohu mapy (ladění) – čistá plocha: výchozí vypnuto        // plovoucí tlačítko kontrolního seznamu pro testery (vpravo dole)
+    infiniteRes: false,     // nekonečno surovin a šišek na farmě (test, jen toto zařízení)
     monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
@@ -389,6 +390,7 @@ export const SCHEMA = [
     ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
     ['testerFab', 'Tlačítko kontrolního seznamu pro testery (vpravo dole)', 'bool'],
     ['dataMonitor', 'Ukazatel stahovaných dat v rohu mapy', 'bool'],
+    ['infiniteRes', 'Nekonečno surovin a šišek na farmě (test)', 'bool'],
     ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
