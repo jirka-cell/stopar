@@ -228,7 +228,7 @@ export function ensureArea(lat, lon, radius) {
   pump();
   return missing;
 }
-export const queueSize = () => wanted.size + busy.size;
+export const queueSize = () => busy.size; // jen co se právě načítá (čtverce čekající po chybě serveru Aegona neblokují)
 // Pořadí: vzdálenost středu čtverce od místa; čtverce ve směru chůze o kus blíž
 function chunkScore(k) {
   const d = CFG.osm.chunkDeg, [a, b] = k.split('_').map(Number), y = (a + 0.5) * d - focus[0], x = ((b + 0.5) * d - focus[1]) * mPerDegLon(focus[0]) / mPerDegLat;

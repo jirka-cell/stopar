@@ -524,7 +524,7 @@ function initMap() {
     }
   });
   map.on('styledata', () => { kctPending = planPending = true; flushMap(); });
-  map.on('moveend', refreshTrails); map.on('moveend', occSoon); map.on('idle', occSoon);
+  map.on('moveend', refreshTrails); map.on('move', occSoon); map.on('idle', occSoon);
   map.on('idle', flushMap); map.on('idle', tileBio);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
@@ -971,7 +971,7 @@ function refreshBirds() {
   }
   const hb = $('hbio');
   if (r.pending && !birds.length) hb.dataset.loading = '1'; else delete hb.dataset.loading;
-  refreshTargets(); refreshPlaces();
+  refreshTargets(); refreshPlaces(); occSoon(); // nová kolečka hned schovat za budovy (bez pohybu mapy by čekala)
 }
 /* ---------- soutěže ---------- */
 let stopGame = null;

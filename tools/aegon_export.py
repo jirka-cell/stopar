@@ -57,10 +57,4 @@ im = Image.open(SRC + 'portrait.png').convert('RGBA'); im.thumbnail((256, 256), 
 ic = Image.open(SRC + 'icon.png').convert('RGB')
 for name, size in (('icon-192', 192), ('icon-512', 512), ('icon-maskable-512', 512), ('apple-touch-icon', 180)):
     ic.resize((size, size), Image.LANCZOS).save('icons/' + name + '.png', optimize=True); print('ikona', name, size)
-# ptáci: images/species/{druh}_{stádium}.webp (1 mládě, 2 dospělý, 3 mistr), čtverec 400 px
-import glob, re
-for f in sorted(glob.glob('outputs/zvirata-predlohy/*.png')):
-    n = os.path.basename(f)[:-4]
-    if not re.fullmatch(r'[a-z0-9]+_[1-9]', n): continue
-    im = Image.open(f).convert('RGBA').resize((400, 400), Image.LANCZOS); im.save('images/species/' + n + '.webp', 'WEBP', quality=84, method=6)
-print('ptáků', len(glob.glob('images/species/*.webp')))
+# zvířata: python tools/zvirata_export.py

@@ -455,7 +455,7 @@ body:not(.on-map) .rose{visibility:hidden}
 .lookstyle{border:1.5px solid var(--line);background:transparent;color:var(--ink);border-radius:14px;padding:10px;font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
 .lookstyle small{color:var(--mut);font-size:11px}
 .lookstyle.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
-.bmk.behind{opacity:.25;pointer-events:none}
+.bmk.behind{visibility:hidden} /* za budovou: celé schované (průsvitné se nedalo ťuknout a mátlo) */
 .bmk.pick .cls{animation:actp .4s ease-in-out 3 alternate}
 /* ---------- rámeček ano, pozadí ne (moderní vzhled; plochy oken a lišt pozadí mají) ---------- */
 .btn:not(.primary):not(.danger),.chip,.look .chip:not(.on),.quest,.album,.shopit,.fcard,.mgcard,.jastats div,.jahead,.fact,.acard,.lookstyle,.atabs button:not(.on){background:transparent!important;border:1px solid var(--line)!important;box-shadow:none!important}
