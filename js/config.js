@@ -172,7 +172,11 @@ export const DEFAULTS = {
     { id: 'slimaci', name: 'Slimáci a plži' },
     { id: 'drobotina', name: 'Vodní drobotina' },
     { id: 'zaby', name: 'Žáby a pulci' },
-    { id: 'maso', name: 'Kousek masa' }
+    { id: 'maso', name: 'Kousek masa' },
+    { id: 'rasy', name: 'Řasy' },
+    { id: 'drevo', name: 'Tlející dřevo' },
+    { id: 'mleko', name: 'Ptačí mléko' },
+    { id: 'korinky', name: 'Kořínky' }
   ],
   species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3, ...BATCH4],
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)

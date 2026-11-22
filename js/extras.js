@@ -20,6 +20,10 @@ const F = {
   slimaci: '<path d="M8 36h26q8 0 8-6" stroke="#b07a4a" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="26" cy="26" r="9" fill="#c49a5a"/><path d="M26 26m-5 0a5 5 0 1 0 5 -5" stroke="#7a4f2a" stroke-width="2" fill="none"/><path d="M10 34l-3-8M14 34l-1-8" stroke="#b07a4a" stroke-width="2"/>',
   drobotina: '<circle cx="16" cy="22" r="4" fill="#9ad3ff" stroke="#4fa3d8"/><circle cx="30" cy="18" r="3" fill="#9ad3ff" stroke="#4fa3d8"/><path d="M14 34q4-4 8 0t8 0" stroke="#7a5a3a" stroke-width="3" fill="none"/><ellipse cx="32" cy="32" rx="5" ry="3" fill="#6a8a3a"/>',
   zaby: '<ellipse cx="24" cy="30" rx="12" ry="8" fill="#5cb848"/><circle cx="18" cy="21" r="4" fill="#5cb848"/><circle cx="30" cy="21" r="4" fill="#5cb848"/><circle cx="18" cy="20" r="2" fill="#1c1c1e"/><circle cx="30" cy="20" r="2" fill="#1c1c1e"/><path d="M38 38q6 2 6-4" stroke="#4a3a2a" stroke-width="3" fill="none"/><circle cx="40" cy="40" r="3" fill="#4a3a2a"/>',
+  rasy: '<path d="M14 42q-6-12 2-20t0-16M24 42q-4-14 4-22t-2-14M34 42q-6-10 2-18t0-14" stroke="#3f9a4a" stroke-width="4" fill="none" stroke-linecap="round"/>',
+  drevo: '<rect x="8" y="20" width="32" height="14" rx="7" fill="#8a6a44"/><ellipse cx="40" cy="27" rx="4" ry="7" fill="#c9a77a"/><path d="M14 24q6 4 14 0M16 30q8-3 16 1" stroke="#5e4630" stroke-width="2" fill="none"/><circle cx="20" cy="27" r="2" fill="#6ab04a"/>',
+  mleko: '<path d="M18 10h12l2 8v20q0 4-4 4H20q-4 0-4-4V18z" fill="#f6f2ea" stroke="#c9bfae" stroke-width="2"/><path d="M16 22h16" stroke="#8ac0e8" stroke-width="3"/><circle cx="24" cy="31" r="3" fill="#f2c21b"/>',
+  korinky: '<path d="M24 8v10M24 18q-8 6-10 18M24 18q8 6 10 18M24 18v22M24 26q-6 4-14 4M24 26q6 4 14 4" stroke="#b08a5a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M18 8q6-6 12 0" fill="#6ab04a"/>',
   maso: '<path d="M10 30q0-14 16-14t14 12q-2 12-16 12t-14-10z" fill="#c0504a"/><path d="M16 28q8-6 18 0" stroke="#f2d0c8" stroke-width="3" fill="none"/><circle cx="36" cy="22" r="4" fill="#f4ead8"/>'
 };
 export const foodIcon = id => F[id] ? `<svg viewBox="0 0 48 48" class="ficon" aria-hidden="true">${F[id]}</svg>` : '';

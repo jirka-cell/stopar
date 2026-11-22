@@ -20,7 +20,7 @@ export function cleanAnimal(a) {
   return {
     uid: String(a.uid || animalFrom(a.sp, [], 0, '').uid).slice(0, 40), sp: String(a.sp).slice(0, 60),
     stats: Array.isArray(a.stats) ? a.stats.map(v => num(v)) : [], q: num(a.q), date: num(a.date), bio: String(a.bio ?? '').slice(0, 40),
-    stage: Math.max(0, Math.round(num(a.stage))), trained: Math.max(0, Math.round(num(a.trained))), variant: String(a.variant ?? '').slice(0, 20), axp: Math.max(0, num(a.axp)),
+    stage: Math.max(0, Math.round(num(a.stage))), from: Math.max(0, Math.min(Math.round(num(a.stage)), Math.round(num(a.from)))), trained: Math.max(0, Math.round(num(a.trained))), variant: String(a.variant ?? '').slice(0, 20), axp: Math.max(0, num(a.axp)),
     ...(a.nick && cleanNick(a.nick) ? { nick: cleanNick(a.nick) } : {}),
     ...(a.trainedOn ? { trainedOn: String(a.trainedOn).slice(0, 10), trainedToday: Math.max(0, Math.round(num(a.trainedToday))) } : {})
   };

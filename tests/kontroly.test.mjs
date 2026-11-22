@@ -546,7 +546,21 @@ test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce X
   assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'points');
   st.points = 1000;
   assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok');
-  assert.equal(a.stage, 1); assert.equal(a.stats[0], 55); assert.equal(st.points, 970);
+  assert.equal(a.stage, 1); assert.equal(a.stats[0], 63, 'vývoj +10 % a vypiplané stádium +15 %'); assert.equal(st.points, 970);
+  { const { wildStage, foodFor, isPupa, knownStages } = await import('../js/stages.js');
+    const many = n => Array.from({ length: n }, (_, i) => i / n);
+    assert.ok(many(200).every(r => wildStage(DEFAULTS, 'Ptáci', r, 6) <= 1) && many(200).every(r => wildStage(DEFAULTS, 'Hmyz', r, 6) <= 2), 'mistr se v přírodě neobjeví');
+    assert.equal(many(100).filter(r => wildStage(DEFAULTS, 'Ptáci', r, 6) === 0).length, 30, 'v létě 30 % mláďat');
+    assert.ok(many(100).filter(r => wildStage(DEFAULTS, 'Ptáci', r, 1) === 0).length < 10, 'v zimě mláďat málo');
+    assert.equal(many(100).filter(r => wildStage(DEFAULTS, 'Obojživelníci', r, 6) === 1).length, 20, 'mezistupeň 20 %');
+    const bab = { id: 'babocka', group: 'Hmyz', food: 'nektar:1' }, pul = { id: 'skokan', group: 'Obojživelníci', food: 'hmyz:1' };
+    assert.equal(foodFor(DEFAULTS, bab, 0), 'listi:1', 'housenka jí listí'); assert.ok(isPupa(DEFAULTS, bab, 1)); assert.equal(foodFor(DEFAULTS, bab, 1), '', 'kukla nejí'); assert.equal(foodFor(DEFAULTS, bab, 2), 'nektar:1');
+    assert.equal(foodFor(DEFAULTS, pul, 0), 'rasy:1, rostliny:0.5', 'pulec jí řasy'); assert.equal(foodFor(DEFAULTS, { id: 'holub', group: 'Ptáci', food: 'zrni:1' }, 0), 'mleko:1');
+    assert.equal(foodFor(DEFAULTS, { id: 'liska', group: 'Savci', food: 'hlodavec:1' }, 0), 'hlodavec:1', 'savci jako dospělí');
+    for (const f of ['rasy', 'drevo', 'mleko', 'korinky']) assert.ok(DEFAULTS.foods.some(x => x.id === f), 'potravina ' + f);
+    assert.deepEqual([...knownStages({ stages: [2] }, [{ sp: 'kos', from: 0, stage: 1 }], 'kos')].sort(), [0, 1, 2], 'známá stádia');
+    const w = Object.assign(animalFrom('kos', [50, 50, 50, 50], 90, ''), { stage: 1, from: 1, axp: 1e6 }); const st2 = { points: 1000, counters: { evolved: 0 } };
+    evolve(DEFAULTS, st2, w, 'Ptáci'); assert.equal(w.stats[0], 63, 'i dospělé chycené zvíře dostane bonus za stádium, které s ním hráč projde'); }
   a.axp = 1e6; assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok'); assert.ok(isMaster(DEFAULTS, a, 'Ptáci'));
   assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'max');
   // trénink: šišky a denní limit

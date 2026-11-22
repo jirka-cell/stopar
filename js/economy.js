@@ -28,8 +28,10 @@ export function evolve(cfg, st, a, group) {
   if (a.axp < n.axp) return 'axp';
   if (st.points < n.points) return 'points';
   st.points -= n.points; a.axp -= n.axp; a.stage++;
-  const k = 1 + num(cfg.game.evolveBoost, 10) / 100;
-  a.stats = a.stats.map(v => Math.min(num(cfg.catch.maxStat, 100) * (1 + a.stage * .25), Math.round(v * k)));
+  // vypiplané stádium (zvíře chycené mladší a vychované hráčem) přidá bonus navíc (výchozí +15 %)
+  const raised = Math.max(0, a.stage - (a.from || 0)), bonus = 1 + num(cfg.game.raiseBonus, 15) / 100;
+  const k = (1 + num(cfg.game.evolveBoost, 10) / 100) * bonus, cap = num(cfg.catch.maxStat, 100) * (1 + a.stage * .25) * bonus ** raised;
+  a.stats = a.stats.map(v => Math.min(cap, Math.round(v * k)));
   st.counters.evolved++;
   return 'ok';
 }
