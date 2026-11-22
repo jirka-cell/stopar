@@ -719,6 +719,9 @@ test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, od
   const { idleChoices } = await import('../js/dog.js'), { DOG_IMAGES } = await import('../js/images.js'), { existsSync, readFileSync } = await import('node:fs');
   for (const p of DOG_IMAGES) { assert.ok(existsSync(new URL('../images/dog/' + p + '.webp', import.meta.url)), 'obrázek psa existuje: ' + p); assert.ok(readFileSync(new URL('../sw.js', import.meta.url), 'utf8').includes("'images/dog/" + p + ".webp'"), 'sw.js ukládá offline: ' + p); }
   if (DOG_IMAGES.has('wag')) assert.ok(idleChoices().includes('wag') && idleChoices().includes('lookL'), 'klidové chvilky podle obrázků');
+  const { realPose } = await import('../js/dog.js');
+  for (const p of [...POSES, 'walk', 'sniff2']) assert.ok(DOG_IMAGES.has(realPose(p, -1, 1).src), 'každá póza má hotový obrázek: ' + p);
+  assert.deepEqual(realPose('lookL'), { src: 'lookR', flip: true }, 'doleva zrcadlem');
 });
 
 test('ztlumení při chůzi: rychlost z poloh i z GPS, zapnutí a vypnutí s odstupem', async () => {

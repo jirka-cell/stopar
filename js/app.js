@@ -112,9 +112,17 @@ function start() {
   setInterval(() => farmTick(false), 30000); setTimeout(() => farmTick(true), 3000);
   tick();
   if (location.hash === '#admin') askAdmin();
-  applyKidMode(); checkEventLink(); initDog(); nickLabel(); setTimeout(() => { if (!modal.classList.contains('on')) askNick(false); }, 4000);
+  applyKidMode(); checkEventLink(); initDog(); dogDemo(); nickLabel(); setTimeout(() => { if (!modal.classList.contains('on')) askNick(false); }, 4000);
 }
 /* ---------- pes Aegon ---------- */
+// Kontrolní smyčka: odkaz #aegon (skutečná velikost) nebo #aegon-velky (zvětšený) – všechny pózy dokola; stejný odkaz znovu = konec
+function dogDemo() {
+  const m = /^#aegon(-velky)?$/.exec(location.hash); if (!m || !dog) return false;
+  history.replaceState(null, '', location.pathname + location.search);
+  const on = !dog.demo; dog.setDemo(on); $('dog').style.setProperty('--dog', (on && m[1] ? 240 : cfg.dog.size) + 'px');
+  toast(on ? '🐕 Ukázka Aegona: všechny pózy dokola. Konec: znovu stejný odkaz.' : 'Ukázka Aegona skončila.');
+  return true;
+}
 let dog = null, lastMove = Date.now(), dogPrev = null;
 function initDog() {
   const el = $('dog'); if (!el) return;
@@ -1584,7 +1592,7 @@ function bindUI() {
   });
   $('sbirkav').addEventListener('change', e => { if (e.target.matches('[data-sort]')) { colView.sort = e.target.value; renderCollection(); } });
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
-  window.addEventListener('hashchange', () => { if (location.hash === '#admin') askAdmin(); else checkEventLink(); });
+  window.addEventListener('hashchange', () => { if (location.hash === '#admin') askAdmin(); else if (!dogDemo()) checkEventLink(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); else tick(); });
 }
 
