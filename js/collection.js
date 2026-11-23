@@ -1,5 +1,6 @@
 // Sbírka: každý úlovek je samostatný jedinec s vlastními vlastnostmi, roztříděný do ubikací podle skupiny
 import { esc } from './config.js';
+import { icId } from './icons.js';
 import { birdImg } from './birds.js';
 
 // Ikony skupin pro obrázkové třídění (zástupné, dokud nebudou ikony z kroku 2.6)
@@ -67,8 +68,8 @@ export function collectionHTML(cfg, state, SP, view) {
   if (!cur) return '<p class="msg">Žádné ubikace (Admin → Ubikace).</p>';
   const list = sortAnimals(cur.list, view.sort, SP);
   return `<div class="ahead"><b>Sbírka</b><span>${state.animals.length} zvířat</span></div>
-  <div class="iconbar" role="tablist">${encs.map(({ e, list }) => `<button class="ico${e.id === cur.e.id ? ' on' : ''}" data-enc="${esc(e.id)}" role="tab" aria-selected="${e.id === cur.e.id}" aria-label="${esc(e.name)}, ${list.length}"><span aria-hidden="true">${esc(e.icon)}</span><small>${list.length}</small></button>`).join('')}</div>
-  <div class="ahead"><b>${esc(cur.e.icon)} ${esc(cur.e.name)}</b><select data-sort aria-label="Řazení">${SORTS.map(([k, n]) => `<option value="${k}"${view.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+  <div class="iconbar" role="tablist">${encs.map(({ e, list }) => `<button class="ico${e.id === cur.e.id ? ' on' : ''}" data-enc="${esc(e.id)}" role="tab" aria-selected="${e.id === cur.e.id}" aria-label="${esc(e.name)}, ${list.length}"><span aria-hidden="true">${icId('enc_' + e.id, esc(e.icon))}</span><small>${list.length}</small></button>`).join('')}</div>
+  <div class="ahead"><b>${icId('enc_' + cur.e.id, esc(cur.e.icon))} ${esc(cur.e.name)}</b><select data-sort aria-label="Řazení">${SORTS.map(([k, n]) => `<option value="${k}"${view.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
   ${list.length ? `<div class="grid">${list.map(a => {
     const sp = SP[a.sp];
     return `<div class="acard" data-animal="${esc(a.uid)}"><div class="im${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp, '', a.stage)}</div><div class="nm">${esc(a.nick || sp.name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}${a.variant ? ' · ' + esc(variantName(a.variant)) : ''}</div></div>`;

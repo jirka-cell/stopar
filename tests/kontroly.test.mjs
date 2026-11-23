@@ -1033,9 +1033,18 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   const b = P.progressAlong(pts, [50.005, 14.0101]);
   assert.ok(b.along > P.dist([50, 14], [50, 14.01]), 'už na druhém úseku');
   assert.ok(Math.abs(a.total - P.pathLength(pts)) < 1e-6);
-  const I = await import('../js/icons.js');
-  assert.match(I.ic('map'), /class="ic ic-map"/); assert.match(I.ic('neznama'), /•/);
-  I.ICON_FILES.add('atlas'); assert.match(I.ic('atlas'), /icons\/ui\/atlas\.svg/); I.ICON_FILES.delete('atlas');
+  const I = await import('../js/icons.js'), { existsSync } = await import('node:fs');
+  assert.match(I.ic('map'), /icons\/ui\/map\.webp/); assert.match(I.ic('neznama'), /•/); assert.match(I.ic('install'), /📲/);
+  for (const n of I.ICON_FILES) assert.ok(existsSync(new URL(`../icons/ui/${n}.${I.ICON_EXT}`, import.meta.url)), 'chybí ikona ' + n);
+  assert.match(I.icId('lumber', '🪓'), /b_lumber\.webp/); assert.match(I.icId('enc_voliera', '🐦'), /e_voliera/); assert.equal(I.icId('neznamy', '🪓'), '🪓');
+  // cvičák s Hejsty: čtvrtek 17:30–18:15, pózy se střídají, zvíře blízko má přednost
+  const D = await import('../js/dog.js');
+  assert.ok(D.drillNow(new Date(2026, 10, 26, 17, 30))); assert.ok(D.drillNow(new Date(2026, 10, 26, 18, 14)));
+  assert.ok(!D.drillNow(new Date(2026, 10, 26, 18, 15))); assert.ok(!D.drillNow(new Date(2026, 10, 25, 17, 45)));
+  assert.equal(D.drillPose(0), 'cvicak-sedi'); assert.match(D.drillPose(15), /^cvicak-beh[12]$/);
+  assert.ok(new Set(Array.from({ length: 80 }, (_, f) => D.drillPose(f))).size === 8, 'všech 8 póz');
+  const ctx = { drill: true, now: 0, eventUntil: 0, idleMs: 0, sleepMs: 1e9, lieMs: 1e9 };
+  assert.equal(D.dogPose(ctx).pose, 'drill'); assert.equal(D.dogPose({ ...ctx, inRange: true }).pose, 'point');
 });
 
 test('úkoly podle místa, jízda autem a nové minihry', async () => {

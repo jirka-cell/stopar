@@ -4,17 +4,20 @@
 # - společný výřez sady (zepředu na výšku, z boku na šířku), stejné měřítko u obou sad
 # - jednotný vnější obrys: původní obrys z G se odřízne a nakreslí se nový stejně silný; tenké části (špička ocasu) zůstanou původní
 # Pak spustit node tools/obrazky.mjs (seznam obrázků) a doplnit nové soubory do ASSETS v sw.js.
-import os
+import os, sys
 from PIL import Image, ImageFilter, ImageChops
 
 SRC, OUT = 'outputs/aegon-predlohy/', 'images/dog/'
 FRONT = ['sit', 'lookR', 'yawn1', 'yawn', 'scratch', 'scratch2', 'wag', 'sad', 'think', 'cone', 'pant', 'pant2', 'cold', 'shake', 'shake2', 'night', 'wave', 'trophy', 'search']
 SIDE = ['stand', 'walk1', 'walk1b', 'walk2', 'walk2b', 'point', 'sniff', 'sniff2', 'joy', 'joy2', 'jump', 'lie', 'sleep', 'sleep2', 'run1', 'run2', 'offline', 'car1', 'car2']
+DUO = ['cvicak-sedi', 'cvicak-lezi', 'cvicak-beh1', 'cvicak-beh2', 'cvicak-aport', 'cvicak-skok', 'cvicak-hra1', 'cvicak-hra2']
 SCALE = 330 / 840  # px výsledku na px zdroje (stejné pro obě sady → pes je stejně velký)
 SETS = {  # base = spodní linie ve zdroji, box = výřez (vlevo, nahoře, vpravo, dole)
     'front': dict(names=FRONT, base=1169, box=(207, 100, 1047, 1180), noshift=[]),
     'side': dict(names=SIDE, base=1154, box=(20, 235, 1234, 1165), noshift=['jump', 'run1']),  # skok je schválně nad zemí
+    'duo': dict(names=DUO, base=1150, box=(20, 150, 1234, 1170), noshift=[]),  # cvičák: Aegon a Hejsty spolu, měřítko jako u Aegona samotného
 }
+ONLY = set(sys.argv[1:])  # python tools/aegon_export.py cvicak-sedi … = jen vybrané snímky
 COL, R_CUT, R_RING = (62, 26, 12), 10, 9
 
 
@@ -40,6 +43,7 @@ def src_path(n):
 for key, s in SETS.items():
     box = s['box']; size = (round((box[2] - box[0]) * SCALE), round((box[3] - box[1]) * SCALE))
     for n in s['names']:
+        if ONLY and n not in ONLY: continue
         p = src_path(n)
         if not p: print('chybí', n); continue
         im = Image.open(p).convert('RGBA')
@@ -51,6 +55,7 @@ for key, s in SETS.items():
         res.save(OUT + n + '.webp', 'WEBP', quality=86, method=6)
         print(key, n.ljust(9), 'posun', dy, size, os.path.getsize(OUT + n + '.webp'), 'B')
 
+if ONLY: sys.exit()
 # portrét do profilu (kulatý výřez) – bez úprav obrysu, jen zmenšit
 im = Image.open(SRC + 'portrait.png').convert('RGBA'); im.thumbnail((256, 256), Image.LANCZOS); im.save(OUT + 'portrait.webp', 'WEBP', quality=88, method=6); print('portrait', im.size)
 # ikona aplikace (plné pozadí) – PNG pro plochu telefonu

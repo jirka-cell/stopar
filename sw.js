@@ -1,5 +1,5 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v3.24.0';
+const VERSION = 'stopar-v3.25.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
@@ -11,6 +11,7 @@ const ASSETS = [
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'images/dog/sit.webp', 'images/dog/lookR.webp', 'images/dog/yawn1.webp', 'images/dog/yawn.webp', 'images/dog/scratch.webp', 'images/dog/scratch2.webp', 'images/dog/wag.webp',
   'images/dog/car1.webp', 'images/dog/car2.webp', 'images/dog/cold.webp', 'images/dog/cone.webp', 'images/dog/joy2.webp', 'images/dog/night.webp', 'images/dog/offline.webp', 'images/dog/pant.webp', 'images/dog/pant2.webp', 'images/dog/portrait.webp', 'images/dog/run1.webp', 'images/dog/run2.webp', 'images/dog/search.webp', 'images/dog/shake.webp', 'images/dog/shake2.webp', 'images/dog/sleep2.webp', 'images/dog/think.webp', 'images/dog/trophy.webp', 'images/dog/walk1b.webp', 'images/dog/walk2b.webp', 'images/dog/wave.webp',
+  'images/dog/cvicak-sedi.webp', 'images/dog/cvicak-lezi.webp', 'images/dog/cvicak-beh1.webp', 'images/dog/cvicak-beh2.webp', 'images/dog/cvicak-aport.webp', 'images/dog/cvicak-skok.webp', 'images/dog/cvicak-hra1.webp', 'images/dog/cvicak-hra2.webp',
   'images/dog/stand.webp', 'images/dog/walk1.webp', 'images/dog/walk2.webp', 'images/dog/point.webp', 'images/dog/sniff.webp', 'images/dog/sniff2.webp', 'images/dog/joy.webp', 'images/dog/jump.webp', 'images/dog/lie.webp', 'images/dog/sleep.webp', 'images/dog/sad.webp',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];

@@ -4,7 +4,7 @@
 import { readdirSync, writeFileSync, existsSync } from 'node:fs';
 
 const list = (folder, re) => { const dir = new URL('../images/' + folder + '/', import.meta.url); return existsSync(dir) ? readdirSync(dir).filter(f => re.test(f)).map(f => f.replace(/\.\w+$/, '')).sort() : []; };
-const species = list('species', /^[a-z0-9_]+\.(png|webp)$/), dog = list('dog', /^[a-zA-Z0-9]+\.webp$/);
+const species = list('species', /^[a-z0-9_]+\.(png|webp)$/), dog = list('dog', /^[a-zA-Z0-9-]+\.webp$/);
 writeFileSync(new URL('../js/images.js', import.meta.url),
   `// Vygenerováno příkazem node tools/obrazky.mjs – neupravovat ručně\nexport const SPECIES_IMAGES = new Set(${JSON.stringify(species)});\nexport const DOG_IMAGES = new Set(${JSON.stringify(dog)});\n`);
 console.log('obrázků druhů:', species.length, '· psa:', dog.length);

@@ -5,6 +5,18 @@ import { DOG_IMAGES } from './images.js';
 
 export const POSES = ['sit', 'lookL', 'lookR', 'sad', 'stand', 'walk1', 'walk2', 'point', 'sniff', 'joy', 'jump', 'lie', 'sleep'];
 const SIDE = ['stand', 'walk1', 'walk1b', 'walk2', 'walk2b', 'point', 'sniff', 'sniff2', 'joy', 'joy2', 'jump', 'lie', 'sleep', 'sleep2', 'run1', 'run2', 'offline', 'car1', 'car2']; // z boku hlavou doprava, doleva zrcadlem
+// Cvičák: Aegon s kamarádkou Hejsty (fenka československého vlčáka), každý čtvrtek 17:30–18:15 podle hodin telefonu
+const DUO = ['cvicak-sedi', 'cvicak-lezi', 'cvicak-beh1', 'cvicak-beh2', 'cvicak-aport', 'cvicak-skok', 'cvicak-hra1', 'cvicak-hra2'];
+const DRILL = [['cvicak-sedi', 14], ['beh', 14], ['cvicak-lezi', 14], ['cvicak-aport', 12], ['cvicak-skok', 6], ['hra', 14]]; // [póza, kroků po 350 ms]
+const DRILL_LEN = DRILL.reduce((a, d) => a + d[1], 0);
+export const DRILL_TOPICS = ['aport', 'skok přes překážku', 'sedni a lehni', 'chůzi u nohy', 'přivolání', 'přetahování'];
+export const drillNow = (d = new Date()) => { const m = d.getHours() * 60 + d.getMinutes(); return d.getDay() === 4 && m >= 17 * 60 + 30 && m < 18 * 60 + 15; };
+export function drillPose(frame) {
+  let i = frame % DRILL_LEN, k = 0;
+  while (i >= DRILL[k][1]) i -= DRILL[k++][1];
+  const p = DRILL[k][0];
+  return p === 'beh' ? (frame % 2 ? 'cvicak-beh2' : 'cvicak-beh1') : p === 'hra' ? (Math.floor(frame / 2) % 2 ? 'cvicak-hra2' : 'cvicak-hra1') : p;
+}
 const FRONT = ['sit', 'lookL', 'lookR', 'sad', 'yawn1', 'yawn', 'scratch', 'scratch2', 'wag', 'think', 'cone', 'pant', 'pant2', 'cold', 'shake', 'shake2', 'night', 'wave', 'trophy'];
 // když obrázek chybí, nejbližší náhrada (řetězí se až k sit)
 const FALLBACK = { run1: 'walk1', run2: 'walk2', walk1b: 'walk1', walk2b: 'walk2', joy2: 'joy', sleep2: 'sleep', car1: 'stand', car2: 'car1', pant2: 'pant', shake2: 'shake', cone: 'wag', wave: 'wag', trophy: 'wag', offline: 'lie' };
@@ -25,6 +37,7 @@ export function dogPose(ctx) {
   if (ctx.speed > 7) return { pose: 'car', dir: 1 }; // nad ~25 km/h jede autem
   if (ctx.inRange) return { pose: 'point', dir: ctx.dir };
   if (ctx.near) return { pose: 'sniff', dir: ctx.dir };
+  if (ctx.drill && DOG_IMAGES.has('cvicak-sedi')) return { pose: 'drill', dir: 1 }; // na cvičáku; zvíře blízko má přednost – Aegon odběhne a vystaví
   if (ctx.walking) return { pose: ctx.speed > 2 ? 'run' : 'walk', dir: 1 };
   const sleepAfter = ctx.sleepMs * (ctx.night ? 0.5 : 1);
   if (ctx.idleMs > sleepAfter) return { pose: 'sleep', dir: 1 };
@@ -65,12 +78,13 @@ export class Dog {
     const now = Date.now(), f = this.frame;
     let pose = this.look, dir = 1;
     if (!this.demo) {
-      const p = dogPose({ ...this.ctx, event: this.event, eventUntil: this.eventUntil, now, sleepMs: this.cfg.dog.sleepMinutes * 60000, lieMs: this.cfg.dog.lieMinutes * 60000 });
+      const p = dogPose({ ...this.ctx, drill: this.ctx.drill || drillNow(), event: this.event, eventUntil: this.eventUntil, now, sleepMs: this.cfg.dog.sleepMinutes * 60000, lieMs: this.cfg.dog.lieMinutes * 60000 });
       dir = p.dir; pose = p.pose;
       const mood = pose === 'sit' && sitMood(this.ctx);
       if (mood) { this.idle = []; pose = mood === 'pant' && Math.floor(f / 2) % 2 ? 'pant2' : mood; }
       else if (pose === 'sit') pose = this.look;
       else this.idle = [];
+      if (pose === 'drill') pose = drillPose(f);
       if (pose === 'walk') pose = DOG_IMAGES.has('walk1b') ? WALK4[f % 4] : (f % 2 ? 'walk2' : 'walk1');
       if (pose === 'run') pose = f % 2 ? 'run2' : 'run1';
       if (pose === 'car') pose = Math.floor(f / 2) % 2 ? 'car2' : 'car1';
@@ -81,12 +95,12 @@ export class Dog {
     }
     const { src, flip } = realPose(pose, dir, f), oldT = getComputedStyle(this.img).transform; // natočení starého snímku ještě před přepnutím zrcadla
     this.el.classList.toggle('flip', flip);
-    this.el.classList.toggle('side', SIDE.includes(src)); // z boku je rámeček na šířku
+    this.el.classList.toggle('side', SIDE.includes(src) || DUO.includes(src)); // z boku je rámeček na šířku
     this.el.dataset.pose = pose;
     const key = src + (flip ? '~' : '');
     if (key !== this.cur) {
       const old = this.cur.replace('~', ''), base = s => s.replace(/\d?b?$/, ''), cycle = old && base(old) === base(src) && /\d|b$/.test(old + src) && !/^(sit|yawn)/.test(src);
-      const same = old && ((FRONT.includes(old) && FRONT.includes(src)) || (SIDE.includes(old) && SIDE.includes(src)));
+      const same = old && ((FRONT.includes(old) && FRONT.includes(src)) || (SIDE.includes(old) && SIDE.includes(src)) || (DUO.includes(old) && DUO.includes(src)));
       if (cycle) { /* chůze, běh, auto, čenichání…: snímky jen přepnout – prolnutí by rozmazalo nohy */ }
       else if (same) { // plynulé prolnutí mezi snímky ve stejném pohledu, bez poskočení
         let prev = this.el.querySelector('img.dogfade'); if (!prev) { prev = document.createElement('img'); prev.className = 'dogfade'; prev.alt = ''; prev.draggable = false; this.el.insertBefore(prev, this.img.nextSibling); }

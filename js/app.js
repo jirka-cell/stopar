@@ -17,9 +17,9 @@ import { qrSVG } from './qr.js';
 import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords, miniSkill } from './contests.js';
-import { Dog, dogURL } from './dog.js';
+import { Dog, dogURL, drillNow, DRILL_TOPICS } from './dog.js';
 import { wildStage, foodFor, isPupa, knownStages } from './stages.js';
-import { ic, fillIcons, classIcon } from './icons.js';
+import { ic, icId, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
 import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty, setTile, toggleRoad, farmBonus, TILE_INFO, BONUS_TILE, DECOR, placeDecor, removeDecor, takenTiles, FARM_TASKS, claimTask, trainDelivery, RAIL_COST, buyRail } from './farm.js';
 import { mountFarm, genWorld, validTiles, autoPlace, tileType, BIOMES } from './farm3d.js';
@@ -184,6 +184,7 @@ function dogFree() {
   dogAway = setTimeout(() => { if (!cfg.dog.enabled) return; el.hidden = false; if (dog) dog.react('joy', 2500); toast('Aegon je zpátky! 🐕'); }, (Number(cfg.dog.freeMinutes) || 2) * 60000);
 }
 function dogTip() {
+  if (drillNow()) { toast('Aegon: Jsem na cvičáku s Hejsty! Dneska trénujeme ' + DRILL_TOPICS[Math.floor(Date.now() / 6048e5) % DRILL_TOPICS.length] + '.'); return; }
   const n = birds.filter(b => SP[b.sp]).length, inR = birds.filter(b => SP[b.sp] && dist(pos.lat, pos.lon, b.lat, b.lon) <= catchRadius()).length;
   toast('Aegon: ' + (inR ? 'Haf! Něco je v dosahu – ťukni na to!' : n ? 'V okolí cítím ' + n + ' ' + (n === 1 ? 'zvíře' : n < 5 ? 'zvířata' : 'zvířat') + '. Pojďme!' : 'Tady nic necítím, zkusíme jinde?'));
   if (dog) dog.react('joy', 1500);
@@ -1756,7 +1757,7 @@ function farmTile(q, r) {
     const occ = Object.entries(f.pos).find(([, p]) => p[0] === q && p[1] === r);
     if (occ) { farmSel = occ[0]; showFarmSheet(); return; }
     const dk = q + ',' + r, dt = (f.decor || {})[dk];
-    if (dt) { const d = DECOR.find(x => x[0] === dt) || ['', '•', 'Ozdoba']; farmSel = ''; farmTileSel = [q, r]; const s2 = $('fsheet'); s2.innerHTML = `<div class="fsh-h"><b>${d[1]} ${esc(d[2])}</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">Ozdoba – jen pro krásu farmy, nic nevyrábí.</p><button class="btn full ghost" data-fv="decorDel">Odstranit (suroviny se nevrátí)</button>`; s2.hidden = false; return; }
+    if (dt) { const d = DECOR.find(x => x[0] === dt) || ['', '•', 'Ozdoba']; farmSel = ''; farmTileSel = [q, r]; const s2 = $('fsheet'); s2.innerHTML = `<div class="fsh-h"><b>${icId(d[0], d[1])} ${esc(d[2])}</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div><p class="msg small">Ozdoba – jen pro krásu farmy, nic nevyrábí.</p><button class="btn full ghost" data-fv="decorDel">Odstranit (suroviny se nevrátí)</button>`; s2.hidden = false; return; }
     if (!q && !r) return;
     farmTileSel = farmTileSel && farmTileSel[0] === q && farmTileSel[1] === r && !$('fsheet').hidden ? null : [q, r]; farmSel = '';
     if (farmTileSel) showTileSheet(); else { $('fsheet').hidden = true; if (farm3) farm3.highlight([]); }
@@ -1782,7 +1783,7 @@ function openFarmCatalog() {
   ${encs.length ? `<h3>🏠 Příbytky zvířat</h3><div class="bgrid">${encs.map(card).join('')}</div>` : ''}
   ${econ.length ? `<h3>🌾 Hospodářství</h3><div class="bgrid">${econ.map(card).join('')}</div>` : ''}
   ${!encs.length && !econ.length ? '<p class="msg">Všechno už stojí – vylepšuj budovy ťuknutím na ně.</p>' : ''}
-  <h3>🏡 Ozdoby (jen vzhled)</h3><div class="bgrid">${DECOR.map(([t, i, n, c]) => `<button class="bcard" data-fv="decor" data-t="${t}"><span class="bico">${i}</span><b>${n}</b><small>${Object.entries(c).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' · ')}</small></button>`).join('')}</div>
+  <h3>🏡 Ozdoby (jen vzhled)</h3><div class="bgrid">${DECOR.map(([t, i, n, c]) => `<button class="bcard" data-fv="decor" data-t="${t}"><span class="bico">${icId(t, i)}</span><b>${n}</b><small>${Object.entries(c).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' · ')}</small></button>`).join('')}</div>
   <h3>🚂 Doprava</h3><div class="bgrid">${f.rail ? '<button class="bcard on" disabled><span class="bico">🚂</span><b>Železnice a nádraží</b><small>stojí · výroba surovin ×2</small></button>' : `<button class="bcard${f.res.wood >= RAIL_COST.wood && f.res.stone >= RAIL_COST.stone && state.cones >= RAIL_COST.cones ? ' ok' : ''}" data-fv="rail"><span class="bico">🚂</span><b>Železnice a nádraží</b><small>🪵 ${RAIL_COST.wood} · 🪨 ${RAIL_COST.stone} · ${coneIcon} ${RAIL_COST.cones} · výroba surovin ×2, vlak vozí šišky</small></button>`}</div>
   <p class="msg small">🚚 ${farmNet > 0 ? 'Nákladní auta jezdí.' : 'Nákladní auta vyjedou, až nakreslíš cestu od cesty v krajině ke skladu.'}</p>
   <h3>🌳 Krajina</h3><div class="bgrid">
@@ -1817,7 +1818,7 @@ async function doDeed(k, file) {
   gainKnow('journal', 'za čin pro přírodu'); saveState(); closeM(); if ($('farmv').classList.contains('on')) refreshFarmView();
 }
 const encOcc = id => { const c = {}; state.animals.forEach(a => { const sp = SP[a.sp]; if (sp && enclosureOf(cfg, sp.group).id === id) c[a.sp] = (c[a.sp] || 0) + 1; }); return Math.max(0, ...Object.values(c)); };
-const fbName = id => { const b = BUILDINGS.find(x => x.id === id), e = cfg.enclosures.find(x => 'enc_' + x.id === id); return b ? [b.icon, b.name, b.desc] : e ? [e.icon, e.name, ENC_DESC] : ['🏠', id, '']; };
+const fbName = id => { const b = BUILDINGS.find(x => x.id === id), e = cfg.enclosures.find(x => 'enc_' + x.id === id); return b ? [icId(b.id, b.icon), b.name, b.desc] : e ? [icId(id, e.icon), e.name, ENC_DESC] : ['🏠', id, '']; };
 // Stav nad budovou: ok = stačí, warn = blíží se limitu, bad = nestačí / stojí, build = staví se
 function farmItems() {
   const f = ensureFarm(), cap = storeCap(f), out = [];
@@ -1839,18 +1840,18 @@ function farmItems() {
 const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } };
 function farmTopHTML() {
   const f = ensureFarm(), cap = storeCap(f);
-  return `<div class="ftop"><div class="fres">${Object.entries(RES).map(([k, [i, n]]) => `<span title="${n}">${i} <b>${Math.floor(f.res[k])}</b><small>/${cap}</small></span>`).join('')}</div>
+  return `<div class="ftop"><div class="fres">${Object.entries(RES).map(([k, [i, n]]) => `<span title="${n}">${icId(k, i)} <b>${Math.floor(f.res[k])}</b><small>/${cap}</small></span>`).join('')}</div>
   <div class="fbtns"><button class="btn sm" data-fv="side">📊 Souhrn</button><button class="btn sm" data-fv="animals">🐾 Zvířata</button><button class="btn sm" data-fv="atlas">📖 Atlas</button></div></div>`;
 }
 function farmSideHTML() {
   const f = ensureFarm(), r = farmRates(f), cap = storeCap(f), it = id => (cfg.shop.find(x => x.id === id) || { icon: '', name: id });
   const fx = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
-  return `<h3>Výroba za hodinu</h3>${Object.entries(RES).map(([k, [i, n]]) => `<div class="nmrow"><span>${i} ${n}</span><span>+${fx(r[k])} / h</span></div>`).join('')}
-  ${Object.entries(r.items).map(([k, v]) => `<div class="nmrow"><span>${it(k).icon} ${esc(it(k).name)}</span><span>+${fx(v)} / h · máš ${state.inv[k] || 0}</span></div>`).join('')}
+  return `<h3>Výroba za hodinu</h3>${Object.entries(RES).map(([k, [i, n]]) => `<div class="nmrow"><span>${icId(k, i)} ${n}</span><span>+${fx(r[k])} / h</span></div>`).join('')}
+  ${Object.entries(r.items).map(([k, v]) => `<div class="nmrow"><span>${icId(k, it(k).icon)} ${esc(it(k).name)}</span><span>+${fx(v)} / h · máš ${state.inv[k] || 0}</span></div>`).join('')}
   <p class="msg small">Chůze přidá víc: každých 100 m +2 (les dřevo, louky semínka, jinde kámen).</p>
   <h3>Kapacity</h3><div class="nmrow"><span>🏚️ Sklad surovin</span><span>${cap}</span></div>
-  ${cfg.enclosures.map(e => `<div class="nmrow"><span>${e.icon} ${esc(e.name)}</span><span>${encOcc(e.id)} / ${encCap(f, e.id, cfg.farm.maxCap)} na druh</span></div>`).join('')}
-  <h3>Celkem vypěstováno</h3>${Object.entries(f.made).map(([k, v]) => `<div class="nmrow"><span>${it(k).icon} ${esc(it(k).name)}</span><span>${v}</span></div>`).join('') || '<p class="msg small">Zatím nic.</p>'}
+  ${cfg.enclosures.map(e => `<div class="nmrow"><span>${icId('enc_' + e.id, e.icon)} ${esc(e.name)}</span><span>${encOcc(e.id)} / ${encCap(f, e.id, cfg.farm.maxCap)} na druh</span></div>`).join('')}
+  <h3>Celkem vypěstováno</h3>${Object.entries(f.made).map(([k, v]) => `<div class="nmrow"><span>${icId(k, it(k).icon)} ${esc(it(k).name)}</span><span>${v}</span></div>`).join('') || '<p class="msg small">Zatím nic.</p>'}
   <h3>Úkoly farmy</h3>${FARM_TASKS.map(([id, txt, ok, rw]) => { const done = f.tasks[id], can = !done && ok(f); return `<div class="nmrow"><span>${done ? '✅' : can ? '🎁' : '▫️'} ${esc(txt)}</span><span>${can ? `<button class="btn sm" data-fv="task" data-id="${id}">Vyzvednout ${rwTxt(rw)}</button>` : rwTxt(rw)}</span></div>`; }).join('')}
   <div class="row2"><button class="btn ghost" data-fv="photo">📸 Fotka farmy</button><button class="btn ghost" data-fv="share">👪 Pozvat rodinu</button></div>
   <h3>Krajina</h3><div class="bgrid">${Object.entries(BIOMES).map(([k, b]) => `<button class="bcard${(f.biome || 'pahorkatina') === k ? ' on' : ''}" data-fv="biome" data-b="${k}"><span class="bico">${b.icon}</span><b>${esc(b.name)}</b><small>${esc(b.desc)}</small></button>`).join('')}</div>
@@ -1865,7 +1866,7 @@ function farmSheetHTML(id) {
   if (enc) {
     const list = state.animals.filter(a => SP[a.sp] && enclosureOf(cfg, SP[a.sp].group).id === enc.id).sort((a, b2) => power(b2) - power(a));
     const avg = list.length ? Math.round(list.reduce((s, a) => s + power(a), 0) / list.length) : 0;
-    body = `<div class="atabs">${cfg.enclosures.map(e => `<button class="${e.id === enc.id ? 'on' : ''}" data-fsel="enc_${e.id}">${e.icon} ${esc(e.name)}</button>`).join('')}</div>
+    body = `<div class="atabs">${cfg.enclosures.map(e => `<button class="${e.id === enc.id ? 'on' : ''}" data-fsel="enc_${e.id}">${icId('enc_' + e.id, e.icon)} ${esc(e.name)}</button>`).join('')}</div>
     <p class="msg small">Ubytováno ${list.length} zvířat · ${new Set(list.map(a => a.sp)).size} druhů · místa pro každý druh ${encCap(f, enc.id, cfg.farm.maxCap)} (nejvíc obsazeno ${encOcc(enc.id)}) · průměrná síla ${avg}</p>
     ${list.length ? `<div class="grid">${list.slice(0, 60).map(a => `<div class="acard" data-animal="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp], '', a.stage)}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}</div></div>`).join('')}</div>` : '<div class="empty"><img src="images/dog/search.webp" alt=""><p class="msg">Zatím prázdné – Aegon hledá. Vyraz ven!</p></div>'}`;
   }
@@ -1900,9 +1901,9 @@ function showTileSheet() {
   const s = $('fsheet'), f = ensureFarm(), W = farmTerrain(), [q, r] = farmTileSel, ty = tileType(W, f.tiles, q, r), [ti, tn] = TILE_INFO[ty] || ['🌼', 'Louka'];
   const can = [...cfg.enclosures.map(e => 'enc_' + e.id), ...BUILDINGS.map(b => b.id)].filter(id => !(f.lv[id] > 0) && !f.pos[id] && !(f.build && f.build.id === id));
   const helps = Object.entries(BONUS_TILE).filter(([, t]) => t && t !== ty).map(([id, t]) => [id, t]);
-  s.innerHTML = `<div class="fsh-h"><b>${ti} ${tn}</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
+  s.innerHTML = `<div class="fsh-h"><b>${icId('t_' + ty, ti)} ${tn}</b><button class="x" data-fv="close" aria-label="Zavřít">✕</button></div>
   <p class="msg small">Volné políčko. Postav tu budovu, nebo ho uprav – sousední budovy dostanou bonus k výrobě (+10 % za každé vhodné políčko).</p>
-  <div class="ftiles">${Object.entries(TILE_INFO).filter(([t]) => t !== ty).map(([t, [i, n, cost]]) => `<button class="btn sm" data-fv="tile" data-t="${t}">${i} ${n}${Object.keys(cost).length ? ' · ' + Object.entries(cost).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' ') : ''}</button>`).join('')}</div>
+  <div class="ftiles">${Object.entries(TILE_INFO).filter(([t]) => t !== ty).map(([t, [i, n, cost]]) => `<button class="btn sm" data-fv="tile" data-t="${t}">${icId('t_' + t, i)} ${n}${Object.keys(cost).length ? ' · ' + Object.entries(cost).map(([k, v]) => ({ wood: '🪵', stone: '🪨', seeds: '🌱' }[k] + ' ' + v)).join(' ') : ''}</button>`).join('')}</div>
   <p class="msg small">${helps.filter(([, t]) => t === 'field').length ? '🌾 Pole pomáhá Poli a Sadu · ' : ''}🌲 Les Dřevníku · 🌼 Louka Semeništi a Záhonu · 💧 Rybníček Rybníku</p>
   ${can.length ? '<h3>Postavit tady</h3>' + can.map(id => { const [icon, name] = fbName(id), c = farmCost(id, 0); return `<button class="btn full${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-fv="buildHere" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${icon} ${esc(name)} · 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''}</button>`; }).join('') : ''}${f.build ? '<p class="msg small">Teď se staví – další budova až po dokončení.</p>' : ''}`;
   s.hidden = false; if (farm3) farm3.highlight([farmTileSel]);

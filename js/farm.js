@@ -3,6 +3,7 @@
 // Pole, sad a záhon dávají krmivo, pamlsky a návnady do batohu. Kapacitu zvířat určují příbytky a spižírna.
 // Nic se nekazí a nic se neztrácí, když hra týden neběží (jen se naplní sklad).
 import { esc } from './config.js';
+import { icId } from './icons.js';
 import { canPlace, tileType, neighbors } from './farm3d.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
@@ -184,12 +185,12 @@ export function farmHTML(f, cfg, cones, now = Date.now()) {
   const cap = storeCap(f), card = (id, name, icon, desc, extra = '') => {
     const lv = f.lv[id] || 0, c = cost(id, lv), b = f.build && f.build.id === id;
     const pr = b ? Math.max(0, Math.min(100, 100 - (f.build.until - now) / (buildMinutes(lv) * 600))) : 0;
-    return `<div class="fcard"><div class="fico">${icon}</div><div class="finfo"><b>${esc(name)} <small>úr. ${lv}</small></b><small>${esc(desc)}</small>${extra}
+    return `<div class="fcard"><div class="fico">${icId(id, icon)}</div><div class="finfo"><b>${esc(name)} <small>úr. ${lv}</small></b><small>${esc(desc)}</small>${extra}
     ${b ? `<div class="prog"><div style="width:${pr.toFixed(0)}%"></div></div><small>Staví se – hotovo za ${mins(Math.max(1, Math.ceil((f.build.until - now) / 60000)))}</small>`
       : lv >= MAXLV ? '<small>Nejvyšší úroveň</small>' : `<button class="btn sm${canAfford(f, c, cones) && !f.build ? ' primary' : ''}" data-act="farmBuild" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${lv ? 'Vylepšit' : 'Postavit'}: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${mins(buildMinutes(lv))}</button>`}</div></div>`;
   };
   return `<h2>🏡 Moje farma</h2>
-  <div class="fres">${Object.entries(RES).map(([k, [i, n]]) => `<span title="${n}">${i} <b>${fmt(f.res[k])}</b><small>/${cap}</small></span>`).join('')}</div>
+  <div class="fres">${Object.entries(RES).map(([k, [i, n]]) => `<span title="${n}">${icId(k, i)} <b>${fmt(f.res[k])}</b><small>/${cap}</small></span>`).join('')}</div>
   <p class="msg small">Farma pracuje sama, ale pomalu. Víc surovin přinese procházka: les dá dřevo, louky semínka, jinde kámen.</p>
   <label class="fld row">Automatická stavba (vylepšuje sama, příbytky staví hráč)<input type="checkbox" data-farm="auto"${f.auto ? ' checked' : ''}></label>
   <h3>Příbytky zvířat</h3>${cfg.enclosures.map(e => card('enc_' + e.id, e.name, e.icon, ENC_DESC, `<small>Místa pro každý druh: <b>${encCap(f, e.id, cfg.farm.maxCap)}</b></small>`)).join('')}

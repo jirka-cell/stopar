@@ -1,5 +1,6 @@
 // Ekonomika: šišky za chůzi a úkoly, obchod, vypouštění zvířat do přírody za body, trénink a vývojová stádia
 import { esc, parseMap } from './config.js';
+import { icId } from './icons.js';
 import { power } from './collection.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
@@ -107,7 +108,7 @@ export function animalActionsHTML(cfg, st, a, sp, can) {
   const names = stageNames(cfg, sp.group), master = isMaster(cfg, a, sp.group), n = evolveNeed(cfg, a), G = cfg.game;
   let h = stageProgressHTML(cfg, a, sp.group);
   const feeds = invOf(cfg, st, 'feed');
-  if (feeds.length) h += `<div class="rowbtns">${feeds.map(it => `<button class="btn sm" data-act="feed" data-item="${esc(it.id)}">${esc(it.icon)} ${esc(it.name)} (${st.inv[it.id]})</button>`).join('')}</div>`;
+  if (feeds.length) h += `<div class="rowbtns">${feeds.map(it => `<button class="btn sm" data-act="feed" data-item="${esc(it.id)}">${icId(it.id, esc(it.icon))} ${esc(it.name)} (${st.inv[it.id]})</button>`).join('')}</div>`;
   h += '<div class="tools">';
   h += can('train') ? `<button class="btn sm" data-act="train">Trénovat (${num(G.trainCost)} šišek)</button>` : `<button class="btn sm" disabled>Trénink od úr. ${can.level('train')}</button>`;
   h += !can('evolve') ? `<button class="btn sm" disabled>Vývoj od úr. ${can.level('evolve')}</button>`
@@ -120,12 +121,12 @@ export function animalActionsHTML(cfg, st, a, sp, can) {
 const cone = '<svg class="cone" viewBox="0 0 20 24" aria-hidden="true"><path d="M10 1C6 4 3 9 3 14c0 5 3 9 7 9s7-4 7-9c0-5-3-10-7-13z" fill="#9a6a3a"/><path d="M5 10h10M4 14h12M5 18h10M10 3v19" stroke="#6a4424" stroke-width="1.2" fill="none"/></svg>';
 export const coneIcon = cone;
 export function shopHTML(cfg, st, can) {
-  const inv = Object.entries(st.inv).map(([id, n]) => { const it = cfg.shop.find(x => x.id === id); return it ? `<span class="chip">${esc(it.icon)} ${esc(it.name)} × ${n}</span>` : ''; }).join('');
+  const inv = Object.entries(st.inv).map(([id, n]) => { const it = cfg.shop.find(x => x.id === id); return it ? `<span class="chip">${icId(it.id, esc(it.icon))} ${esc(it.name)} × ${n}</span>` : ''; }).join('');
   return `<h2>Obchod</h2><p class="msg">${cone} <b>${Math.floor(st.cones)}</b> šišek · 📖 <b>${Math.floor(st.points)}</b> vědomostí</p>
   <p class="msg small">Šišky dostáváš za ujité km a úkoly. Vědomosti za to, co se naučíš (kvízy, stopy, úkoly u krmítek, deník, nové druhy) – jsou na vývoj zvířat.</p>
   ${inv ? `<h3>Batoh</h3><div class="chips">${inv}</div>` : ''}
-  ${can('shop') ? `<h3>Nabídka</h3>${cfg.shop.map(it => `<div class="shopit"><span class="aic" aria-hidden="true">${esc(it.icon)}</span><span><b>${esc(it.name)}</b><br><small>${esc(it.desc)}</small></span><button class="btn sm" data-act="buy" data-item="${esc(it.id)}"${st.cones < num(it.price) ? ' disabled' : ''}>${num(it.price)} ${cone}</button></div>`).join('')}`
+  ${can('shop') ? `<h3>Nabídka</h3>${cfg.shop.map(it => `<div class="shopit"><span class="aic" aria-hidden="true">${icId(it.id, esc(it.icon))}</span><span><b>${esc(it.name)}</b><br><small>${esc(it.desc)}</small></span><button class="btn sm" data-act="buy" data-item="${esc(it.id)}"${st.cones < num(it.price) ? ' disabled' : ''}>${num(it.price)} ${cone}</button></div>`).join('')}`
     : `<p class="msg">Obchod se otevře na úrovni ${can.level('shop')}.</p>`}
-  ${invOf(cfg, st, 'radius').map(it => `<button class="btn full" data-act="useItem" data-item="${esc(it.id)}">Použít: ${esc(it.icon)} ${esc(it.name)}</button>`).join('')}
+  ${invOf(cfg, st, 'radius').map(it => `<button class="btn full" data-act="useItem" data-item="${esc(it.id)}">Použít: ${icId(it.id, esc(it.icon))} ${esc(it.name)}</button>`).join('')}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
