@@ -77,8 +77,9 @@ export class Dog {
     if (!this.ctx) return;
     const now = Date.now(), f = this.frame;
     let pose = this.look, dir = 1;
-    if (!this.demo) {
-      const p = dogPose({ ...this.ctx, drill: this.ctx.drill || drillNow(), event: this.event, eventUntil: this.eventUntil, now, sleepMs: this.cfg.dog.sleepMinutes * 60000, lieMs: this.cfg.dog.lieMinutes * 60000 });
+    if (this.rand) { pose = this.randPose || 'sit'; dir = this.randDir || 1; }
+    else if (!this.demo) {
+      const p = dogPose({ ...this.ctx, drill: this.ctx.drill || this.drillTest || drillNow(), event: this.event, eventUntil: this.eventUntil, now, sleepMs: this.cfg.dog.sleepMinutes * 60000, lieMs: this.cfg.dog.lieMinutes * 60000 });
       dir = p.dir; pose = p.pose;
       const mood = pose === 'sit' && sitMood(this.ctx);
       if (mood) { this.idle = []; pose = mood === 'pant' && Math.floor(f / 2) % 2 ? 'pant2' : mood; }
@@ -113,6 +114,7 @@ export class Dog {
   start() {
     this.t = setInterval(() => {
       this.frame++;
+      if (this.rand && this.frame % 8 === 1) { const all = [...DOG_IMAGES].filter(p => p !== 'portrait'); this.randPose = all[Math.floor(Math.random() * all.length)]; this.randDir = Math.random() < 0.5 ? -1 : 1; } // náhodná smyčka: nová póza po ~3 s
       const ch = idleChoices(this.ctx || {});
       if (this.idle.length) { const step = this.idle[0]; this.look = step[0]; if (--step[1] <= 0) this.idle.shift(); }
       else if (this.look !== 'sit') this.look = 'sit';

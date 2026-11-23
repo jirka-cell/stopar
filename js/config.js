@@ -30,6 +30,12 @@ export const DEFAULTS = {
     unlockAll: false,       // test: chytat všechny druhy bez ohledu na úroveň a v atlasu vidět vše (jen toto zařízení)
     infiniteRes: false,     // nekonečno surovin a šišek na farmě (test, jen toto zařízení)
     monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
+    farmTest: true,         // testovací nástroje farmy: +1/−1 úroveň zdarma, prázdná farma znovu
+    mythTest: false,        // bájné dny hned (rozmístění se pak liší od ostatních)
+    drillTest: false,       // cvičák s Hejsty hned, ne jen ve čtvrtek 17:30–18:15
+    dogDemo: false,         // Aegon: všechny klidové pózy dokola (kontrola obrázků)
+    dogRandom: false,       // Aegon: náhodná smyčka všech póz včetně reakcí a cvičáku
+    dogBig: false,          // Aegon zvětšený na 240 px (kontrola obrázků)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
     contact: ''                   // kontaktní e-mail pro dotazy a zpětnou vazbu testerů
@@ -259,8 +265,7 @@ export const DEFAULTS = {
     festChance: 0.05,       // šance během svátků
     mythDays: 3,            // bájné dny: 2× ročně (zima, léto) na tolik dní
     mythChance: 0.02,       // jak často je během bájných dnů místo zvířete bájný tvor (u jeho biotopu)
-    mythMinQuality: 90, mythSeconds: 2, xpMyth: 200, // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
-    mythTest: false         // test: bájné dny hned (jen pro vyzkoušení, rozmístění se pak liší od ostatních)
+    mythMinQuality: 90, mythSeconds: 2, xpMyth: 200 // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
   },
   // Tajná sekce – bájní tvorové: bio = biotopy nebo výšková pásma, months = měsíce, night = jen v noci
   myths: [
@@ -315,7 +320,6 @@ export const DEFAULTS = {
     maxCap: 60,             // nejvíc míst pro jeden druh
     moveDays: 0,            // přesouvání budov: 0 = kdykoli (testování), později 30 = jednou za měsíc
     capacityCheck: false,   // DOČASNĚ vypnuto: chycená zvířata se ukládají bez ohledu na volná místa v příbytku
-    testTools: true,        // testování: +1/−1 úroveň zdarma, prázdná farma znovu
     breedChance: 0.15,      // chov: denní šance na mládě (dvojice v příbytku úr. 2+)
     deedDays: 30            // skutečný čin (budka, krmítko…) stejného druhu jednou za tolik dní
   },
@@ -395,6 +399,12 @@ export const SCHEMA = [
     ['unlockAll', 'Odemknout všechna zvířata (test: chytat vše, atlas ukáže vše)', 'bool'],
     ['infiniteRes', 'Nekonečno surovin a šišek na farmě (test)', 'bool'],
     ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
+    ['farmTest', 'Testovací nástroje farmy (+1/−1 úroveň, prázdná farma)', 'bool'],
+    ['mythTest', 'Bájné dny hned (test)', 'bool'],
+    ['drillTest', 'Cvičák s Hejsty hned (test)', 'bool'],
+    ['dogDemo', 'Aegon: všechny pózy dokola (kontrola)', 'bool'],
+    ['dogRandom', 'Aegon: náhodná smyčka všech póz', 'bool'],
+    ['dogBig', 'Aegon zvětšený (kontrola obrázků)', 'bool'],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
     ['contact', 'Kontaktní e-mail', 'text']
@@ -506,7 +516,7 @@ export const SCHEMA = [
   ] },
   { sec: 'farm', title: 'Moje farma', fields: [
     ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }], ['moveDays', 'Přesun budov jednou za (dní, 0 = kdykoli)', 'number', { min: 0, max: 365, step: 1 }],
-    ['capacityCheck', 'Hlídat kapacitu příbytků při chytání', 'bool'], ['testTools', 'Testovací nástroje farmy (+1/−1, prázdná farma)', 'bool'], ['deedDays', 'Skutečný čin stejného druhu jednou za (dní)', 'number', { min: 0, max: 365, step: 1 }], ['breedChance', 'Chov: denní šance na mládě', 'number', { min: 0, max: 1, step: 0.05 }]
+    ['capacityCheck', 'Hlídat kapacitu příbytků při chytání', 'bool'], ['deedDays', 'Skutečný čin stejného druhu jednou za (dní)', 'number', { min: 0, max: 365, step: 1 }], ['breedChance', 'Chov: denní šance na mládě', 'number', { min: 0, max: 1, step: 0.05 }]
   ] },
   { sec: 'games', title: 'Minihry', fields: [
     ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
@@ -540,7 +550,7 @@ export const SCHEMA = [
     ['festivals', 'Sváteční tvorové (Dušičky, Mikuláš, Vánoce, Velikonoce)', 'bool'], ['festChance', 'Sváteční tvorové: šance', 'number', { min: 0, max: 1, step: 0.005 }],
     ['mythDays', 'Bájné dny: počet dní (2× ročně)', 'number', { min: 1, max: 14, step: 1 }], ['mythChance', 'Bájní tvorové: šance místo zvířete', 'number', { min: 0, max: 1, step: 0.005 }],
     ['mythMinQuality', 'Bájní tvorové: min. ostrost (%)', 'number', { min: 50, max: 100, step: 1 }], ['mythSeconds', 'Bájní tvorové: čas na fotku (s)', 'number', { min: 1, max: 10, step: 0.5 }],
-    ['xpMyth', 'Bájní tvorové: XP', 'number', { min: 0, step: 10 }], ['mythTest', 'Test: bájné dny hned', 'bool'],
+    ['xpMyth', 'Bájní tvorové: XP', 'number', { min: 0, step: 10 }],
     ['stampRadius', 'Razítko: vzdálenost od cíle (m)', 'number', { min: 10, max: 300, step: 5 }], ['xpStamp', 'Razítko: XP', 'number', { min: 0, step: 1 }]
   ] },
   { sec: 'atlas', title: 'Atlas – odemykání údajů', fields: [

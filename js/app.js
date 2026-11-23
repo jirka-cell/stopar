@@ -131,7 +131,10 @@ function initDog() {
   el.hidden = !cfg.dog.enabled; el.style.setProperty('--dog', cfg.dog.size + 'px');
   if (!cfg.dog.enabled) { if (dog) { dog.stop(); dog = null; } return; }
   if (!dog) { dog = new Dog(el, cfg); dog.start(); bindDogDrag(); placeDog(); dog.update({ inRange: false, near: false, dir: 1, walking: false, idleMs: 0, night: false }); dog.react('wave', 2500); } // obrázek hned, i bez polohy; na uvítanou zamává
-  dog.cfg = cfg; updateDog();
+  dog.cfg = cfg; dog.drillTest = !!cfg.general.drillTest; dog.rand = !!cfg.general.dogRandom;
+  if (!!cfg.general.dogDemo !== !!dog.demo) dog.setDemo(cfg.general.dogDemo);
+  el.style.setProperty('--dog', (cfg.general.dogBig ? 240 : cfg.dog.size) + 'px');
+  updateDog();
 }
 // Co pes vidí: zvíře v dosahu (vystaví), blízko (čenichá), chůze hráče, jak dlouho je klid
 function updateDog() {
@@ -184,7 +187,7 @@ function dogFree() {
   dogAway = setTimeout(() => { if (!cfg.dog.enabled) return; el.hidden = false; if (dog) dog.react('joy', 2500); toast('Aegon je zpátky! 🐕'); }, (Number(cfg.dog.freeMinutes) || 2) * 60000);
 }
 function dogTip() {
-  if (drillNow()) { toast('Aegon: Jsem na cvičáku s Hejsty! Dneska trénujeme ' + DRILL_TOPICS[Math.floor(Date.now() / 6048e5) % DRILL_TOPICS.length] + '.'); return; }
+  if (drillNow() || (dog && dog.drillTest)) { toast('Aegon: Jsem na cvičáku s Hejsty! Dneska trénujeme ' + DRILL_TOPICS[Math.floor(Date.now() / 6048e5) % DRILL_TOPICS.length] + '.'); return; }
   const n = birds.filter(b => SP[b.sp]).length, inR = birds.filter(b => SP[b.sp] && dist(pos.lat, pos.lon, b.lat, b.lon) <= catchRadius()).length;
   toast('Aegon: ' + (inR ? 'Haf! Něco je v dosahu – ťukni na to!' : n ? 'V okolí cítím ' + n + ' ' + (n === 1 ? 'zvíře' : n < 5 ? 'zvířata' : 'zvířat') + '. Pojďme!' : 'Tady nic necítím, zkusíme jinde?'));
   if (dog) dog.react('joy', 1500);
@@ -944,7 +947,7 @@ function refreshBirds() {
   if (pos.lat == null || !map) return;
   // rozmístění smí záviset jen na tom, co je stejné pro všechny (počasí až se serverem, skrýš je osobní bonus při chytání)
   const now = new Date(), ctx = { now, weather: cfg.world.weather && cfg.world.weatherSpawn ? weatherCond(weather) : '', twilight: isTwilight() };
-  const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now), myWin = cfg.world.mythTest ? { season: 'test', from: 0, to: Infinity } : activeWindow(cfg, now.getTime());
+  const base = new Map(cfg.species.map(sp => [sp.id, speciesMult(cfg, sp, ctx)])), quiet = inQuietMonths(cfg, now), myWin = cfg.general.mythTest ? { season: 'test', from: 0, to: Infinity } : activeWindow(cfg, now.getTime());
   const quietSet = new Set(String(cfg.world.quietBiotopes || '').split(',').map(x => x.trim()));
   const r = visibleBirds(cfg, pos.lat, pos.lon, isNight(), state.gone, now.getTime(), biotopeAt, elevationAt, {
     guess: biotopeGuess,
@@ -1793,7 +1796,7 @@ function openFarmCatalog() {
   <h3>✨ Další</h3><div class="bgrid">
     <button class="bcard" data-fv="deeds"><span class="bico">🌱</span><b>Skutečný čin</b><small>budka, krmítko…</small></button>
     ${isEmpty(f) ? '<button class="bcard" data-fv="regenPick"><span class="bico">🎲</span><b>Jiná krajina</b><small>dokud je farma prázdná</small></button>' : ''}
-    ${cfg.farm.testTools ? '<button class="bcard" data-fv="reset"><span class="bico">🧪</span><b>Začít znovu</b><small>prázdná farma (test)</small></button>' : ''}
+    ${cfg.general.farmTest ? '<button class="bcard" data-fv="reset"><span class="bico">🧪</span><b>Začít znovu</b><small>prázdná farma (test)</small></button>' : ''}
   </div>`;
   s2.hidden = false; actNow = null; updateAct();
   if (farm3 && farm3.setRailPreview) farm3.setRailPreview(!f.rail);
@@ -1874,7 +1877,7 @@ function farmSheetHTML(id) {
     : lv >= 10 ? '<p class="msg small">Nejvyšší úroveň.</p>' : `<button class="btn full${canAfford(f, c, state.cones) && !f.build ? ' primary' : ''}" data-act="farmBuild" data-id="${esc(id)}"${f.build ? ' disabled' : ''}>${lv ? 'Vylepšit na úr. ' + (lv + 1) : 'Postavit'}: 🪵 ${c.wood} · 🪨 ${c.stone}${c.cones ? ' · 🌰 ' + c.cones : ''} · ${buildMinutes(lv)} min</button>${f.build ? '<p class="msg small">Najednou se staví jen jedna budova.</p>' : ''}`;
   const md = Number(cfg.farm.moveDays) || 0, wait = md && f.moved ? Math.ceil((f.moved + md * 86400000 - Date.now()) / 86400000) : 0;
   const mv = farmMove === id ? '<button class="btn full primary" data-fv="moveCancel">Ťukni na políčko, kam budovu dát · Zrušit</button>' : `<button class="btn full ghost" data-fv="move"${wait > 0 ? ' disabled' : ''}>↔ Přesunout${wait > 0 ? ' (za ' + wait + ' dní)' : md ? ' (jednou za ' + md + ' dní)' : ''}</button>`;
-  const test = cfg.farm.testTools ? `<div class="ftest"><span>🧪 Test:</span><button class="btn sm" data-fv="lvDown">−1 úroveň</button><button class="btn sm" data-fv="lvUp">+1 úroveň</button></div>` : '';
+  const test = cfg.general.farmTest ? `<div class="ftest"><span>🧪 Test:</span><button class="btn sm" data-fv="lvDown">−1 úroveň</button><button class="btn sm" data-fv="lvUp">+1 úroveň</button></div>` : '';
   const g = enc && (f.guests[enc.id] || []).filter(id => SP[id]);
   const guests = g && g.length ? `<p class="msg small">Hosté (vypuštěná zvířata, která se vracejí): ${g.map(id => esc(SP[id].name)).join(', ')} · každý den přinesou semínka</p>` : '';
   const bon = farmBonus(f, farmTerrain())[id], bonus = bon && bon > 1 ? `<p class="msg small">🌿 Bonus okolí: +${Math.round((bon - 1) * 100)} % výroby</p>` : BONUS_TILE[id] ? `<p class="msg small">Tip: ${TILE_INFO[BONUS_TILE[id]][0]} ${TILE_INFO[BONUS_TILE[id]][1]} vedle budovy přidá +10 % výroby.</p>` : '';
