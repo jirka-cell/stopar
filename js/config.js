@@ -6,6 +6,7 @@ import { BATCH1 } from './species-batch1.js';
 import { BATCH2 } from './species-batch2.js';
 import { BATCH3 } from './species-batch3.js';
 import { BATCH4 } from './species-batch4.js';
+import { BATCH5 } from './species-batch5.js';
 export { EDU_FIELDS, GROUPS };
 
 export const CONFIG_VERSION = 5;
@@ -180,7 +181,7 @@ export const DEFAULTS = {
     { id: 'mleko', name: 'Ptačí mléko' },
     { id: 'korinky', name: 'Kořínky' }
   ],
-  species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3, ...BATCH4],
+  species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3, ...BATCH4, ...BATCH5],
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
     { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
   ],

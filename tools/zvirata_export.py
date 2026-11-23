@@ -1,13 +1,14 @@
 # Převod obrázků zvířat z G do aplikace: python tools/zvirata_export.py, pak node tools/obrazky.mjs
+# jen vybrané: python tools/zvirata_export.py srnec_3 havran_2 …
 # outputs/zvirata-predlohy/{druh}_{stádium}.png → images/species/{druh}_{stádium}.webp, čtverec 400 px
 # Malé zvíře (pulec, plůdek) se zvětší, aby delší strana zabrala aspoň 60 % obrázku – jinak by v atlasu a na mapě skoro nebylo vidět
-import glob, os, re
+import glob, os, re, sys
 from PIL import Image
 MIN = 0.6
 n = 0
 for f in sorted(glob.glob('outputs/zvirata-predlohy/*.png')):
     name = os.path.basename(f)[:-4]
-    if not re.fullmatch(r'[a-z0-9]+_[1-9]', name): continue
+    if not re.fullmatch(r'[a-z0-9]+_[1-9]', name) or (sys.argv[1:] and name not in sys.argv[1:]): continue
     im = Image.open(f).convert('RGBA')
     bb = im.split()[3].point(lambda v: 255 if v > 24 else 0).getbbox()
     if bb:

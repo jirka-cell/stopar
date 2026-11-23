@@ -358,7 +358,7 @@ test('data druhů jsou konzistentní: potrava, biotopy, pásma, vzácnost, skupi
 
 test('každý druh má anglický popis vzhledu pro prompty obrázků', async () => {
   const { VZHLED_EN } = await import('../tools/vzhled-en.mjs');
-  for (const s of DEFAULTS.species) {
+  for (const s of DEFAULTS.species.filter(s => s.active)) { // nové druhy (dávka 5) mají prompty česky v tools/zvirata_prompty2.mjs
     assert.ok(VZHLED_EN[s.id], `${s.id}: chybí anglický popis v tools/vzhled-en.mjs`);
     assert.ok(VZHLED_EN[s.id][1].length > 30, `${s.id}: popis je moc krátký`);
   }
@@ -477,9 +477,10 @@ test('ubikace: každá skupina má ubikaci, neznámá skupina skončí v posledn
 });
 
 test('každý druh mimo ptáky má vlastní kresbu bez chyb', async () => {
-  const { animalSVG, hasArt } = await import('../js/art.js');
+  const { animalSVG, hasArt } = await import('../js/art.js'), { SPECIES_IMAGES } = await import('../js/images.js');
   for (const s of DEFAULTS.species.filter(s => s.group !== 'Ptáci')) {
-    assert.ok(hasArt(s.id), `${s.id}: chybí kresba v js/art.js`);
+    // kresba je záloha: zapnutý druh bez obrázků ji musí mít
+    assert.ok(hasArt(s.id) || !s.active || SPECIES_IMAGES.has(s.id + '_2'), `${s.id}: chybí kresba v js/art.js ani obrázky`);
     const v = animalSVG(s);
     assert.ok(v.startsWith('<svg') && v.endsWith('</svg>') && !/undefined|NaN/.test(v), s.id);
   }
