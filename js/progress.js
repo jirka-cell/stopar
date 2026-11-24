@@ -1,6 +1,7 @@
 // Postup hráče: XP a úrovně, odznaky, sběratelská alba, denní a týdenní úkoly, kvíz po úlovku
 import { esc, parseMap } from './config.js';
 import { hash01 } from './geo.js';
+import { ic, ICON_FILES } from './icons.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 const list = s => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -137,7 +138,7 @@ export function profileHTML(cfg, st, lv, extra = '') {
   ${nextUnlocks.length ? `<p class="msg small">Brzy odemkneš: ${nextUnlocks.map(([k, l]) => esc(unlockName(cfg, k)) + ' (úr. ' + l + ')').join(', ')}</p>` : ''}
   <h3>Úkoly</h3>${quests.map(qrow).join('') || '<p class="msg small">Žádné úkoly.</p>'}
   <h3>Sběratelská alba</h3><div class="albums">${cfg.albums.map(a => { const p = albumProgress(a, st.caught); return `<div class="album${p.have >= p.total && p.total ? ' done' : ''}"><span class="aic" aria-hidden="true">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${p.have} / ${p.total}</small><div class="prog"><div style="width:${p.total ? p.have / p.total * 100 : 0}%"></div></div></div>`; }).join('')}</div>
-  <h3>Odznaky</h3><div class="badges">${cfg.badges.map(b => `<div class="badge${st.badges[b.id] ? ' on' : ''}" title="${esc(b.name)}"><span aria-hidden="true">${esc(b.icon)}</span><small>${esc(b.name)}</small></div>`).join('')}</div>
+  <h3>Odznaky</h3><div class="badges">${cfg.badges.map(b => `<div class="badge${st.badges[b.id] ? ' on' : ''}" title="${esc(b.name)}">${ICON_FILES.has('badge') ? `<span class="medal" aria-hidden="true">${ic('badge')}<i>${esc(b.icon)}</i></span>` : `<span aria-hidden="true">${esc(b.icon)}</span>`}<small>${esc(b.name)}</small></div>`).join('')}</div>
   ${extra}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }

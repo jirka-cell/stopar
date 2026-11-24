@@ -12,7 +12,7 @@ import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
 import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz, profileHTML, unlockName } from './progress.js';
 import { evolve, train, trainStat, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, shopHTML, coneIcon } from './economy.js';
-import { isTrack, hasSigns, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
+import { isTrack, hasSigns, trackImg, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
 import { qrSVG } from './qr.js';
 import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
@@ -967,7 +967,7 @@ function refreshBirds() {
     if (!m) {
       const el = document.createElement('div');
       el.className = 'bmk' + (near ? '' : ' far') + (speciesLocked(sp) ? ' locked' : '') + (b.variant ? ' var-' + b.variant : '');
-      el.innerHTML = (b.track && !tracked.has(b.id) ? '<span class="cls paw" role="img" aria-label="Stopa">🐾</span>' : cfg.map.classMarkers ? `<span class="cls" role="img" aria-label="${esc(sp.group || 'Zvíře')}">${ic(classIcon(sp.group))}</span>` : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`) + '<i class="pin" aria-hidden="true"></i>';
+      el.innerHTML = (b.track && !tracked.has(b.id) ? `<span class="cls paw" role="img" aria-label="Stopa">${trackImg(sp.id)}</span>` : cfg.map.classMarkers ? `<span class="cls" role="img" aria-label="${esc(sp.group || 'Zvíře')}">${ic(classIcon(sp.group))}</span>` : `<img src="${birdURL(sp)}" alt="${esc(sp.name)}">`) + '<i class="pin" aria-hidden="true"></i>';
       el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
     } else m.el.classList.toggle('far', !near);
@@ -1493,14 +1493,14 @@ function hudBio() {
   if (Number.isFinite(alt)) t += ' · ' + alt + ' m';
   if (isNight()) t += ' · noc'; else if (isTwilight()) t += ' · šero';
   const wc = cfg.world.weather ? weatherCond(weather) : '';
-  if (wc) t += ' · ' + WEATHER_ICON[wc] + (weather.temp != null ? ' ' + weather.temp + '°' : '');
+  if (wc) t += ' ·  ' + (weather.temp != null ? ' ' + weather.temp + '°' : ''); //   = místo pro ikonu počasí
   if (hidden) t += ' · skrýš';
   const pa = protectedAt(pos.lat, pos.lon);
   if (pa) t += ' · 🛡️';
   hb.classList.toggle('link', !!pa);
   const err = errorAt(pos.lat, pos.lon);
   if (err) { t += ' · ⚠️'; hb.classList.add('bad'); hb.title = err; } else { hb.classList.remove('bad'); hb.title = ''; }
-  hb.textContent = t;
+  hb.innerHTML = esc(t).replace(' ', wc ? `<span title="${WEATHER_NAME[wc]}" role="img" aria-label="${WEATHER_NAME[wc]}">${icId('w_' + wc, WEATHER_ICON[wc])}</span>` : '');
 }
 // V simulaci se ukazují simulované km; do skutečné ušlé vzdálenosti se nepočítají
 function hudDist() { const m = cfg.general.simulation ? state.simDist : (state.walkDays[dayStr(new Date())] || 0); $('hdist').textContent = 'dnes ' + (m / 1000).toFixed(1).replace('.', ',') + ' km' + (cfg.general.simulation ? ' (sim.)' : ''); }

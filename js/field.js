@@ -2,6 +2,9 @@
 import { esc, parseMap, MONTH_NAMES } from './config.js';
 import { birdImg } from './birds.js';
 import { groupIcon } from './collection.js';
+import { SPECIES_IMAGES } from './images.js';
+// Obrázek stopy druhu (images/species/{id}_stopa.webp), dokud není, zůstane ťapka
+export const trackImg = (id, cls = '') => SPECIES_IMAGES.has(id + '_stopa') ? `<img class="trk ${cls}" src="images/species/${id}_stopa.webp" alt="" draggable="false">` : '🐾';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 export const hasSigns = sp => !!String((sp.edu || {}).signs || '').trim();
@@ -14,10 +17,10 @@ export function trackQuiz(sp, all, rand = Math.random) {
   const others = all.filter(o => o.active && o.id !== sp.id && hasSigns(o));
   const same = others.filter(o => o.group === sp.group).sort(() => rand() - .5), rest = others.filter(o => o.group !== sp.group).sort(() => rand() - .5);
   const opts = [sp, ...[...same, ...rest].slice(0, 2)].sort(() => rand() - .5);
-  return { sign: sp.edu.signs, opts: opts.map(o => o.id), correct: opts.indexOf(sp) };
+  return { id: sp.id, sign: sp.edu.signs, opts: opts.map(o => o.id), correct: opts.indexOf(sp) };
 }
 export function trackHTML(z, SP) {
-  return `<div class="encimg track"><span aria-hidden="true">🐾</span></div><h2>Čí je to stopa?</h2>
+  return `<div class="encimg track"><span aria-hidden="true">${trackImg(z.id)}</span></div><h2>Čí je to stopa?</h2>
   <div class="fact">${esc(z.sign)}</div>
   <div class="grid">${z.opts.map((id, i) => `<button class="acard" data-act="trackAns" data-i="${i}"><div class="im">${birdImg(SP[id])}</div><div class="nm">${esc(SP[id].name)}</div></button>`).join('')}</div>
   <button class="btn full ghost" data-act="close">Nechat být</button>`;

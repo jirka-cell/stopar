@@ -1037,6 +1037,9 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   assert.match(I.ic('map'), /icons\/ui\/map\.webp/); assert.match(I.ic('neznama'), /•/); assert.match(I.ic('install'), /📲/);
   for (const n of I.ICON_FILES) assert.ok(existsSync(new URL(`../icons/ui/${n}.${I.ICON_EXT}`, import.meta.url)), 'chybí ikona ' + n);
   assert.match(I.icId('lumber', '🪓'), /b_lumber\.webp/); assert.match(I.icId('enc_voliera', '🐦'), /e_voliera/); assert.equal(I.icId('neznamy', '🪓'), '🪓');
+  assert.match(I.icId('w_rain', '🌧️'), /w_rain\.webp/);
+  const Pr = await import('../js/progress.js'), { DEFAULTS: DF } = await import('../js/config.js');
+  assert.match(Pr.profileHTML(DF, Object.assign(Pr.cleanProgress({}), { caught: {} }), 1), /class="medal"[^]*badge\.webp/, 'odznak = medaile s emoji uprostřed');
   // cvičák s Hejsty: čtvrtek 17:30–18:15, pózy se střídají, zvíře blízko má přednost
   const D = await import('../js/dog.js');
   assert.ok(D.drillNow(new Date(2026, 10, 26, 17, 30))); assert.ok(D.drillNow(new Date(2026, 10, 26, 18, 14)));
@@ -1044,7 +1047,7 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   assert.equal(D.drillPose(0), 'cvicak-sedi'); assert.match(D.drillPose(15), /^cvicak-beh[12]$/);
   assert.ok(new Set(Array.from({ length: 80 }, (_, f) => D.drillPose(f))).size === 8, 'všech 8 póz');
   const ctx = { drill: true, now: 0, eventUntil: 0, idleMs: 0, sleepMs: 1e9, lieMs: 1e9 };
-  assert.equal(D.dogPose(ctx).pose, 'drill'); assert.equal(D.dogPose({ ...ctx, inRange: true }).pose, 'point');
+  assert.equal(D.dogPose(ctx).pose, 'drill'); assert.equal(D.dogPose({ ...ctx, inRange: true }).pose, 'point'); assert.equal(D.dogPose({ ...ctx, near: true }).pose, 'drill', 'zvíře do 200 m cvičák nepřeruší');
 });
 
 test('úkoly podle místa, jízda autem a nové minihry', async () => {

@@ -36,8 +36,8 @@ export function dogPose(ctx) {
   if (ctx.event && ctx.now < ctx.eventUntil) return { pose: ctx.event, dir: ctx.dir };
   if (ctx.speed > 7) return { pose: 'car', dir: 1 }; // nad ~25 km/h jede autem
   if (ctx.inRange) return { pose: 'point', dir: ctx.dir };
+  if (ctx.drill && DOG_IMAGES.has('cvicak-sedi')) return { pose: 'drill', dir: 1 }; // na cvičáku; jen zvíře v dosahu focení ho přeruší (Aegon odběhne a vystaví)
   if (ctx.near) return { pose: 'sniff', dir: ctx.dir };
-  if (ctx.drill && DOG_IMAGES.has('cvicak-sedi')) return { pose: 'drill', dir: 1 }; // na cvičáku; zvíře blízko má přednost – Aegon odběhne a vystaví
   if (ctx.walking) return { pose: ctx.speed > 2 ? 'run' : 'walk', dir: 1 };
   const sleepAfter = ctx.sleepMs * (ctx.night ? 0.5 : 1);
   if (ctx.idleMs > sleepAfter) return { pose: 'sleep', dir: 1 };

@@ -14,6 +14,7 @@ const ID_IC = { wood: 'res_wood', stone: 'res_stone', seeds: 'res_seeds',
   lumber: 'b_lumber', quarry: 'b_quarry', nursery: 'b_nursery', field: 'b_field', orchard: 'b_orchard', worms: 'b_worms', store: 'b_store', pantry: 'b_pantry',
   enc_voliera: 'e_voliera', enc_vybeh: 'e_vybeh', enc_rybnik: 'e_rybnik', enc_terarium: 'e_terarium', enc_insektarium: 'e_insektarium',
   barn: 'd_barn', mill: 'd_mill', well: 'd_well', chapel: 'd_chapel', beehive: 'd_beehive', scarecrow: 'd_scarecrow', bench: 'd_bench', hay: 'd_hay',
+  w_rain: 'w_rain', w_snow: 'w_snow', w_cold: 'w_cold', w_hot: 'w_hot', w_clear: 'w_clear', w_cloudy: 'w_cloudy',
   t_meadow: 't_meadow', t_field: 't_field', t_forest: 't_forest', t_pond: 't_pond',
   krmivo: 'shop_food', pamlsek: 'shop_treat', navnada: 'shop_bait', objektiv: 'shop_lens', dalekohled: 'shop_scope' };
 // Ikona podle id věci, jinak předané emoji (už escapované)
