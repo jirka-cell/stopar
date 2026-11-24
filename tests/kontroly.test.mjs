@@ -1285,3 +1285,14 @@ test('atlas: hashtagy z dat, řazení s nechycenými na konci', async () => {
   assert.match(A.monthsBar({ months: '1-2' }), /class="on">L/);
 });
 
+test('určovací klíč podle znaků: ptáci mají data, kos se pozná ze dvou znaků, chyba druh nevyřadí', async () => {
+  const K = await import('../js/keydata.js'), { DEFAULTS } = await import('../js/config.js');
+  for (const s of DEFAULTS.species.filter(s => s.group === 'Ptáci')) assert.ok(K.keyTraits(s.id), 'znaky: ' + s.id);
+  const rank = ans => Object.keys(K.KEY_DATA).map(id => [id, K.keyScore(id, ans)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  assert.equal(rank({ barvy: ['c', 'z'], znaky: ['dlouhy'], kde: ['Z'] })[0], 'kos');
+  assert.ok(rank({ chovani: ['splha'], barvy: ['m', 'r'] }).slice(0, 2).includes('brhlik'));
+  assert.ok(rank({ barvy: ['c', 'z'], znaky: ['dlouhy'], kde: ['V'] }).slice(0, 8).includes('kos'), 'jedna špatná odpověď (voda) kosa nevyřadí');
+  const F = await import('../js/field.js');
+  assert.match(F.keyHTML(DEFAULTS, { group: 'Ptáci', t: { barvy: ['c', 'z'] } }, {}), /Nejspíš je to[^]*keyPick/);
+});
+

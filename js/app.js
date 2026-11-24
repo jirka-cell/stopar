@@ -21,6 +21,8 @@ import { Dog, dogURL, drillNow, DRILL_TOPICS } from './dog.js';
 import { Splash, pickSplash } from './splash.js';
 import { cleanDays, markPlayed, addCatch, myCalendarHTML, dayHTML } from './calendar.js';
 import { tagsFor, tagChips, bioColor, monthsBar, SORTS, sortSpecies } from './atlas.js';
+import { KEY_Q } from './keydata.js';
+const KEY_Q_GROUPS = new Set(Object.keys(KEY_Q));
 import { wildStage, foodFor, isPupa, knownStages } from './stages.js';
 import { ic, icId, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
@@ -2153,7 +2155,7 @@ function trackAnswer(i) {
 }
 /* ---------- určovací klíč a deník ---------- */
 let keyAns = {};
-function openKey() { openM(keyHTML(cfg, keyAns, SP)); }
+function openKey() { const y = mbox.scrollTop, same = keyAns.group && $('mbox').querySelector('.kopts'); openM(keyHTML(cfg, keyAns, SP, { month: new Date().getMonth() + 1, night: isNight(), bioHere: pos.lat != null ? biotopeAt(pos.lat, pos.lon) || biotopeGuess(pos.lat, pos.lon) : null })); if (same) mbox.scrollTop = y; }
 function openJournal() { openM(journalHTML(state, SP)); }
 let jPhoto = null;
 async function saveJournal() {
@@ -2290,7 +2292,9 @@ function onModalClick(e) {
   else if (act === 'trackAns' && enc && enc.step === 'track') trackAnswer(Number(a.dataset.i));
   else if (act === 'key') { keyAns = {}; openKey(); }
   else if (act === 'keyAns') { keyAns[a.dataset.k] = a.dataset.v; openKey(); }
-  else if (act === 'keyBack') { const k = KEY_STEPS.filter(k => k in keyAns).pop(); delete keyAns[k]; openKey(); }
+  else if (act === 'keyBack') { if (keyAns.t || keyAns.young) keyAns = { group: keyAns.group }; else { const k = KEY_STEPS.filter(k => k in keyAns).pop(); delete keyAns[k]; } if (act === 'keyBack' && keyAns.group && KEY_Q_GROUPS.has(keyAns.group) && !keyAns.t) delete keyAns.group; openKey(); }
+  else if (act === 'keyT') { const t = keyAns.t = keyAns.t || {}, q = a.dataset.q, v = a.dataset.v, set = new Set(t[q] || []); set.has(v) ? set.delete(v) : set.add(v); t[q] = [...set]; openKey(); }
+  else if (act === 'keyYoung') { keyAns.young = !keyAns.young; openKey(); }
   else if (act === 'keyReset') { keyAns = {}; openKey(); }
   else if (act === 'keyPick') openDetail(a.dataset.sp);
   else if (act === 'journal') openJournal();

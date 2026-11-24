@@ -598,3 +598,13 @@ body.zoomfar .bmk,body.zoomfar .mythmk{display:none}
 .aegfact{display:flex;gap:10px;align-items:flex-start;margin:10px 0}.aegfact img{width:44px;height:44px;border-radius:50%;flex:none}
 .aegfact p{margin:0;background:rgba(47,125,79,.08);border-radius:4px 14px 14px 14px;padding:8px 12px;font-size:14px}
 .myobs{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:12px}.myobs img.ic{width:18px;height:18px;vertical-align:middle}
+/* určovací klíč podle znaků */
+.kopts{display:flex;flex-wrap:wrap;gap:6px}
+.kopt{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:5px 10px 5px 6px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.kopt img.ic{width:28px;height:28px}.kopt.on{border-color:var(--acc);background:rgba(47,125,79,.14);font-weight:600}
+.kopt.young{margin:6px 0 2px;padding:6px 12px}
+.ksw{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.25);display:inline-block}
+.kres{display:flex;flex-direction:column;gap:6px}
+.kresit{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:6px 10px;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.kresit .kno{flex:none;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.kresit .im img{width:56px;height:48px;object-fit:contain}.kresit .kt{display:flex;flex-direction:column}.kresit small{color:var(--mut);font-size:12px}

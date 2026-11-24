@@ -1,7 +1,9 @@
 // Poznávání v terénu: stopy a pobytová znamení na mapě, určovací klíč bez AI, deník skutečných pozorování
 import { esc, parseMap, MONTH_NAMES } from './config.js';
 import { birdImg } from './birds.js';
-import { ic, classIcon } from './icons.js';
+import { ic, classIcon, ICON_FILES } from './icons.js';
+import { KEY_Q, keyScore } from './keydata.js';
+import { parseMonths } from './config.js';
 import { SPECIES_IMAGES } from './images.js';
 // Obrázek stopy druhu (images/species/{id}_stopa.webp), dokud není, zůstane ťapka
 export const trackImg = (id, cls = '') => SPECIES_IMAGES.has(id + '_stopa') ? `<img class="trk ${cls}" src="images/species/${id}_stopa.webp" alt="" draggable="false">` : '🐾';
@@ -44,7 +46,23 @@ export function keyFilter(all, ans) {
     && (!ans.size || (() => { const c = sizeCm(s.edu && s.edu.length), z = SIZES.find(x => x[0] === ans.size); return c == null || (c >= z[3] && c < z[4]); })())
     && (!ans.time || (ans.time === 'night') === !!s.night));
 }
-export function keyHTML(cfg, ans, SP) {
+// Klíč podle znaků (vícecestný): odpovídej v libovolném pořadí, cokoli přeskoč; výsledky se řadí podle shody, místo a čas pomůžou
+export function traitKeyHTML(cfg, ans, ctx = {}) {
+  const Q = KEY_Q[ans.group], t = ans.t || {}, n = Object.values(t).reduce((a, x) => a + x.length, 0);
+  const icon = v => /^#/.test(v) ? `<i class="ksw" style="background:${esc(v)}"></i>` : ICON_FILES.has(v) ? ic(v) : '';
+  const qs = Q.map(([q, title, opts]) => `<h3>${esc(title)}</h3><div class="kopts">${opts.map(([code, label, iv]) => `<button class="kopt${(t[q] || []).includes(code) ? ' on' : ''}" data-act="keyT" data-q="${q}" data-v="${code}">${icon(iv)}<span>${esc(label)}</span></button>`).join('')}</div>`).join('');
+  const list = cfg.species.filter(s => s.active && s.group === ans.group).map(s => ({ s, v: keyScore(s.id, t, { month: ctx.month, months: parseMonths(s.months), night: ctx.night, spNight: !!s.night, bioHere: ctx.bioHere, bio: parseMap(s.bio) }) }))
+    .filter(x => x.v > -Infinity).sort((a, b) => b.v - a.v).slice(0, 5);
+  const res = n ? `<h3>Nejspíš je to:</h3><div class="kres">${list.map(({ s }, i) => `<button class="kresit" data-act="keyPick" data-sp="${esc(s.id)}"><span class="kno">${i + 1}</span><span class="im">${birdImg(s, '', ans.young ? 0 : undefined)}</span><span class="kt"><b>${esc(s.name)}</b><small>${esc(String((s.edu || {}).male || s.fact || '').split(/[.;]/)[0].slice(0, 90))}</small></span></button>`).join('')}</div>` : '<p class="msg small">Ťukni na cokoli, co sis zapamatoval – stačí jedna nebo dvě věci. Co nevíš, přeskoč.</p>';
+  return `<h2>Určovací klíč – ${esc(ans.group)}</h2>
+  ${res}
+  <button class="kopt young${ans.young ? ' on' : ''}" data-act="keyYoung"><span>Vypadal jako mládě</span></button>
+  ${qs}
+  <div class="tools"><button class="btn sm" data-act="keyBack">Jiná skupina</button>${n ? '<button class="btn sm" data-act="keyReset">Začít znovu</button>' : ''}</div>
+  <button class="btn full ghost" data-act="close">Zavřít</button>`;
+}
+export function keyHTML(cfg, ans, SP, ctx = {}) {
+  if (ans.group && KEY_Q[ans.group]) return traitKeyHTML(cfg, ans, ctx);
   const left = keyFilter(cfg.species, ans), step = KEY_STEPS.find(k => !(k in ans));
   const opt = (k, v, icon, label, sub = '') => `<button class="acard keyopt" data-act="keyAns" data-k="${k}" data-v="${esc(v)}"><div class="kic" aria-hidden="true">${icon}</div><div class="nm">${esc(label)}</div>${sub ? `<div class="rr">${esc(sub)}</div>` : ''}</button>`;
   let q = '';
