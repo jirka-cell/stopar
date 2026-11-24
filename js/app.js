@@ -23,7 +23,7 @@ import { ic, icId, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
 import { newFarm, cleanFarm, advance as farmAdvance, walkGain, startBuild, autoPick, encCap, farmHTML, BUILDINGS, RES, storeCap, cost as farmCost, buildMinutes, canAfford, rates as farmRates, ENC_DESC, moveBuilding, placeBuilding, isEmpty, setTile, toggleRoad, farmBonus, TILE_INFO, BONUS_TILE, DECOR, placeDecor, removeDecor, takenTiles, FARM_TASKS, claimTask, trainDelivery, RAIL_COST, buyRail } from './farm.js';
 import { mountFarm, genWorld, validTiles, autoPlace, tileType, BIOMES } from './farm3d.js';
-import { createMeter, ingest, tickMeter, addDay, cleanDay, chipHTML, dataHTML } from './datamon.js';
+import { createMeter, ingest, tickMeter, addDay, cleanDay, dataHTML } from './datamon.js';
 import { PUZZLES, SIZES, boardHTML, squareImage, playPuzzle, playPexeso, pexesoDeck, gameReward, cleanGames, playRows, playRings, playWho } from './minigames.js';
 import { foodIcon, tripCardBlob, weekCode, readWeekCode, weekNumber, familyHTML } from './extras.js';
 import { planUrls, estimate, download as offlineDownload, removeUrls, cleanAreas, offlineHTML, OFFLINE_CACHE } from './offline.js';
@@ -31,7 +31,7 @@ import { buildGraph, graphQuery, suggestLoops, loopThrough, nearestNode, simplif
 import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './trails.js';
 import { cleanTreasure, treasureLink, decodeTreasure, searchCircle, treasuresHTML, treasureFormHTML, feedersNear, feederReward, parkCell, cleanPlaces, distM } from './treasure.js';
 import { legendsHTML, mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML } from './myths.js';
-import { nextSpeed, muteState, attachGestures, whatsHereHTML, stepKind } from './mapui.js';
+import { nextSpeed, muteState, attachGestures, whatsHereHTML, gpsStep } from './mapui.js';
 import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
@@ -380,7 +380,7 @@ async function sendChecklist() {
 }
 
 function applyConfig(first) {
-  $('clFab').hidden = !cfg.general.testerFab;
+  $('clFab').hidden = !cfg.general.testerFab; document.body.classList.toggle('sim', !!cfg.general.simulation); $('dataBtn').hidden = !cfg.general.dataMonitor;
   SP = Object.fromEntries(cfg.species.map(s => [s.id, s]));
   FN = Object.fromEntries(cfg.foods.map(f => [f.id, f.name]));
   BIO = Object.fromEntries(cfg.biotopes.map(b => [b.id, b]));
@@ -461,6 +461,8 @@ function updateGame() { gamePending = true; flushMap(); }
 const inRing = (x, y, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 let occT = 0;
 function occludeMarkers() {
+  // bližší zvíře (níž na obrazovce) překryje vzdálenější; rozsah 1–99, ať značky nepřekryjí ovládání nad mapou
+  if (map) { const h = map.getContainer().clientHeight || 1; markers.forEach(m => { m.el.style.zIndex = 1 + Math.max(0, Math.min(98, Math.round(map.project(m.mk.getLngLat()).y / h * 98))); }); }
   if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(m => m.el.classList.remove('behind')); return; }
   markers.forEach((m) => {
     const ll = m.mk.getLngLat(), pt = map.project(ll);
@@ -510,7 +512,13 @@ function initMap() {
   // růžice v horní liště: ukazuje sever; ťuk = zpět na sever, druhý ťuk = kompas (pokud je zapnutý v nastavení)
   const rose = () => { const n = $('roseN'); if (n) n.setAttribute('transform', 'rotate(' + (-map.getBearing()) + ' 20 20)'); document.body.classList.toggle('flatmap', map.getPitch() < 15); };
   map.on('rotate', rose); map.on('pitch', rose); map.on('load', rose);
-  $('roseBtn').onclick = () => { if (compassOn) { toggleCompass(); map.easeTo({ bearing: 0, duration: 400 }); } else if (Math.abs(map.getBearing()) > 1) map.easeTo({ bearing: 0, duration: 400 }); else if (cfg.map.compass) toggleCompass(); else toast('Mapa je natočená na sever.'); };
+  // růžice: ťuk = sever / kompas, dvojťuk = Na mě (vycentrovat na hráče)
+  let roseT = 0;
+  const roseOne = () => { if (compassOn) { toggleCompass(); map.easeTo({ bearing: 0, duration: 400 }); } else if (Math.abs(map.getBearing()) > 1) map.easeTo({ bearing: 0, duration: 400 }); else if (cfg.map.compass) toggleCompass(); else toast('Mapa je natočená na sever.'); };
+  $('roseBtn').onclick = () => {
+    if (roseT) { clearTimeout(roseT); roseT = 0; follow = true; document.body.classList.remove('away'); if (pos.lat != null) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); return; }
+    roseT = setTimeout(() => { roseT = 0; roseOne(); }, 300);
+  };
   // Ťuknutí na severku vypne režim kompasu a vrátí mapu na sever
   setTimeout(() => { const c = document.querySelector('.maplibregl-ctrl-compass'); if (c) c.addEventListener('click', () => { if (compassOn) toggleCompass(); }); }, 0);
   const me = document.createElement('div'); me.className = 'me'; me.innerHTML = '<i class="dir"></i>';
@@ -520,12 +528,13 @@ function initMap() {
   for (const ev of ['touchstart', 'touchmove', 'wheel', 'mousedown']) $('map').addEventListener(ev, () => { lastTouch = Date.now(); }, { passive: true });
   attachGestures(map, $('map'), { distance: dist, onWhatsHere: onLongPress });
   map.on('click', e => {
-    if (document.body.classList.contains('ui-open')) { setUi(false); return; }
     if (pl.tap) { pl.tap = false; pl.start = [e.lngLat.lat, e.lngLat.lng]; pl.startName = 'bod na mapě'; showStart(false); openPlanner(); return; }
     if (cfg.general.simulation) {
       if (pos.lat == null) setPos(e.lngLat.lat, e.lngLat.lng, 5, 'sim');
       else simTarget = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+      return;
     }
+    setUi(!document.body.classList.contains('ui-open')); // ťuk do prázdné mapy ukáže / schová dolní lištu
   });
   map.on('styledata', () => { kctPending = planPending = true; flushMap(); });
   map.on('moveend', refreshTrails); map.on('move', occSoon); map.on('idle', occSoon);
@@ -596,10 +605,7 @@ function onLookChange(t) {
 let compassOn = false, lastRot = 0, headingSeen = false, headingTimer = 0;
 function updateCompassBtn() {
   const lb = $('lookBtn'); if (lb) lb.hidden = !cfg.map.quickLook;
-  const b = $('compassBtn'); if (!b) return;
-  b.hidden = !cfg.map.compass;
-  b.classList.toggle('on', compassOn);
-  document.body.classList.toggle('compass', compassOn);
+  document.body.classList.toggle('compass', compassOn); // kompas se zapíná ťuknutím na růžici
   if (!cfg.map.compass && compassOn) toggleCompass();
 }
 function onOrient(e) {
@@ -644,15 +650,10 @@ function onGPS(p) {
   banner(null);
   const t = p.timestamp || Date.now();
   if (acc <= cfg.gps.maxAccuracy) {
-    if (lastGood) {
-      const d = dist(lastGood.lat, lastGood.lon, lat, lon), dt = Math.max(1, (t - lastGood.t) / 1000);
-      if (d >= cfg.gps.minStep) {
-        const k = stepKind(d, dt, cfg.gps);
-        if (k === 'walk') { state.dist += d; walked(d); }
-        else if (k === 'ride') onRide();
-        lastGood = { lat, lon, t };
-      }
-    } else lastGood = { lat, lon, t };
+    const st = gpsStep(lastGood, { lat, lon, t, acc }, cfg.gps, dist);
+    if (st.kind === 'walk') { state.dist += st.d; walked(st.d); }
+    else if (st.kind === 'ride') onRide();
+    lastGood = st.anchor;
   }
   const first = pos.src !== 'gps';
   setPos(lat, lon, acc, 'gps', p.coords.speed);
@@ -741,15 +742,20 @@ function checkStamps() {
 /* ---------- nový vzhled: nabídka, akční tlačítko, karty, Já ---------- */
 function setUi(on) {
   document.body.classList.toggle('ui-open', on);
-  $('dialBtn').setAttribute('aria-expanded', on ? 'true' : 'false');
-  $('dialBtn').setAttribute('aria-label', on ? 'Zavřít nabídku' : 'Otevřít nabídku');
   if (on) updateAct();
 }
 // Akční tlačítko: chytit (zvíře v dosahu) > trasa (jdu po ní) > plánovat
+let catchHold = { id: null, t: 0 };
 function nearestCatchable() {
   if (pos.lat == null) return null;
-  const c = birds.filter(b => SP[b.sp] || b.myth).map(b => ({ b, d: dist(pos.lat, pos.lon, b.lat, b.lon) })).filter(x => x.d <= catchRadius() && (x.b.myth || !speciesLocked(SP[x.b.sp]))).sort((x, y) => x.d - y.d)[0];
-  return c ? c.b : null;
+  const ok = b => (SP[b.sp] || b.myth) && (b.myth || !speciesLocked(SP[b.sp]));
+  const c = birds.filter(ok).map(b => ({ b, d: dist(pos.lat, pos.lon, b.lat, b.lon) })).filter(x => x.d <= catchRadius()).sort((x, y) => x.d - y.d)[0];
+  if (c) { catchHold = { id: c.b.id, t: Date.now() }; return c.b; }
+  // setrvačnost: zvíře na hraně dosahu (kmitání GPS) drží tlačítko Chytit ještě do +15 m nebo 5 s
+  const h = catchHold.id && birds.find(b => b.id === catchHold.id && ok(b));
+  if (h && (dist(pos.lat, pos.lon, h.lat, h.lon) <= catchRadius() + 15 || Date.now() - catchHold.t < 5000)) return h;
+  catchHold = { id: null, t: 0 };
+  return null;
 }
 function actState() {
   const kid = kidMode() && !document.body.classList.contains('parent');
@@ -766,7 +772,7 @@ let actNow = null, curView = 'mapv';
 const runAct = act => { const b = document.createElement('button'); b.dataset.act = act; onModalClick({ target: b, preventDefault() {} }); };
 function updateAct() {
   const a = actState(), btn = $('actBtn'); if (!btn) return;
-  if (!actNow || actNow.k !== a.k) { $('actIc').innerHTML = ic(a.ic); $('actLbl').textContent = a.lbl; btn.classList.toggle('catch', a.k === 'catch'); }
+  if (!actNow || actNow.k !== a.k) { $('actIc').innerHTML = ic(a.ic); $('actLbl').textContent = a.lbl; btn.classList.toggle('catch', a.k === 'catch'); document.body.classList.toggle('catchable', a.k === 'catch'); }
   actNow = a;
 }
 function bindAct() {
@@ -814,7 +820,6 @@ function renderCards() {
   const el = $('cards'); if (!el) return;
   const list = !$('plpanel').hidden ? [] : smartCards(), key = JSON.stringify(list.map(c => [c.id, c.t, c.s]));
   if (key === cardsKey) return; cardsKey = key; cardsData = list;
-  $('dialBtn').classList.toggle('badge', list.length > 0);
   el.innerHTML = list.map((c, i) => `<div class="scard">${ic(c.ic)}<div><b>${esc(c.t)}</b><small>${esc(c.s)}</small></div><button class="btn sm primary" data-ci="${i}">${esc(c.b)}</button><button class="x" data-cx="${i}" aria-label="Schovat">✕</button></div>`).join('');
 }
 let cardsData = [];
@@ -850,7 +855,7 @@ function renderJa() {
   <div class="jagrp">Ven</div><div class="jatiles">${T('ven', 'planner', 'planner', 'Plánovač')}${T('ven', 'treasures', 'treasure', 'Poklady')}${T('ven', 'trip', 'trip', 'Karta výletu')}${T('ven', 'family', 'family', 'Rodinná výprava')}${state.walk && !state.walk.done ? T('ven', 'walkMgr', 'route', 'Moje trasa') : ''}</div>
   <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'profile', 'quests', 'Úkoly a odznaky')}${T('hraj', 'shop', 'shop', 'Obchod')}${T('hraj', 'contests', 'contests', 'Závody')}</div>
   <div class="jagrp">Rodina</div><div class="jatiles">${T('rod', 'parent', 'parent', 'Rodičovská nastavení')}${T('rod', 'pinSet', 'pin', 'Rodičovský PIN')}</div>
-  <div class="jagrp">Nastavení a data</div><div class="jatiles">${T('sys', 'nightCfg', 'night', 'Noc a jas')}${T('sys', 'dataMgr', 'data', 'Správa dat')}${T('sys', 'export', 'backup', 'Uložit zálohu')}<label class="jtile g-sys">${ic('restore')}Obnovit zálohu<input type="file" accept="application/json,.json" data-import></label>${cfg.general.testerFab ? T('sys', 'checklist', 'tester', 'Testeři') : ''}${!standalone && installEvt ? T('sys', 'install', 'install', 'Instalovat') : ''}${T('sys', 'about', 'about', 'O aplikaci')}${T('sys', 'legalMenu', 'legal', 'Podmínky')}</div>
+  <div class="jagrp">Nastavení a data</div><div class="jatiles">${T('sys', 'nightCfg', 'night', 'Noc a jas')}${T('sys', 'offline', 'offline', 'Offline mapy')}${T('sys', 'dataMgr', 'data', 'Správa dat')}${T('sys', 'export', 'backup', 'Uložit zálohu')}<label class="jtile g-sys">${ic('restore')}Obnovit zálohu<input type="file" accept="application/json,.json" data-import></label>${cfg.general.testerFab ? T('sys', 'checklist', 'tester', 'Testeři') : ''}${!standalone && installEvt ? T('sys', 'install', 'install', 'Instalovat') : ''}${T('sys', 'about', 'about', 'O aplikaci')}${T('sys', 'legalMenu', 'legal', 'Podmínky')}</div>
   <div class="jarow"><label class="fld row">Ztlumit mapu při chůzi (bezpečnost)<input type="checkbox" data-pref="muteWalk"${muteOn() ? ' checked' : ''}${kidMode() ? ' disabled' : ''}></label>
   <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b> – stejný kód = stejná zvířata na stejném místě.</p>
   <button class="btn full danger" data-act="wipe">Smazat všechna moje data</button>
@@ -1447,7 +1452,7 @@ async function playMini(id, level, done) {
 }
 /* ---------- správa dat ---------- */
 const meter = createMeter();
-let nmOpen = false, nmRate = 0, nmT = 0, nmDay = null, nmDirty = false;
+let nmRate = 0, nmDay = null, nmDirty = false;
 async function initDataMon() {
   nmDay = cleanDay(await store.get('netDay').catch(() => null));
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', e => {
@@ -1456,22 +1461,17 @@ async function initDataMon() {
   });
   setInterval(() => {
     nmRate = tickMeter(meter);
-    const d = $('dog'); if (d) d.classList.toggle('busy', nmRate > 0 || queueSize() > 0 || plBusy || !!off.ctrl);
+    const d = $('dog'); if (d) d.classList.toggle('busy', plBusy || !!off.ctrl); // přemýšlí jen u plánování trasy a ručního offline stahování, ne u stahování dat na pozadí
     drawNetmon();
     if (modal.classList.contains('on') && $('mbox').querySelector('[data-act=dataClearOsm]') && !$('mbox').querySelector('[data-armed]')) openDataMgr(true);
   }, 1000);
   setInterval(() => { if (nmDirty && !wiping) { nmDirty = false; store.set('netDay', nmDay).catch(() => {}); } }, 15000);
-  const el = $('netmon');
-  el.addEventListener('click', e => { if (e.target.closest('[data-act=dataMgr]')) { openDataMgr(); return; } nmOpen = !nmOpen; nmT = Date.now(); drawNetmon(); });
 }
 // v rohu jen když se něco stahuje (po 20 s klidu zmizí); rozbalený se po 12 s sám sbalí
 function drawNetmon() {
-  const el = $('netmon'); if (!el) return;
-  if (nmOpen && Date.now() - nmT > 12000) nmOpen = false;
-  const show = cfg.general.dataMonitor && (nmOpen || meter.quiet < 20);
-  el.hidden = !show; if (!show) return;
-  el.classList.toggle('open', nmOpen);
-  el.innerHTML = chipHTML(meter, nmRate, nmOpen);
+  const el = $('dataBtn'); if (!el) return; // ikona vlevo nahoře, zapíná se v Obecné; tečka = právě se stahuje
+  el.hidden = !cfg.general.dataMonitor;
+  el.classList.toggle('on', nmRate > 0);
 }
 async function openDataMgr(refresh) {
   const st = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => null) : null;
@@ -1560,20 +1560,13 @@ mbox.addEventListener('input', e => {
 function bindUI() {
   document.querySelectorAll('nav button[data-v]').forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
   fillIcons(); document.body.classList.add('on-map');
-  $('dialBtn').onclick = () => setUi(!document.body.classList.contains('ui-open'));
-  $('tools').addEventListener('click', e => {
-    const t = e.target.closest('[data-tool]'); if (!t) return;
-    const k = t.dataset.tool; setUi(false);
-    if (k === 'data') openDataMgr(); else if (k === 'offline') openOffline(); else if (k === 'measure') toast('Polož dva prsty na mapu a chvíli je drž – ukáže se vzdálenost.');
-  });
+  $('dataBtn').onclick = () => openDataMgr();
   bindAct();
   $('cards').addEventListener('click', onCardClick);
   $('jav').addEventListener('click', onModalClick);
   $('sbirkav').addEventListener('click', e => { if (e.target.closest('[data-act=farm]')) openFarm(); });
   $('farmv').addEventListener('click', onFarmClick);
   $('jav').addEventListener('change', e => { onModalChange(e); });
-  $('centerBtn').onclick = () => { setUi(false); follow = true; document.body.classList.remove('away'); if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), cfg.map.startZoom), duration: 400 }); };
-  $('compassBtn').onclick = toggleCompass;
   $('lookBtn').onclick = () => { setUi(false); openLook(); };
   $('menuBtn').onclick = () => { if (kidMode() && !document.body.classList.contains('parent')) parentGate(); else show('jav'); };
   document.querySelectorAll('nav button[data-kid]').forEach(b => b.addEventListener('click', () => { if (b.dataset.kid === 'games') openGames(); }));
@@ -1602,7 +1595,7 @@ function bindUI() {
   $('sbirkav').addEventListener('change', e => { if (e.target.matches('[data-sort]')) { colView.sort = e.target.value; renderCollection(); } });
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
   window.addEventListener('hashchange', () => { if (location.hash === '#admin') askAdmin(); else if (!dogDemo()) checkEventLink(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); else tick(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); else { lastGood = null; tick(); } }); // po návratu z pozadí poloha skočí – začít od nového bodu
 }
 
 /* ---------- setkání ---------- */
@@ -2197,6 +2190,7 @@ function onModalClick(e) {
   else if (act === 'card') shareCard($('animalActs')?.dataset.uid);
   else if (act === 'contests') openContests();
   else if (act === 'dataMgr') openDataMgr();
+  else if (act === 'offline') openOffline();
   else if (act === 'dataClearTiles') { caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('stopar-tiles')).map(k => caches.delete(k)))).then(() => { toast('Uložená mapa smazána.'); openDataMgr(); }); }
   else if (act === 'dataClearOsm') { clearOsmCache().then(() => { clearTrails(); drawBiotopes(); tick(); toast('Uložené biotopy smazány.'); openDataMgr(); }); }
   else if (act === 'games') openGames();

@@ -1059,6 +1059,13 @@ test('úkoly podle místa, jízda autem a nové minihry', async () => {
   for (const list of Object.values(T.TASKS)) for (const q of list) assert.equal(q.a.length, 3);
   const { stepKind } = await import('../js/mapui.js');
   const gps = { maxSpeed: 8, vehicleSpeed: 3.3 };
+  const { gpsStep } = await import('../js/mapui.js'), dd = (a, b, c, e) => Math.hypot(c - a, e - b) * 111000;
+  const A = { lat: 50, lon: 14, t: 0, acc: 30 };
+  assert.equal(gpsStep(null, A, gps, dd).anchor, A, 'první bod = výchozí');
+  assert.equal(gpsStep(A, { lat: 50.0004, lon: 14, t: 60000, acc: 30 }, gps, dd).kind, '', 'skok 44 m při ±30 m se nepočítá');
+  assert.equal(gpsStep(A, { lat: 50.0004, lon: 14, t: 60000, acc: 30 }, gps, dd).anchor, A, 'výchozí bod zůstává');
+  assert.equal(gpsStep(A, { lat: 50.0001, lon: 14, t: 5000, acc: 8 }, gps, dd).anchor.acc, 8, 'zpřesnění = nový start');
+  const w = gpsStep({ ...A, acc: 5 }, { lat: 50.0003, lon: 14, t: 30000, acc: 5 }, gps, dd); assert.equal(w.kind, 'walk'); assert.ok(w.d > 30);
   assert.equal(stepKind(10, 10, gps), 'walk'); assert.equal(stepKind(50, 10, gps), 'ride'); assert.equal(stepKind(200, 10, gps), 'jump');
   const M = await import('../js/minigames.js');
   const t = [0, 1, 2, 3, 4, 5, 6, 7, 8]; M.shiftLine(t, 3, true, 0, 1); assert.deepEqual(t.slice(0, 3), [2, 0, 1]); M.shiftLine(t, 3, true, 0, -1); assert.ok(M.solved(t));

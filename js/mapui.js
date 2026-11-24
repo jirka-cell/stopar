@@ -32,12 +32,13 @@ export function attachGestures(map, container, { distance, onWhatsHere }) {
     label.textContent = fmtDist(d); label.style.left = (a[0] + b[0]) / 2 + 'px'; label.style.top = (a[1] + b[1]) / 2 - 34 + 'px';
     svg.style.display = label.style.display = '';
   };
-  const stopMeasure = () => { if (measuring) { measuring = false; map.touchZoomRotate.enable(); map.dragPan.enable(); } svg.style.display = label.style.display = 'none'; };
+  const stopMeasure = () => { if (measuring) { measuring = false; map.touchZoomRotate.enable(); map.dragPan.enable(); if (map.touchPitch) map.touchPitch.enable(); } svg.style.display = label.style.display = 'none'; };
   container.addEventListener('touchstart', e => {
     clearTimeout(press && press.t); press = null;
     if (e.touches.length === 2) {
-      const p = pts(e), z = map.getZoom();
-      two = { p, t: setTimeout(() => { if (two && Math.abs(map.getZoom() - z) < 0.05) { measuring = true; map.touchZoomRotate.disable(); map.dragPan.disable(); show(two.p); } }, 450) };
+      const p = pts(e), z = map.getZoom(), pitch = map.getPitch(), brg = map.getBearing();
+      // měření jen když se mapa mezitím nezoomovala, nenaklonila ani neotočila; pak se náklon dvěma prsty vypne
+      two = { p, pitch, t: setTimeout(() => { if (two && Math.abs(map.getZoom() - z) < 0.05 && Math.abs(map.getPitch() - pitch) < 1 && Math.abs(map.getBearing() - brg) < 2) { measuring = true; map.touchZoomRotate.disable(); map.dragPan.disable(); if (map.touchPitch) map.touchPitch.disable(); map.jumpTo({ pitch }); show(two.p); } }, 450) };
     } else if (e.touches.length === 1) {
       const p = pts(e)[0];
       press = { p, t: setTimeout(() => { if (press) { const ll = map.unproject(press.p); press = null; onWhatsHere(ll.lat, ll.lng); } }, 650) };
@@ -66,6 +67,15 @@ export function whatsHereHTML(info) {
 }
 
 // Druh posunu mezi dvěma polohami GPS: chůze se počítá, jízda (auto, MHD, kolo) ne, skok GPS se ignoruje
+// Krok GPS: počítá se jen posun větší než součet nejistot obou bodů (kmitání a skoky z Wi-Fi při startu se nepočítají).
+// Vrací { kind: 'walk'|'ride'|'jump'|'', d, anchor } – anchor = nový výchozí bod (nebo starý, když se krok ještě nepočítá).
+export function gpsStep(last, fix, gps, dist) {
+  if (!last) return { kind: '', d: 0, anchor: fix };
+  if (fix.acc < last.acc / 2) return { kind: '', d: 0, anchor: fix }; // přesnost se skokově zlepšila → nový start bez započtení
+  const d = dist(last.lat, last.lon, fix.lat, fix.lon);
+  if (d < Math.max(Number(gps.minStep) || 5, last.acc + fix.acc)) return { kind: '', d: 0, anchor: last };
+  return { kind: stepKind(d, Math.max(1, (fix.t - last.t) / 1000), gps), d, anchor: fix };
+}
 export function stepKind(d, dt, gps) {
   const v = d / Math.max(1, dt);
   if (v > (Number(gps.maxSpeed) || 8)) return 'jump';

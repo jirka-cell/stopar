@@ -8,7 +8,7 @@ export const ICON_FILES = new Set(('map atlas dial catch route plan center compa
   'night kennel injured farm filter feeder myth reward finish cone level res_wood res_stone res_seeds ' +
   'b_lumber b_quarry b_nursery b_field b_orchard b_worms b_store b_pantry e_voliera e_vybeh e_rybnik e_terarium e_insektarium ' +
   'd_barn d_mill d_well d_chapel d_beehive d_scarecrow d_bench d_hay t_meadow t_field t_forest t_pond ' +
-  'w_rain w_snow w_cold w_hot w_clear w_cloudy shop_food shop_treat shop_bait shop_lens shop_scope badge').split(' '));
+  'w_rain w_snow w_cold w_hot w_clear w_cloudy shop_food shop_treat shop_bait shop_lens shop_scope badge me data').split(' '));
 // Ikony věcí farmy a obchodu podle jejich id (emoji v datech zůstává jako záloha a pro texty v hláškách)
 const ID_IC = { wood: 'res_wood', stone: 'res_stone', seeds: 'res_seeds',
   lumber: 'b_lumber', quarry: 'b_quarry', nursery: 'b_nursery', field: 'b_field', orchard: 'b_orchard', worms: 'b_worms', store: 'b_store', pantry: 'b_pantry',

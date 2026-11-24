@@ -29,18 +29,14 @@
     <section class="view on" id="mapv">
       <div id="map"></div>
       <div class="banner" id="banner" hidden></div>
-      <div class="netmon" id="netmon" role="button" tabindex="0" aria-label="Stahovaná data" hidden></div>
+      <div class="corner" id="corner">
+        <button class="cbtn" id="clFab" aria-label="Kontrolní seznam pro testery" title="Testeři" hidden><span data-ic="tester"></span></button>
+        <button class="cbtn" id="dataBtn" aria-label="Stahovaná data" title="Stahovaná data" hidden><span data-ic="data"></span></button>
+      </div>
       <div class="maptools" id="tools">
-        <button class="tool" id="centerBtn"><span data-ic="center"></span><b>Na mě</b></button>
-        <button class="tool" data-tool="tester" id="clFab" hidden><span data-ic="tester"></span><b>Testeři</b></button>
-        <button class="tool" data-tool="data"><span data-ic="data"></span><b>Data</b></button>
-        <button class="tool" data-tool="offline"><span data-ic="offline"></span><b>Offline</b></button>
-        <button class="tool" data-tool="measure"><span data-ic="measure"></span><b>Měřit</b></button>
-        <button class="tool" id="lookBtn" hidden><span data-ic="layers"></span><b>Vrstvy</b></button>
-        <button class="tool" id="compassBtn" hidden><span data-ic="compass"></span><b>Kompas</b></button>
+        <button class="tool" id="lookBtn" aria-label="Vrstvy mapy" title="Vrstvy" hidden><span data-ic="layers"></span></button>
       </div>
       <div class="cards" id="cards" aria-live="polite"></div>
-      <button class="dial" id="dialBtn" aria-label="Otevřít nabídku" aria-expanded="false"><span data-ic="dial"></span></button>
       <div class="legend" id="legend"></div>
       <div class="plpanel" id="plpanel" hidden></div>
       <div class="mute" id="mute" aria-live="polite"><b>👀 Zastav se a rozhlédni se</b><span>Zvířata se ukážou, až zastavíš. Vibrace ti dá vědět, že je něco blízko.</span></div>
