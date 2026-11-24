@@ -1296,3 +1296,16 @@ test('určovací klíč podle znaků: ptáci mají data, kos se pozná ze dvou z
   assert.match(F.keyHTML(DEFAULTS, { group: 'Ptáci', t: { barvy: ['c', 'z'] } }, {}), /Nejspíš je to[^]*keyPick/);
 });
 
+test('určovací klíč: znaky mají všechny druhy všech skupin a kódy sedí s otázkami', async () => {
+  const K = await import('../js/keydata.js'), { DEFAULTS } = await import('../js/config.js');
+  for (const s of DEFAULTS.species) {
+    const Q = K.KEY_Q[s.group]; assert.ok(Q, 'otázky pro ' + s.group);
+    const t = K.keyTraits(s.id, s.group); assert.ok(t, 'znaky: ' + s.id);
+    for (const [q, , opts] of Q) for (const c of t[q]) assert.ok(opts.some(o => o[0] === c), `${s.id}: neznámý kód ${q}:${c}`);
+  }
+  const rank = (g, ans) => DEFAULTS.species.filter(s => s.group === g).map(s => [s.id, K.keyScore(s.id, ans, {}, g)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  assert.equal(rank('Savci', { typ: ['jezek'], znaky: ['bodliny'] })[0], 'jezek');
+  assert.equal(rank('Obojživelníci', { typ: ['colek'], barvy: ['c', 'z'] })[0], 'mlok');
+  assert.equal(rank('Pavoukovci', { znaky: ['kriz'] })[0], 'krizak');
+});
+

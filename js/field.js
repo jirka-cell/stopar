@@ -51,7 +51,7 @@ export function traitKeyHTML(cfg, ans, ctx = {}) {
   const Q = KEY_Q[ans.group], t = ans.t || {}, n = Object.values(t).reduce((a, x) => a + x.length, 0);
   const icon = v => /^#/.test(v) ? `<i class="ksw" style="background:${esc(v)}"></i>` : ICON_FILES.has(v) ? ic(v) : '';
   const qs = Q.map(([q, title, opts]) => `<h3>${esc(title)}</h3><div class="kopts">${opts.map(([code, label, iv]) => `<button class="kopt${(t[q] || []).includes(code) ? ' on' : ''}" data-act="keyT" data-q="${q}" data-v="${code}">${icon(iv)}<span>${esc(label)}</span></button>`).join('')}</div>`).join('');
-  const list = cfg.species.filter(s => s.active && s.group === ans.group).map(s => ({ s, v: keyScore(s.id, t, { month: ctx.month, months: parseMonths(s.months), night: ctx.night, spNight: !!s.night, bioHere: ctx.bioHere, bio: parseMap(s.bio) }) }))
+  const list = cfg.species.filter(s => s.active && s.group === ans.group).map(s => ({ s, v: keyScore(s.id, t, { month: ctx.month, months: parseMonths(s.months), night: ctx.night, spNight: !!s.night, bioHere: ctx.bioHere, bio: parseMap(s.bio) }, ans.group) }))
     .filter(x => x.v > -Infinity).sort((a, b) => b.v - a.v).slice(0, 5);
   const res = n ? `<h3>Nejspíš je to:</h3><div class="kres">${list.map(({ s }, i) => `<button class="kresit" data-act="keyPick" data-sp="${esc(s.id)}"><span class="kno">${i + 1}</span><span class="im">${birdImg(s, '', ans.young ? 0 : undefined)}</span><span class="kt"><b>${esc(s.name)}</b><small>${esc(String((s.edu || {}).male || s.fact || '').split(/[.;]/)[0].slice(0, 90))}</small></span></button>`).join('')}</div>` : '<p class="msg small">Ťukni na cokoli, co sis zapamatoval – stačí jedna nebo dvě věci. Co nevíš, přeskoč.</p>';
   return `<h2>Určovací klíč – ${esc(ans.group)}</h2>
