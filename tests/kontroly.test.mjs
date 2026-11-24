@@ -357,8 +357,8 @@ test('data druhů jsou konzistentní: potrava, biotopy, pásma, vzácnost, skupi
 });
 
 test('každý druh má anglický popis vzhledu pro prompty obrázků', async () => {
-  const { VZHLED_EN } = await import('../tools/vzhled-en.mjs');
-  for (const s of DEFAULTS.species.filter(s => s.active)) { // nové druhy (dávka 5) mají prompty česky v tools/zvirata_prompty2.mjs
+  const { VZHLED_EN } = await import('../tools/vzhled-en.mjs'), { BATCH5 } = await import('../js/species-batch5.js'), b5 = new Set(BATCH5.map(s => s.id));
+  for (const s of DEFAULTS.species.filter(s => s.active && !b5.has(s.id))) { // nové druhy (dávka 5) mají prompty česky v tools/zvirata_prompty2.mjs
     assert.ok(VZHLED_EN[s.id], `${s.id}: chybí anglický popis v tools/vzhled-en.mjs`);
     assert.ok(VZHLED_EN[s.id][1].length > 30, `${s.id}: popis je moc krátký`);
   }
@@ -653,7 +653,7 @@ test('poznávání: stopy jen u druhů se znameními, kvíz má správný druh, 
   assert.ok(hasSigns(sp('veverka')));
   assert.equal(isTrack(DEFAULTS, sp('veverka'), 0.1), true);
   assert.equal(isTrack(DEFAULTS, sp('veverka'), 0.9), false);
-  assert.equal(isTrack(DEFAULTS, sp('kapr'), 0.01), false, 'ryba stopy nemá');
+  assert.equal(isTrack(DEFAULTS, sp('plotice'), 0.01), false, 'druh bez znamení (plotice) stopu nemá');
   const z = trackQuiz(sp('veverka'), DEFAULTS.species);
   assert.equal(z.opts.length, 3); assert.equal(z.opts[z.correct], 'veverka'); assert.equal(new Set(z.opts).size, 3);
   assert.equal(sizeCm('11–12 cm'), 11); assert.equal(sizeCm('1–1,3 m'), 100); assert.equal(sizeCm('20–25 cm + ocas 15–20 cm'), 20); assert.equal(sizeCm(''), null);

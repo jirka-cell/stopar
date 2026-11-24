@@ -1,12 +1,29 @@
 // Dávka 5: 202 nových druhů z výběru podle ověřených pozorování v ČR (iNaturalist, 23. 11. 2026; outputs/druhy/vyber-1.txt).
-// Vypnuté (active: false), dokud nemají obrázky – zapínají se po dávkách. Vzácnost podle počtu pozorování ve skupině. Údaje čekají na kontrolu (review: true).
+// Zapnuté jen druhy se všemi obrázky (seznam ON) – další se přidávají po dávkách. Vzácnost podle počtu pozorování ve skupině. Údaje čekají na kontrolu (review: true).
 import { EMPTY_EDU } from './species.js';
 
 const wiki = n => 'https://cs.wikipedia.org/wiki/' + n.replace(/ /g, '_');
 const LOOK0 = { body: '#9aa3b4', wing: '#858ea0', belly: '#d6a9b1', cap: '', capY: 64, beak: 'small', beakColor: '#f0a53a', feet: '#e07a7a', ring: '', crest: '', crestColor: '', mark: 'neck' };
 // řádek: [id, název, latinsky, vzácnost, biotopy, potrava, statistiky (rychlost, síla, maskování, výdrž), měsíce, noční, zajímavost, { alt, …vzdělávací údaje }]
+// zapnuté druhy = mají všechna stádia nakreslená (24. 11. 2026: čísla 1–672 ze 13-nove-druhy.txt)
+const ON = new Set(`
+polak slipka kvicala hrdlicka racek spacek husa penice husice mlynarik morcak motak polakvelky budnicek lunak volavkabila konipashorsky dlask
+rehekzahradni konopka orel koprivka strizlik vrana potapkamala capcerny zrzohlavka mandarinka krkavec kvakos cizek lejsek kalous racekbelohlavy babka
+zvonohlik strakapoudprostredni bravnik uhelnicek slavik hohol jerab strnadrakosni penicehnedokridla vlha penicepokrovni branbornicek kralicek
+soupalek skorec kulik cirka lzicak strnadlucni rakosnikvelky koroptev bramborniceknedy nutrie danek potkan kocka nornik kralik krecek vrapenec
+netopyrvelky ondatra myval kunalesni netopyrusaty sika plsik norek vlk skokanstihly colekhorsky colekvelky blatnice kunkazlutobricha skokanostronosy
+ropuchakratkonoha colekkarpatsky jesterkazelena uzovkahladka uzovkapodplamata jesterkazedni uzovkastromova zelvanadherna zelvabahenni jelec perlin
+plotice strevlicka cejn slunecnice pstruhduhovy hrouzek ouklej karas uhor bolen jezdik vranka mrenka cejnek siven parma candat amur lipan jesen
+sumecek ostroretka rumenice sluneckovychodni vcela modrasek okaclucni admiral okacpohankovy chrobak okacbojinkovy sitkovana belasekrepovy perletovec
+kudlanka vroubenka zlatohlavek belasekrepkovy bilec zlatohlavektmavy kobylka koprivova okacprosickovy okacpyrovy otakarekovocny bodlakova knezice
+perletovecmaly rohacek kobylkakrovistni zlutasek tesarik beloskvrnac bourovec soumracnik majka srsen prastevnik cmelakpolni cvrcek belasekrerichovy
+chrobakjarni vazkacernorita strevlik belasekzelny pidalka tesarikpiluna sarance modrasekvikvicovy tesarikpizmovy mandelinka krizakpruhovany lovcik
+krizakpodkorni sekac beznik snovacka pokoutnik krizakctyrskvrnny skakavka maloocka krizakmostni tresavka bezniklistovy snovackapokoutni bezniksvostny
+kliste paskovka slimakpopelavy slimaknejvetsi paskovkazihana plamatka suchomilka plovatka plzak jantarka hlemyzdik okruzak kerovka vlahovka skeble
+vrasenka modranka skalnice zihlobytka tmavoretka
+`.split(/\s+/).filter(Boolean));
 const mk = (group, cls, rows) => rows.map(([id, name, lat, rarity, bio, food, stats, months, night, fact, { alt = '', ...e } = {}]) => ({
-  active: false, night: !!night, alt, months, regions: '', image: '', imageAuthor: '', imageLicense: '', review: true,
+  active: ON.has(id), night: !!night, alt, months, regions: '', image: '', imageAuthor: '', imageLicense: '', review: true,
   id, name, lat, group, rarity, bio, food, stats, fact, look: { ...LOOK0 }, edu: Object.assign({}, EMPTY_EDU, { cls, genus: lat.split(' ')[0], sources: wiki(name) }, e)
 }));
 
