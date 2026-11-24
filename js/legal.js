@@ -2,7 +2,7 @@
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
 export const TERMS_VERSION = 4; // 4: datum narození, souhlas rodiče přes QR, e-mail rodiče
-export const APP_VERSION = '3.35.0';
+export const APP_VERSION = '3.36.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };
@@ -45,23 +45,31 @@ export function wheelHTML(now = new Date()) {
   const years = []; for (let y = now.getFullYear(); y >= 1920; y--) years.push(y);
   return `<div class="wheel" id="cWheel">${col('d', Array.from({ length: 31 }, (_, i) => i + 1))}${col('m', MONTHS)}${col('y', years)}<div class="wsel"></div></div>`;
 }
-export function consentHTML(cfg, par = {}) {
-  return `<h2>Ještě než vyrazíme</h2>
-  <p class="introtxt">Tvůj postup zůstává jen v tomto telefonu. Nemáme účty, reklamy ani sledování.</p>
-  <p class="introtxt small">Mapa se stahuje z internetu, a tak mapové služby uvidí, kde přibližně jsi. <button class="linkbtn" data-act="legal">Podrobnosti v zásadách</button></p>
-  <div class="fld"><label>Kdy ses narodil(a)?</label>${wheelHTML()}<input type="hidden" id="cBirth"><small class="msg small">Datum se nikam neposílá ani neukládá – spočítá se z něj jen věk.</small></div>
-  <div id="cParent" hidden>
-    <div class="introbox"><b>Zavolej rodiče! 👋</b><span>Je ti méně než ${MIN_AGE} let, takže souhlas dá rodič. Ať si svým telefonem naskenuje tenhle kód.</span></div>
-    <div class="qrbox">${par.qr || ''}<small>Kód: <b>${esc(par.code || '')}</b></small></div>
-    <div class="fld"><label for="cCode">Potvrzovací kód od rodiče (4 číslice)</label><input type="text" id="cCode" inputmode="numeric" maxlength="4" autocomplete="off"></div>
-    <div class="fld"><label for="cMail">E-mail rodiče (nepovinné)</label><input type="email" id="cMail" autocomplete="email" maxlength="80"><small class="msg small">Zatím zůstane jen v telefonu. Až bude mít aplikace server, přijde na něj odkaz k potvrzení souhlasu a pomůže s obnovou PINu.</small></div>
-    <p class="msg small">Rodičovský PIN chrání smazání dat. Dítěti ho neříkejte.</p>
-    ${pinFields('cPin', 'cPin2')}
+export function consentHTML(cfg, par = {}, ic = () => '') {
+  return `<div class="introhead"><h2>Ještě než vyrazíme</h2><p class="dots"><i class="on" data-dot="1"></i><i data-dot="2"></i></p></div>
+  <div class="introcard"><img class="introdog" src="images/dog/sit.webp" alt="">
+  <div class="cstep" data-step="1">
+    <div class="fld"><label>Kdy ses narodil(a)?</label>${wheelHTML()}<input type="hidden" id="cBirth"><small class="msg small">Datum se nikam neposílá ani neukládá – spočítá se z něj jen věk.</small></div>
+    <div class="fld"><label for="cNick">Jak ti máme říkat?</label><input type="text" id="cNick" maxlength="20" autocomplete="nickname" placeholder="přezdívka, třeba Liška"></div>
+    <p class="msg small" id="cErr1"></p>
+    <button class="btn primary full" data-act="cNext">Dál</button>
   </div>
-  <div class="fld"><label for="cNick">Jak ti máme říkat?</label><input type="text" id="cNick" maxlength="20" autocomplete="nickname" placeholder="přezdívka, třeba Liška"></div>
-  <label class="fld row introchk"><input type="checkbox" id="cOk"><span>Souhlasím s podmínkami a zásadami ochrany osobních údajů</span></label>
-  <p class="msg small" id="cErr"></p>
-  <button class="btn primary full" data-act="consentOk">Vyrazit</button>`;
+  <div class="cstep" data-step="2" hidden>
+    <div class="introinfo">${ic('pin')}<span>Tvůj postup zůstává jen v tomto telefonu. Nemáme účty, reklamy ani sledování.</span></div>
+    <div class="introinfo">${ic('map')}<span>Mapa se stahuje z internetu, a tak mapové služby uvidí, kde přibližně jsi. <button class="linkbtn" data-act="legal">Podrobnosti v zásadách</button></span></div>
+    <div id="cParent" hidden>
+      <div class="introbox"><b>Zavolej rodiče! 👋</b><span>Je ti méně než ${MIN_AGE} let, takže souhlas dá rodič. Ať si svým telefonem naskenuje tenhle kód.</span></div>
+      <div class="qrbox">${par.qr || ''}<small>Kód: <b>${esc(par.code || '')}</b></small></div>
+      <div class="fld"><label for="cCode">Potvrzovací kód od rodiče (4 číslice)</label><input type="text" id="cCode" inputmode="numeric" maxlength="4" autocomplete="off"></div>
+      <div class="fld"><label for="cMail">E-mail rodiče (nepovinné)</label><input type="email" id="cMail" autocomplete="email" maxlength="80"><small class="msg small">Zatím zůstane jen v telefonu. Až bude mít aplikace server, přijde na něj odkaz k potvrzení souhlasu a pomůže s obnovou PINu.</small></div>
+      <p class="msg small">Rodičovský PIN chrání smazání dat. Dítěti ho neříkejte.</p>
+      ${pinFields('cPin', 'cPin2')}
+    </div>
+    <label class="fld row introchk"><input type="checkbox" id="cOk"><span>Souhlasím s podmínkami a zásadami ochrany osobních údajů</span></label>
+    <p class="msg small" id="cErr"></p>
+    <button class="btn primary full" data-act="consentOk">Vyrazit</button>
+    <button class="btn full ghost" data-act="cBack">Zpět</button>
+  </div></div>`;
 }
 // Věk z data narození (RRRR-MM-DD z políčka typu date); null = neplatné
 export function ageFromDate(str, now = new Date()) {

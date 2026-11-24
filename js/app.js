@@ -292,22 +292,24 @@ async function shareCard(uid) {
 
 /* ---------- souhlas, zásady, smazání dat ---------- */
 let consentBirth = '', consentCode = '', parentPage = '', locked = false, wiping = false, consentRec = null, parentCfg = cleanParent(null);
-function openConsent() {
+let consentNick = '';
+function openConsent(step = 1) {
   locked = true;
   if (!consentCode) consentCode = newParentCode(); // stejný kód po celou dobu vyplňování
   let qr = ''; try { qr = qrSVG(location.origin + location.pathname + '#rodic=' + consentCode, 4); } catch (e) { qr = ''; }
   introPage(true);
-  openM(consentHTML(cfg, { qr, code: consentCode }));
+  openM(consentHTML(cfg, { qr, code: consentCode }, ic)); mbox.classList.add('cpage');
   if (!consentBirth) { const n = new Date(); consentBirth = `${n.getFullYear() - 10}-01-01`; } // předvolba: před 10 lety
   $('cBirth').value = consentBirth;
   bindWheel($('cWheel'), consentBirth, v => { $('cBirth').value = v; onConsentInput(); });
-  if (state.nick && $('cNick')) $('cNick').value = state.nick;
+  if ($('cNick')) $('cNick').value = consentNick || state.nick || '';
   onConsentInput();
+  if (step === 2) runAct('cNext');
 }
 // Úvodní stránky (souhlas, zásady, stránka pro rodiče) přes celou obrazovku s pozadím – aplikace za nimi není vidět
 function introPage(on) {
   document.body.classList.toggle('intro', on);
-  if (on) { const id = (prefs && prefs.splashLast) || '05'; document.body.style.setProperty('--introbg', `url(images/splash/${id}.webp)`); }
+  if (on) { const id = (prefs && prefs.splashLast) || '05'; document.body.style.setProperty('--introbg', `url(${new URL('images/splash/' + id + '.webp', location.href).href})`); } // plná adresa – relativní by se brala od css/
 }
 // Válcový posuvník data: tři sloupce se snapem, vybraná hodnota uprostřed; hodnota RRRR-MM-DD
 function bindWheel(el, value, onChange) {
@@ -1599,7 +1601,7 @@ function banner(m, btn) {
   if (btn) $('bannerBtn').onclick = btn.fn;
 }
 const modal = $('modal'), mbox = $('mbox');
-function openM(h) { mbox.innerHTML = h; modal.classList.add('on'); document.body.classList.add('modal-open'); mbox.scrollTop = 0; }
+function openM(h) { mbox.classList.remove('cpage'); mbox.innerHTML = h; modal.classList.add('on'); document.body.classList.add('modal-open'); mbox.scrollTop = 0; }
 function closeM() { const was = modal.classList.contains('on'); modal.classList.remove('on'); document.body.classList.remove('modal-open'); enc = null; if (stopGame) { stopGame(); stopGame = null; } if (was && pos.lat != null && map) { updateGame(); tick(); } }
 modal.addEventListener('pointerdown', e => { if (e.target === modal && !locked && (!enc || enc.step !== 'photo')) closeM(); });
 
@@ -2214,8 +2216,15 @@ function onModalClick(e) {
   else if (act === 'legal') openM(privacyHTML(cfg, overpassUrls(cfg), parentPage ? 'rpBack' : 'consentBack'));
   else if (act === 'rpBack') openM(parentPageHTML(cfg, parentPage));
   else if (act === 'rpShow') { if (!$('rpOk').checked) { $('rpErr').textContent = 'Nejdřív potvrďte souhlas.'; return; } $('rpCode').hidden = false; a.disabled = true; }
-  else if (act === 'consentBack') openConsent();
+  else if (act === 'consentBack') openConsent(2);
   else if (act === 'consentOk') consentOk();
+  else if (act === 'cNext' || act === 'cBack') { // souhlas ve dvou krocích: 1 datum a přezdívka, 2 souhlas (u dětí s rodičem)
+    const next = act === 'cNext'; if ($('cNick')) consentNick = $('cNick').value;
+    if (next && ageFromDate($('cBirth').value) == null) { $('cErr1').textContent = 'Nastav datum narození.'; return; }
+    document.querySelectorAll('#mbox .cstep').forEach(s => { s.hidden = s.dataset.step !== (next ? '2' : '1'); });
+    document.querySelectorAll('#mbox .dots i').forEach(d => d.classList.toggle('on', d.dataset.dot === (next ? '2' : '1')));
+    mbox.scrollTop = 0;
+  }
   else if (act === 'legalMenu') openM(privacyHTML(cfg, overpassUrls(cfg), 'menu'));
   else if (act === 'about') openM(aboutHTML(cfg));
   else if (act === 'legalAbout') openM(privacyHTML(cfg, overpassUrls(cfg), 'about'));

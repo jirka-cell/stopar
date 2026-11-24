@@ -548,3 +548,14 @@ body.sb .ftop{top:52px}
 .kamhead{text-align:center;margin:4px 0 8px}.kamhead h2{margin:0 0 4px}
 .jtile.g-soon{opacity:.55;cursor:default;position:relative}
 .jtile.g-soon small{display:block;font-size:11px;color:var(--mut)}
+/* souhlas ve dvou krocích: krajina nahoře s nadpisem, karta dole, Aegon vykukuje nad kartou */
+body.intro #mbox.cpage{background:transparent;box-shadow:none;padding:0;margin:0 auto;width:100%;max-width:480px;min-height:100%;display:flex;flex-direction:column;border-radius:0}
+.cpage .introhead{flex:1;padding:calc(var(--sat) + 4vh) 18px 96px;text-align:center;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.55),0 0 3px rgba(0,0,0,.5)}
+body.intro #mbox.cpage .introhead h2{font-size:30px;color:#fff;margin:0 0 10px}
+.cpage .dots{display:flex;gap:8px;justify-content:center;margin:0}
+.cpage .dots i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.cpage .dots i.on{background:#fff;width:26px;border-radius:5px}
+.cpage .introcard{position:relative;background:rgba(255,252,244,.93);border-radius:24px 24px 0 0;padding:34px 18px calc(var(--sab) + 18px);box-shadow:0 -6px 30px rgba(0,0,0,.25)}
+.cpage .introdog{position:absolute;top:-92px;left:50%;transform:translateX(-50%);width:92px;height:auto;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35))}
+.introinfo{display:flex;gap:12px;align-items:flex-start;background:rgba(47,125,79,.07);border-radius:14px;padding:10px 12px;margin:0 0 8px;font-size:14.5px;line-height:1.4}
+.introinfo img.ic{width:34px;height:34px;flex:none}
