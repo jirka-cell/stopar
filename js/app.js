@@ -101,7 +101,7 @@ async function init() {
   parentCfg = cleanParent(await store.get('parent').catch(() => null));
   prefs = (await store.get('prefs').catch(() => null)) || {};
   const rp = /^#rodic=([A-Z0-9]{10})$/.exec(location.hash); // rodič naskenoval QR z telefonu dítěte
-  if (rp && PARENT_CODE_RE.test(rp[1])) { parentPage = rp[1]; locked = true; openM(parentPageHTML(cfg, parentPage)); return; }
+  if (rp && PARENT_CODE_RE.test(rp[1])) { parentPage = rp[1]; locked = true; introPage(true); openM(parentPageHTML(cfg, parentPage)); return; }
   if (consentValid(consent) && !cfg.general.introAlways) start(); else openWelcome(() => openConsent());
 }
 // Uvítání při prvním spuštění: celá obrazovka s pozadím, nápis bez podkladu (barva podle jasu oblohy), tlačítko Začít
@@ -296,10 +296,38 @@ function openConsent() {
   locked = true;
   if (!consentCode) consentCode = newParentCode(); // stejný kód po celou dobu vyplňování
   let qr = ''; try { qr = qrSVG(location.origin + location.pathname + '#rodic=' + consentCode, 4); } catch (e) { qr = ''; }
+  introPage(true);
   openM(consentHTML(cfg, { qr, code: consentCode }));
+  if (!consentBirth) { const n = new Date(); consentBirth = `${n.getFullYear() - 10}-01-01`; } // předvolba: před 10 lety
   $('cBirth').value = consentBirth;
+  bindWheel($('cWheel'), consentBirth, v => { $('cBirth').value = v; onConsentInput(); });
   if (state.nick && $('cNick')) $('cNick').value = state.nick;
   onConsentInput();
+}
+// Úvodní stránky (souhlas, zásady, stránka pro rodiče) přes celou obrazovku s pozadím – aplikace za nimi není vidět
+function introPage(on) {
+  document.body.classList.toggle('intro', on);
+  if (on) { const id = (prefs && prefs.splashLast) || '05'; document.body.style.setProperty('--introbg', `url(images/splash/${id}.webp)`); }
+}
+// Válcový posuvník data: tři sloupce se snapem, vybraná hodnota uprostřed; hodnota RRRR-MM-DD
+function bindWheel(el, value, onChange) {
+  if (!el) return;
+  const cols = { d: el.querySelector('[data-w=d]'), m: el.querySelector('[data-w=m]'), y: el.querySelector('[data-w=y]') };
+  const H = () => cols.d.querySelector('.witem').offsetHeight || 36, now = new Date();
+  const [y0, m0, d0] = value.split('-').map(Number);
+  const idx = { d: d0 - 1, m: m0 - 1, y: now.getFullYear() - y0 };
+  const mark = () => Object.entries(cols).forEach(([k, c]) => c.querySelectorAll('.witem').forEach((it, i) => it.classList.toggle('on', i - 2 === idx[k])));
+  const emit = () => {
+    const y = now.getFullYear() - idx.y, m = idx.m + 1, dim = new Date(y, m, 0).getDate();
+    if (idx.d >= dim) { idx.d = dim - 1; cols.d.scrollTo({ top: idx.d * H(), behavior: 'smooth' }); }
+    mark(); onChange(`${y}-${String(m).padStart(2, '0')}-${String(idx.d + 1).padStart(2, '0')}`);
+  };
+  Object.entries(cols).forEach(([k, c]) => {
+    requestAnimationFrame(() => { c.scrollTop = idx[k] * H(); mark(); });
+    let t = 0;
+    c.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => { const n = c.querySelectorAll('.witem').length - 4; idx[k] = Math.max(0, Math.min(n - 1, Math.round(c.scrollTop / H()))); emit(); }, 90); }, { passive: true });
+    c.addEventListener('click', e => { const it = e.target.closest('.witem'); if (!it || !it.textContent) return; const i = [...c.children].indexOf(it) - 2; c.scrollTo({ top: i * H(), behavior: 'smooth' }); });
+  });
 }
 function onConsentInput() {
   if (!$('cBirth')) return;
@@ -329,7 +357,7 @@ async function consentOk() {
     await store.set('consent', { v: TERMS_VERSION, time: Date.now(), parent, young: age < cfg.family.kidAge });
   } catch (e) {}
   consentRec = await store.get('consent').catch(() => null);
-  locked = false; closeM(); start();
+  locked = false; introPage(false); closeM(); start();
 }
 async function openPinSet() { openM(pinSetHTML(!!await store.get('parentPin').catch(() => null))); }
 async function savePin() {

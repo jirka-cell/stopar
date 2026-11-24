@@ -2,7 +2,7 @@
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
 export const TERMS_VERSION = 4; // 4: datum narození, souhlas rodiče přes QR, e-mail rodiče
-export const APP_VERSION = '3.31.0';
+export const APP_VERSION = '3.32.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };
@@ -38,23 +38,30 @@ export function pinSetHTML(hasPin) {
   <button class="btn primary full" data-act="pinSave">Uložit PIN</button><button class="btn full ghost" data-act="menu">Zpět</button>`;
 }
 
+export const MONTHS = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec'];
+// Válcový posuvník data (den / měsíc / rok) – roluje se prstem, vybraná hodnota je uprostřed
+export function wheelHTML(now = new Date()) {
+  const col = (k, items) => `<div class="wcol" data-w="${k}">${['', '', ...items, '', ''].map(t => `<div class="witem">${t}</div>`).join('')}</div>`;
+  const years = []; for (let y = now.getFullYear(); y >= 1920; y--) years.push(y);
+  return `<div class="wheel" id="cWheel">${col('d', Array.from({ length: 31 }, (_, i) => i + 1))}${col('m', MONTHS)}${col('y', years)}<div class="wsel"></div></div>`;
+}
 export function consentHTML(cfg, par = {}) {
   return `<h2>Ještě než vyrazíme</h2>
-  <div class="fact">Než se cokoliv stáhne z internetu, potřebujeme tvůj souhlas. Aplikace nemá účty ani reklamy a tvůj postup zůstává jen v tomto telefonu. Mapové služby ale uvidí, kde přibližně jsi (podrobně v zásadách).</div>
-  <div class="fld"><label for="cBirth">Datum narození</label><input type="date" id="cBirth" max="${new Date().toISOString().slice(0, 10)}" min="1900-01-01"><small class="msg small">Nikam se neodesílá a neukládá – jen se z něj spočítá věk.</small></div>
+  <p class="introtxt">Tvůj postup zůstává jen v tomto telefonu. Nemáme účty, reklamy ani sledování.</p>
+  <p class="introtxt small">Mapa se stahuje z internetu, a tak mapové služby uvidí, kde přibližně jsi. <button class="linkbtn" data-act="legal">Podrobnosti v zásadách</button></p>
+  <div class="fld"><label>Kdy ses narodil(a)?</label>${wheelHTML()}<input type="hidden" id="cBirth"><small class="msg small">Datum se nikam neposílá ani neukládá – spočítá se z něj jen věk.</small></div>
   <div id="cParent" hidden>
-    <div class="fact"><b>Zavolej rodiče!</b> Je ti méně než ${MIN_AGE} let, proto souhlas potvrdí rodič nebo zákonný zástupce. Ať si svým telefonem naskenuje tenhle kód.</div>
+    <div class="introbox"><b>Zavolej rodiče! 👋</b><span>Je ti méně než ${MIN_AGE} let, takže souhlas dá rodič. Ať si svým telefonem naskenuje tenhle kód.</span></div>
     <div class="qrbox">${par.qr || ''}<small>Kód: <b>${esc(par.code || '')}</b></small></div>
     <div class="fld"><label for="cCode">Potvrzovací kód od rodiče (4 číslice)</label><input type="text" id="cCode" inputmode="numeric" maxlength="4" autocomplete="off"></div>
-    <div class="fld"><label for="cMail">E-mail rodiče (nepovinné)</label><input type="email" id="cMail" autocomplete="email" maxlength="80"><small class="msg small">Zatím zůstane jen v tomto telefonu. Až bude mít aplikace server, přijde na něj odkaz k potvrzení souhlasu a pomůže s obnovou PINu.</small></div>
+    <div class="fld"><label for="cMail">E-mail rodiče (nepovinné)</label><input type="email" id="cMail" autocomplete="email" maxlength="80"><small class="msg small">Zatím zůstane jen v telefonu. Až bude mít aplikace server, přijde na něj odkaz k potvrzení souhlasu a pomůže s obnovou PINu.</small></div>
     <p class="msg small">Rodičovský PIN chrání smazání dat. Dítěti ho neříkejte.</p>
     ${pinFields('cPin', 'cPin2')}
   </div>
-  <div class="fld"><label for="cNick">Jak ti máme říkat? (přezdívka, ne celé jméno)</label><input type="text" id="cNick" maxlength="20" autocomplete="nickname" placeholder="např. Liška"></div>
-  <label class="fld row">Přečetl(a) jsem podmínky a zásady ochrany osobních údajů a souhlasím s nimi<input type="checkbox" id="cOk"></label>
-  <button class="btn full" data-act="legal">Přečíst podmínky a zásady</button>
+  <div class="fld"><label for="cNick">Jak ti máme říkat?</label><input type="text" id="cNick" maxlength="20" autocomplete="nickname" placeholder="přezdívka, třeba Liška"></div>
+  <label class="fld row introchk"><input type="checkbox" id="cOk"><span>Souhlasím s podmínkami a zásadami ochrany osobních údajů</span></label>
   <p class="msg small" id="cErr"></p>
-  <button class="btn primary full" data-act="consentOk">Souhlasím a pokračovat</button>`;
+  <button class="btn primary full" data-act="consentOk">Vyrazit</button>`;
 }
 // Věk z data narození (RRRR-MM-DD z políčka typu date); null = neplatné
 export function ageFromDate(str, now = new Date()) {

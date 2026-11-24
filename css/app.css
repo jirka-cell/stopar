@@ -514,3 +514,24 @@ body.dark .jtile.g-ven{color:#7fd39a}body.dark .jtile.g-hraj{color:#f0a27a}body.
 .qrbox{display:flex;flex-direction:column;align-items:center;gap:4px;margin:8px 0}.qrbox svg{width:180px;height:180px;background:#fff;padding:8px;border-radius:10px}
 .rpbig{font-size:44px;font-weight:800;letter-spacing:8px;text-align:center;margin:10px 0;color:var(--acc)}
 .splash .spwel{text-align:center;font-size:17px;font-weight:600;margin:14px 0 0;max-width:420px}
+/* úvodní stránky (souhlas, zásady, rodič) přes celou obrazovku s pozadím z úvodních obrázků */
+body.intro #modal{position:fixed;z-index:2500;align-items:stretch;background:#3b4a35 center/cover no-repeat;background-image:linear-gradient(rgba(20,28,18,.25),rgba(20,28,18,.55)),var(--introbg)}
+body.intro #mbox{max-width:460px;margin:calc(var(--sat) + 18px) auto calc(var(--sab) + 18px);width:calc(100% - 24px);max-height:none;border-radius:22px;background:rgba(255,252,244,.94);color:#24301f;padding:22px 18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+body.intro #mbox h2{font-size:26px;font-weight:800;margin:2px 0 10px}
+body.intro #mbox .fld label{font-weight:700;font-size:15px;color:#24301f}
+body.intro #mbox .msg.small,body.intro #mbox small{color:#5d6a57}
+body.intro .introtxt{text-align:center;font-size:16px;line-height:1.45;margin:0 0 8px}
+body.intro .introtxt.small{font-size:13.5px;color:#5d6a57}
+.linkbtn{border:0;background:none;padding:0;font:inherit;color:var(--acc);text-decoration:underline;cursor:pointer}
+.introbox{display:flex;flex-direction:column;gap:4px;background:#fff3d6;border-radius:14px;padding:10px 12px;margin:8px 0;text-align:center;font-size:14px}
+.introbox b{font-size:17px}
+.introchk{align-items:flex-start;gap:10px;font-size:14px}
+.introchk input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--acc)}
+body.intro #mbox .btn.primary{font-size:17px;padding:13px;border-radius:14px}
+/* válcový posuvník data */
+.wheel{position:relative;display:grid;grid-template-columns:1fr 1.7fr 1.3fr;gap:6px;height:180px;margin:6px 0 4px;-webkit-mask-image:linear-gradient(transparent,#000 28%,#000 72%,transparent);mask-image:linear-gradient(transparent,#000 28%,#000 72%,transparent)}
+.wcol{overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.wcol::-webkit-scrollbar{display:none}
+.witem{height:36px;line-height:36px;text-align:center;font-size:17px;color:#7b8574;scroll-snap-align:center;cursor:pointer;user-select:none}
+.witem.on{color:#24301f;font-weight:800;font-size:20px}
+.wsel{position:absolute;left:0;right:0;top:72px;height:36px;border-top:2px solid var(--acc);border-bottom:2px solid var(--acc);border-radius:4px;pointer-events:none;background:rgba(47,125,79,.06)}
