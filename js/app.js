@@ -6,6 +6,10 @@ import { refreshWeather, weatherCond, WEATHER_ICON, WEATHER_NAME, activeEvents, 
 import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
+import { HERNA as HERNA1, HERNA_GROUPS as HG1, playGame } from './herna.js';
+import { HERNA2, HERNA2_GROUPS } from './herna2.js';
+const HERNA = [...HERNA1, ...HERNA2], HERNA_GROUPS = [...HG1, ...HERNA2_GROUPS];
+import { SPECIES_IMAGES } from './images.js';
 import { openAdmin, download } from './admin.js';
 import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
 import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFromDate, newParentCode, PARENT_CODE_RE, parentConfirm, parentPageHTML, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
@@ -922,9 +926,48 @@ function renderKam() {
   const S = (i, n) => `<div class="jtile g-soon" aria-disabled="true">${ic(i)}${n}<small>brzy</small></div>`;
   $('kamv').innerHTML = `<div class="ja">
   <div class="kamhead"><h2>Kamarádi</h2><p class="msg small">Hrajte spolu – v rodině, s kamarády ze třídy nebo z oddílu. Přátelé, žebříčky a společné výpravy přibudou, až bude mít aplikace server.</p></div>
-  <div class="jagrp">Hrajte spolu</div><div class="jatiles">${T('hraj', 'games', 'games', 'Minihry')}${T('hraj', 'contests', 'contests', 'Závody')}${T('ven', 'family', 'family', 'Rodinná výprava')}${T('ven', 'treasures', 'treasure', 'Poklad pro kamaráda')}${T('ven', 'trip', 'trip', 'Karta výletu')}</div>
+  <div class="jagrp">Hrajte spolu</div><div class="jatiles">${T('hraj', 'games', 'games', 'Minihry')}${T('hraj', 'contests', 'contests', 'Závody')}${cfg.general.hernaTest ? T('hraj', 'herna', 'games', 'Herna (test)') : ''}${T('ven', 'family', 'family', 'Rodinná výprava')}${T('ven', 'treasures', 'treasure', 'Poklad pro kamaráda')}${T('ven', 'trip', 'trip', 'Karta výletu')}</div>
   <div class="jagrp">Brzy</div><div class="jatiles">${S('family', 'Přátelé')}${S('contests', 'Žebříčky')}${S('route', 'Společné výpravy')}${S('reward', 'Výměna zvířat')}</div>
   </div>`;
+}
+/* ---------- Herna (test): nové logické minihry k vyzkoušení a protřídění ---------- */
+// Hodnocení testera (palec, poznámka, nejlepší výsledek) se ukládá jen v telefonu (prefs.herna) a jde zkopírovat jako text.
+const hernaRec = id => ((prefs.herna ||= {})[id] ||= {});
+function openHerna() {
+  const R = prefs.herna || {}, rated = HERNA.filter(g => R[g.id]?.r).length;
+  const row = g => { const r = R[g.id] || {}; return `<button class="hlistit" data-act="hernaPlay" data-id="${g.id}"><span class="hno">${g.n}</span><span class="ht"><b>${esc(g.name)}</b><small>${esc(g.desc)}</small></span><span class="hr">${r.r > 0 ? '👍' : r.r < 0 ? '👎' : ''}${r.best != null ? `<small>${r.best} %</small>` : ''}</span></button>`; };
+  openM(`<h2>Herna (test)</h2><p class="msg small">${HERNA.length} nových miniher k vyzkoušení. Po každé hře dej palec a případně poznámku – podle toho je pak protřídíme. Ohodnoceno ${rated} / ${HERNA.length}.</p>
+  ${HERNA_GROUPS.map(([k, n]) => `<h3>${esc(n)}</h3><div class="hlist">${HERNA.filter(g => g.g === k).map(row).join('')}</div>`).join('')}
+  <button class="btn full" data-act="hernaCopy">Zkopírovat hodnocení</button><button class="btn full ghost" data-act="close">Zavřít</button>`);
+}
+let hernaCur = null; // běžící hra – opožděný konec staré hry se nezapíše do nové
+function hernaCtx(id) {
+  const token = hernaCur = {}; let ended = false;
+  return { cfg, SP, sp: cfg.species.filter(s => s.active), img: (sp, stage) => birdImg(sp, '', stage), ic, track: id2 => trackImg(id2), hasImg: k => SPECIES_IMAGES.has(k), stages: g => stageNames(cfg, g),
+    pos: () => pos.lat != null ? { lat: pos.lat, lon: pos.lon } : null, bioHere: () => pos.lat != null ? biotopeAt(pos.lat, pos.lon) || biotopeGuess(pos.lat, pos.lon) : null,
+    done: (score, max) => { if (ended || hernaCur !== token) return; ended = true; hernaDone(id, score, max); } };
+}
+function playH(id) {
+  const g = HERNA.find(x => x.id === id); if (!g) return;
+  openM(`<h2>${g.n}. ${esc(g.name)}</h2><div id="hgame"></div><div class="tools"><button class="btn sm" data-act="herna">Zpět do herny</button><button class="btn sm" data-act="hernaPlay" data-id="${g.id}">Znovu</button></div>`);
+  try { playGame(g, $('hgame'), hernaCtx(id)); } catch (e) { $('hgame').innerHTML = `<p class="msg">Hra spadla: ${esc(e.message)}</p>`; }
+}
+function hernaDone(id, score, max) {
+  const g = HERNA.find(x => x.id === id), el = $('hgame'); if (!g || !el) return;
+  const pct = max ? Math.round(score / max * 100) : 0, r = hernaRec(id); r.best = Math.max(r.best || 0, pct); r.plays = (r.plays || 0) + 1; savePrefs();
+  el.innerHTML = `<div class="hdone"><p class="hbig">${score} / ${max}</p><p class="msg">${pct >= 80 ? 'Výborně!' : pct >= 50 ? 'Dobrá práce.' : 'Zkus to znovu.'}</p>
+    <p class="msg small">Jak se ti hra líbí?</p><div class="row2"><button class="btn${r.r > 0 ? ' primary' : ''}" data-act="hernaRate" data-id="${id}" data-v="1">👍 Nechat</button><button class="btn${r.r < 0 ? ' primary' : ''}" data-act="hernaRate" data-id="${id}" data-v="-1">👎 Vyřadit</button></div>
+    <textarea id="hnote" rows="2" maxlength="300" placeholder="Poznámka (co upravit, co nefunguje…)">${esc(r.note || '')}</textarea></div>`;
+  $('hnote').addEventListener('input', e => { hernaRec(id).note = e.target.value.slice(0, 300); savePrefs(); });
+}
+function rateH(id, v) {
+  const r = hernaRec(id); r.r = r.r === v ? 0 : v; savePrefs();
+  document.querySelectorAll('[data-act="hernaRate"]').forEach(b => b.classList.toggle('primary', Number(b.dataset.v) === r.r));
+}
+async function copyHerna() {
+  const R = prefs.herna || {};
+  const txt = HERNA.map(g => { const r = R[g.id] || {}; return `${g.n}. ${g.name}: ${r.r > 0 ? 'NECHAT' : r.r < 0 ? 'VYŘADIT' : '—'}${r.best != null ? ` (nejlépe ${r.best} %, hráno ${r.plays || 0}×)` : ''}${r.note ? ' – ' + r.note : ''}`; }).join('\n');
+  try { await navigator.clipboard.writeText(txt); toast('Hodnocení zkopírováno – vlož ho do zprávy.'); } catch (e) { openM(`<h2>Hodnocení</h2><textarea rows="14" style="width:100%">${esc(txt)}</textarea><button class="btn full ghost" data-act="herna">Zpět</button>`); }
 }
 function renderJa() {
   const lv = levelFor(state.xp, cfg.game), sp = Object.values(state.caught).filter(c => c.count).length;
@@ -2316,6 +2359,10 @@ function onModalClick(e) {
   else if (act === 'dataClearTiles') { caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('stopar-tiles')).map(k => caches.delete(k)))).then(() => { toast('Uložená mapa smazána.'); openDataMgr(); }); }
   else if (act === 'dataClearOsm') { clearOsmCache().then(() => { clearTrails(); drawBiotopes(); tick(); toast('Uložené biotopy smazány.'); openDataMgr(); }); }
   else if (act === 'games') openGames();
+  else if (act === 'herna') openHerna();
+  else if (act === 'hernaPlay') playH(a.dataset.id);
+  else if (act === 'hernaRate') rateH(a.dataset.id, Number(a.dataset.v));
+  else if (act === 'hernaCopy') copyHerna();
   else if (act === 'mgPlay') playMini(a.dataset.g, a.dataset.l);
   else if (act === 'mgHint') { const b = $('mgBoard'); if (b && mgImg) { b.classList.add('hint'); b.style.setProperty('--hint', 'url("' + mgImg + '")'); setTimeout(() => b.classList.remove('hint'), 1500); } }
   else if (act === 'toAtlas') { closeM(); show('atlasv'); openDetail(a.dataset.sp); }

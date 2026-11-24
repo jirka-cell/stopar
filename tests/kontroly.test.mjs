@@ -1309,3 +1309,44 @@ test('určovací klíč: znaky mají všechny druhy všech skupin a kódy sedí 
   assert.equal(rank('Pavoukovci', { znaky: ['kriz'] })[0], 'krizak');
 });
 
+
+test('herna: všechny hry z dat dávají platné zadání (50× každá)', async () => {
+  const { HERNA, sudokuBad } = await import('../js/herna.js');
+  const { SPECIES_IMAGES } = await import('../js/images.js');
+  const sp = DEFAULTS.species.filter(s => s.active), SP = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
+  const ctx = { cfg: DEFAULTS, SP, sp, img: (s, st) => `[${s.id}:${st}]`, ic: n => `<${n}>`, track: id => `{${id}}`, hasImg: k => SPECIES_IMAGES.has(k), stages: () => [], done() {} };
+  assert.equal(HERNA.length, 55);
+  assert.equal(new Set(HERNA.map(g => g.id)).size, 55);
+  for (const g of HERNA) {
+    if (g.play) continue;
+    const k = g.kind || g.g;
+    for (let i = 0; i < 50; i++) {
+      const r = g.gen(ctx, i);
+      if (k === 'sort') { assert.ok(r.items.length >= 6, `${g.id}: málo položek`); const bins = new Set(r.bins.map(b => b[0])); r.items.forEach(([, b]) => assert.ok(bins.has(b), `${g.id}: koš ${b}`)); }
+      else if (k === 'match') { assert.ok(r.length >= 4, `${g.id}: málo dvojic (${r.length})`); assert.equal(new Set(r.map(p => p[1])).size, r.length, `${g.id}: stejné pravé strany`); }
+      else if (k === 'order') { assert.ok(r.items.length >= 3 && r.items.every(Boolean), `${g.id}: pořadí`); }
+      else { assert.ok(r.opts.length >= 2, `${g.id}: možnosti`); assert.equal(new Set(r.opts).size, r.opts.length, `${g.id}: stejné možnosti ${r.opts}`); }
+    }
+  }
+  assert.equal(sudokuBad([[0, 1, 2, 3], [2, 3, 0, 1], [1, 0, 3, 2], [3, 2, 1, 0]]).size, 0);
+  assert.ok(sudokuBad([[0, 0, 2, 3], [2, 3, 0, 1], [1, 2, 3, -1], [3, -1, 1, 0]]).size > 0);
+});
+
+test('herna 2: zbylé hry – zadání z dat, bludiště, hráz, logická mřížka', async () => {
+  const { HERNA } = await import('../js/herna.js');
+  const { HERNA2, bfs, minCut, gridClues } = await import('../js/herna2.js');
+  const { SPECIES_IMAGES } = await import('../js/images.js');
+  const sp = DEFAULTS.species.filter(s => s.active), SP = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
+  const ctx = { cfg: DEFAULTS, SP, sp, img: (s, st) => `[${s.id}:${st}]`, ic: n => `<${n}>`, track: id => `{${id}}`, hasImg: k => SPECIES_IMAGES.has(k), stages: () => [], done() {} };
+  const all = [...HERNA, ...HERNA2], nums = all.map(g => g.n);
+  assert.equal(all.length, 98); assert.equal(new Set(all.map(g => g.id)).size, 98);
+  for (let n = 1; n <= 100; n++) if (n !== 10 && n !== 13) assert.ok(nums.includes(n), `chybí hra č. ${n}`);
+  for (const g of HERNA2.filter(g => g.gen)) for (let i = 0; i < 50; i++) { const r = g.gen(ctx, i); assert.ok(r.opts.length >= 2, g.id); assert.equal(new Set(r.opts).size, r.opts.length, `${g.id}: ${r.opts}`); }
+  assert.equal(bfs(3, 3, [0, 0], (r, c) => r === 2 && c === 2, () => true), 4);
+  assert.equal(bfs(3, 3, [0, 0], (r, c) => r === 2 && c === 2, (r, c) => c !== 1), -1);
+  const open = Array.from({ length: 4 }, () => Array(4).fill(false));
+  assert.equal(minCut(4, 4, open), 4); // celou šířku je potřeba zahradit
+  const wall = open.map((row, r) => row.map((_, c) => r === 1 && c > 0)); assert.equal(minCut(4, 4, wall), 1);
+  const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  for (const perm of PERMS) for (let t = 0; t < 10; t++) { const cl = gridClues(['A', 'B', 'C'], perm); assert.equal(PERMS.filter(p => cl.every(c => c.f(p))).length, 1, 'nápovědy mají vést k jedinému řešení'); }
+});

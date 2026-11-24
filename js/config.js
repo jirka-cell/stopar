@@ -41,6 +41,7 @@ export const DEFAULTS = {
     introAlways: false,     // uvítání a souhlas prvního spuštění při každém spuštění (test; data se nemažou)
     splashHold: false,      // úvodní obrazovka zůstane, dokud na ni neťukneš (test)
     splashPicker: false,    // na úvodní obrazovce tlačítko Změnit pozadí – projít všech 35 (test)
+    hernaTest: false,       // Kamarádi → Herna (test): nové logické minihry k vyzkoušení a hodnocení
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
     contact: ''                   // kontaktní e-mail pro dotazy a zpětnou vazbu testerů
@@ -419,7 +420,8 @@ export const SCHEMA = [
     ['dogBig', 'Aegon zvětšený', 'bool'],
     ['introAlways', 'Uvítání prvního spuštění pokaždé', 'bool'],
     ['splashHold', 'Úvodní obrazovka zůstane do ťuknutí', 'bool'],
-    ['splashPicker', 'Úvodní obrazovka: tlačítko Změnit pozadí', 'bool']
+    ['splashPicker', 'Úvodní obrazovka: tlačítko Změnit pozadí', 'bool'],
+    ['hernaTest', 'Herna (test): nové minihry v Kamarádech', 'bool']
   ] },
   { sec: 'spawn', title: 'Objevování zvířat', fields: [
     ['density', 'Počet zvířat v okruhu (průměr)', 'number', { min: 0, max: 100, step: 1 }],
