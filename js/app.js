@@ -460,18 +460,28 @@ function updateGame() { gamePending = true; flushMap(); }
 // Zakrytí budovami (HTML značky jsou vždy navrchu): budova vykreslená v místě značky, která zvíře neobsahuje, je před ním
 const inRing = (x, y, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 let occT = 0;
+// bližší zvíře (níž na obrazovce) překryje vzdálenější; rozsah 1–99, ať značky nepřekryjí ovládání nad mapou
+function zOrderMarkers() {
+  if (!map) return;
+  const h = map.getContainer().clientHeight || 1;
+  markers.forEach(m => { m.el.style.zIndex = 1 + Math.max(0, Math.min(98, Math.round(map.project(m.mk.getLngLat()).y / h * 98))); });
+}
+// Za budovou: přepočet jen když mapa stojí (během pohybu se budovy dočítají a blikalo by to); schovat až po 2 shodných výsledcích
 function occludeMarkers() {
-  // bližší zvíře (níž na obrazovce) překryje vzdálenější; rozsah 1–99, ať značky nepřekryjí ovládání nad mapou
-  if (map) { const h = map.getContainer().clientHeight || 1; markers.forEach(m => { m.el.style.zIndex = 1 + Math.max(0, Math.min(98, Math.round(map.project(m.mk.getLngLat()).y / h * 98))); }); }
-  if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(m => m.el.classList.remove('behind')); return; }
+  zOrderMarkers();
+  if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(m => { m.el.classList.remove('behind'); m.occ = 0; }); return; }
   markers.forEach((m) => {
     const ll = m.mk.getLngLat(), pt = map.project(ll);
     const fs2 = map.queryRenderedFeatures([pt.x, pt.y], { layers: ['building-3d'] });
-    const behind = fs2.some(f => { const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; return !polys.some(p => inRing(ll.lng, ll.lat, p[0])); });
-    m.el.classList.toggle('behind', behind);
+    const has = f => { const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; return polys.some(p => inRing(ll.lng, ll.lat, p[0])); };
+    const own = new Set(fs2.filter(has).map(f => f.id)); // budova, ve které zvíře stojí (i když je rozřezaná po dlaždicích)
+    const behind = fs2.some(f => !(f.id != null && own.has(f.id)) && !has(f));
+    m.occ = behind ? (m.occ || 0) + 1 : 0;
+    m.el.classList.toggle('behind', m.occ >= 2);
   });
 }
 const occSoon = () => { clearTimeout(occT); occT = setTimeout(occludeMarkers, 120); };
+const zSoon = () => { clearTimeout(occT); occT = setTimeout(zOrderMarkers, 60); };
 function flushMap() {
   if (!map) return;
   try {
@@ -537,7 +547,7 @@ function initMap() {
     setUi(!document.body.classList.contains('ui-open')); // ťuk do prázdné mapy ukáže / schová dolní lištu
   });
   map.on('styledata', () => { kctPending = planPending = true; flushMap(); });
-  map.on('moveend', refreshTrails); map.on('move', occSoon); map.on('idle', occSoon);
+  map.on('moveend', refreshTrails); map.on('move', zSoon); map.on('idle', () => { occludeMarkers(); setTimeout(occludeMarkers, 350); });
   map.on('idle', flushMap); map.on('idle', tileBio);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
