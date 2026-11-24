@@ -28,7 +28,9 @@ Object.assign(ART, {
   rytir: `${sh}<rect x="62" y="74" width="36" height="48" rx="6" fill="#9aa4b0"/><rect x="62" y="96" width="36" height="6" fill="#c0283a"/><circle cx="80" cy="56" r="18" fill="#b8c0ca"/><rect x="66" y="52" width="28" height="6" rx="2" fill="#2b2f36"/><path d="M80 38v-12" stroke="#d9442b" stroke-width="5" stroke-linecap="round"/><path d="M104 70v50" stroke="#c8ccd2" stroke-width="5" stroke-linecap="round"/><path d="M98 76h12" stroke="#8a6a3a" stroke-width="5" stroke-linecap="round"/>`,
   zajicek: `${sh}<ellipse cx="68" cy="40" rx="8" ry="24" fill="#f2ebe2"/><ellipse cx="92" cy="40" rx="8" ry="24" fill="#f2ebe2"/><ellipse cx="68" cy="42" rx="4" ry="16" fill="#ffc0cf"/><ellipse cx="92" cy="42" rx="4" ry="16" fill="#ffc0cf"/><ellipse cx="80" cy="100" rx="28" ry="26" fill="#f2ebe2"/><circle cx="80" cy="70" r="20" fill="#f7f1ea"/>${eye(73, 68, 4)}${eye(87, 68, 4)}<ellipse cx="80" cy="78" rx="4" ry="3" fill="#ff8fab"/><ellipse cx="112" cy="116" rx="9" ry="12" fill="#7ac2e8"/><path d="M104 114h16M104 120h16" stroke="#fff" stroke-width="2"/>`
 });
-export const mythURL = m => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 140">${ART[m.id] || ART.bludicka}</svg>`);
+// Obrázky z G (images/myths/{id}.webp); SVG výše zůstává jako záloha pro tvory bez obrázku
+const MYTH_IMG = new Set('andel bazilisek bilapani bludicka cert drak dynacek hejkal permonik polednice rusalka rytir skritek snezny strasidylko vila vodnik zajicek'.split(' '));
+export const mythURL = m => MYTH_IMG.has(m.id) ? `images/myths/${m.id}.webp` : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 140">${ART[m.id] || ART.bludicka}</svg>`);
 export const hasMythArt = id => !!ART[id];
 
 /* ---------- bájné dny ---------- */

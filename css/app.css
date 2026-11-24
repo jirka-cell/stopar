@@ -278,6 +278,7 @@ main{margin-bottom:0}
 body.on-map:not(.ui-open):not(.sim):not(.catchable):not(.kid) nav{transform:translateY(calc(100% + 40px))} /* lišta: ťuk do mapy; v simulaci, v dětském režimu a se zvířetem v dosahu vždy vidět */
 .ic{display:inline-block;line-height:1;font-style:normal}
 img.ic{width:1.2em;height:1.2em;object-fit:contain;vertical-align:middle}
+img.ic.ficon{width:34px;height:34px}
 nav em{font-style:normal} /* popisky lišty stejným písmem (Farma a přezdívka jsou v em) */
 nav .act{flex:0 0 76px;position:relative}
 nav .act i{width:58px;height:58px;margin-top:-30px;border-radius:50%;background:#e2602a;color:#fff;border:4px solid var(--card);display:flex;align-items:center;justify-content:center;font-size:25px;box-shadow:0 2px 8px rgba(0,0,0,.25);font-style:normal}

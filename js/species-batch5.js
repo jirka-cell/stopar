@@ -21,6 +21,7 @@ chrobakjarni vazkacernorita strevlik belasekzelny pidalka tesarikpiluna sarance 
 krizakpodkorni sekac beznik snovacka pokoutnik krizakctyrskvrnny skakavka maloocka krizakmostni tresavka bezniklistovy snovackapokoutni bezniksvostny
 kliste paskovka slimakpopelavy slimaknejvetsi paskovkazihana plamatka suchomilka plovatka plzak jantarka hlemyzdik okruzak kerovka vlahovka skeble
 vrasenka modranka skalnice zihlobytka tmavoretka
+slavicka svinka stinka stinkazedni svinkaruznobarva
 `.split(/\s+/).filter(Boolean));
 const mk = (group, cls, rows) => rows.map(([id, name, lat, rarity, bio, food, stats, months, night, fact, { alt = '', ...e } = {}]) => ({
   active: ON.has(id), night: !!night, alt, months, regions: '', image: '', imageAuthor: '', imageLicense: '', review: true,

@@ -1,5 +1,6 @@
 // Drobnosti: obrázky potravin při krmení, karta výletu (bez polohy), rodinná výprava (týdenní součet přes kódy)
 import { esc } from './config.js';
+import { ic, ICON_FILES } from './icons.js';
 import { hash01 } from './geo.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
@@ -26,7 +27,7 @@ const F = {
   korinky: '<path d="M24 8v10M24 18q-8 6-10 18M24 18q8 6 10 18M24 18v22M24 26q-6 4-14 4M24 26q6 4 14 4" stroke="#b08a5a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M18 8q6-6 12 0" fill="#6ab04a"/>',
   maso: '<path d="M10 30q0-14 16-14t14 12q-2 12-16 12t-14-10z" fill="#c0504a"/><path d="M16 28q8-6 18 0" stroke="#f2d0c8" stroke-width="3" fill="none"/><circle cx="36" cy="22" r="4" fill="#f4ead8"/>'
 };
-export const foodIcon = id => F[id] ? `<svg viewBox="0 0 48 48" class="ficon" aria-hidden="true">${F[id]}</svg>` : '';
+export const foodIcon = id => ICON_FILES.has('food_' + id) ? ic('food_' + id, 'ficon') : F[id] ? `<svg viewBox="0 0 48 48" class="ficon" aria-hidden="true">${F[id]}</svg>` : '';
 export const hasFoodIcon = id => !!F[id];
 
 /* ---------- karta výletu ---------- */
