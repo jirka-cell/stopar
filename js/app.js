@@ -125,7 +125,7 @@ async function showSplash() {
   const bg = pickSplash({ month: new Date().getMonth() + 1, night: isNight(), weather: wc, kid: kidModeOn(parentCfg, consentRec), last: prefs.splashLast || '' });
   if (!bg) return;
   prefs.splashLast = bg.id; savePrefs();
-  splash = new Splash($('splash'), { bg, ic, title: esc(cfg.general.appName), sub: isNight() ? 'Noční výprava' : 'Česká příroda venku', hold: !!cfg.general.splashHold, picker: !!cfg.general.splashPicker, onDone: () => { splash = null; } });
+  splash = new Splash($('splash'), { bg, ic, title: esc(cfg.general.appName), sub: isNight() ? 'Noční výprava' : 'Česká příroda venku', hold: !!cfg.general.splashHold, picker: !!cfg.general.splashPicker, minMs: Math.max(1, Number(cfg.general.splashSeconds) || 10) * 1000, onDone: () => { splash = null; } });
 }
 // Mapa, GPS a stahování dat se spustí až po souhlasu
 function start() {

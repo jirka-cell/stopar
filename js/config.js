@@ -23,6 +23,7 @@ export const DEFAULTS = {
     appName: 'Stopuj s Aegonem',
     headerTitle: 'Stopuj s Aegonem', // nápis v horní liště
     adminPin: '1234',
+    splashSeconds: 10,      // úvodní obrazovka zůstane aspoň tolik sekund (i když je vše načteno dřív)
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
@@ -395,6 +396,7 @@ export const SCHEMA = [
   { sec: 'general', title: 'Obecné', fields: [
     ['appName', 'Název aplikace', 'text'], ['headerTitle', 'Nápis v horní liště', 'text'],
     ['adminPin', 'PIN do adminu', 'text'],
+    ['splashSeconds', 'Úvodní obrazovka: minimální délka zobrazení (s)', 'number', { min: 1, max: 30, step: 1 }],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
     ['contact', 'Kontaktní e-mail', 'text']

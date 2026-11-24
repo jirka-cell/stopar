@@ -1,8 +1,8 @@
 // Úvodní obrazovka: pozadí podle počasí, období a denní doby, běžící Aegon, kroky načítání s vtipnými texty.
-// Ukáže se při každém spuštění aspoň MIN_MS, nejdéle MAX_MS (pak pustí do aplikace i bez všech dat).
+// Ukáže se při každém spuštění aspoň min (nastavení, výchozí 10 s), nejdéle o 3 s déle (pak pustí do aplikace i bez všech dat).
 import { SPLASH } from './splash-data.js';
 
-export const MIN_MS = 5000, MAX_MS = 8000;
+export const MIN_MS = 10000, EXTRA_MS = 3000;
 const SEASON = m => m >= 3 && m <= 5 ? 'jaro' : m >= 6 && m <= 8 ? 'leto' : m >= 9 && m <= 11 ? 'podzim' : 'zima';
 
 // Výběr pozadí (čistá funkce kvůli testu): počasí (jen čerstvé) > noc > období; drsné jen mimo dětský režim; ne stejné jako minule
@@ -31,8 +31,8 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 
 // Ovládání obrazovky; ic = funkce na ikonu, hold = zůstat do ťuknutí (test)
 export class Splash {
-  constructor(el, { bg, ic, title, sub, hold = false, picker = false, onDone }) {
-    this.el = el; this.done = {}; this.t0 = Date.now(); this.hold = hold || picker; this.onDone = onDone; this.gone = false;
+  constructor(el, { bg, ic, title, sub, hold = false, picker = false, minMs = MIN_MS, onDone }) {
+    this.min = minMs; this.el = el; this.done = {}; this.t0 = Date.now(); this.hold = hold || picker; this.onDone = onDone; this.gone = false;
     el.classList.toggle('dark', !!bg.dark);
     el.innerHTML = `<img class="spbg" src="images/splash/${bg.id}.webp" alt="" onerror="this.remove()">
       <div class="sptop"><h1>${title}</h1><p>${sub}</p></div>
@@ -46,9 +46,9 @@ export class Splash {
     const run = () => { img.src = `images/dog/${frames[f++ % 4]}.webp`; };
     run(); this.runT = setInterval(run, 180);
     this.txtT = setInterval(() => this.say(), 2200); this.say();
-    this.maxT = setTimeout(() => this.check(true), MAX_MS);
-    this.minT = setTimeout(() => this.check(), MIN_MS);
-    el.addEventListener('click', () => { if (Date.now() - this.t0 >= MIN_MS || this.hold) this.hide(); });
+    this.maxT = setTimeout(() => this.check(true), this.min + EXTRA_MS);
+    this.minT = setTimeout(() => this.check(), this.min);
+    el.addEventListener('click', () => { if (Date.now() - this.t0 >= this.min || this.hold) this.hide(); });
   }
   // test: tlačítko Změnit pozadí – projde všech 35 po řadě, ukáže číslo a štítky; obrazovku nezavře
   addPicker(bg) {
@@ -74,10 +74,10 @@ export class Splash {
     const bar = this.el.querySelector('.spbar i'); if (bar) bar.style.width = Math.round(n / STEPS.length * 100) + '%';
     this.say(); this.check();
   }
-  // konec: po MIN_MS, když je poloha i mapa (zvířata nejsou podmínka), nebo po MAX_MS; v testu jen ťuknutím
+  // konec: po min, když je poloha i mapa (zvířata nejsou podmínka), nebo o 3 s později; v testu jen ťuknutím
   check(timeout = false) {
     if (this.gone || this.hold) return;
-    if (Date.now() - this.t0 < MIN_MS) return;
+    if (Date.now() - this.t0 < this.min) return;
     if (timeout || (this.done.gps && this.done.map)) this.hide();
   }
   hide() {
