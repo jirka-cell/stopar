@@ -1,8 +1,8 @@
 // Úvodní souhlas, zásady ochrany osobních údajů, podmínky a stránka O aplikaci a licence.
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
-export const TERMS_VERSION = 3;
-export const APP_VERSION = '3.29.0';
+export const TERMS_VERSION = 4; // 4: datum narození, souhlas rodiče přes QR, e-mail rodiče
+export const APP_VERSION = '3.30.0';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };
@@ -38,14 +38,15 @@ export function pinSetHTML(hasPin) {
   <button class="btn primary full" data-act="pinSave">Uložit PIN</button><button class="btn full ghost" data-act="menu">Zpět</button>`;
 }
 
-export function consentHTML(cfg) {
-  return `<img class="wavehi" src="images/dog/wave.webp" alt=""><h2>Vítej ve hře ${esc(cfg.general.appName)}</h2>
-  <p class="msg">Chodíš venku po skutečné mapě, potkáváš českou faunu a sbíráš ji do atlasu.</p>
+export function consentHTML(cfg, par = {}) {
+  return `<h2>Ještě než vyrazíme</h2>
   <div class="fact">Než se cokoliv stáhne z internetu, potřebujeme tvůj souhlas. Aplikace nemá účty ani reklamy a tvůj postup zůstává jen v tomto telefonu. Mapové služby ale uvidí, kde přibližně jsi (podrobně v zásadách).</div>
-  <div class="fld"><label for="cYear">Rok narození</label><input type="number" id="cYear" inputmode="numeric" min="1900" max="${new Date().getFullYear()}" placeholder="např. 2012"></div>
+  <div class="fld"><label for="cBirth">Datum narození</label><input type="date" id="cBirth" max="${new Date().toISOString().slice(0, 10)}" min="1900-01-01"><small class="msg small">Nikam se neodesílá a neukládá – jen se z něj spočítá věk.</small></div>
   <div id="cParent" hidden>
-    <div class="fact">Je ti méně než ${MIN_AGE} let, proto souhlas potvrdí rodič nebo zákonný zástupce tady na tomto telefonu.</div>
-    <label class="fld row">Jsem rodič nebo zákonný zástupce, přečetl(a) jsem zásady a souhlasím za dítě<input type="checkbox" id="cParentOk"></label>
+    <div class="fact"><b>Zavolej rodiče!</b> Je ti méně než ${MIN_AGE} let, proto souhlas potvrdí rodič nebo zákonný zástupce. Ať si svým telefonem naskenuje tenhle kód.</div>
+    <div class="qrbox">${par.qr || ''}<small>Kód: <b>${esc(par.code || '')}</b></small></div>
+    <div class="fld"><label for="cCode">Potvrzovací kód od rodiče (4 číslice)</label><input type="text" id="cCode" inputmode="numeric" maxlength="4" autocomplete="off"></div>
+    <div class="fld"><label for="cMail">E-mail rodiče (nepovinné)</label><input type="email" id="cMail" autocomplete="email" maxlength="80"><small class="msg small">Zatím zůstane jen v tomto telefonu. Až bude mít aplikace server, přijde na něj odkaz k potvrzení souhlasu a pomůže s obnovou PINu.</small></div>
     <p class="msg small">Rodičovský PIN chrání smazání dat. Dítěti ho neříkejte.</p>
     ${pinFields('cPin', 'cPin2')}
   </div>
@@ -55,6 +56,33 @@ export function consentHTML(cfg) {
   <p class="msg small" id="cErr"></p>
   <button class="btn primary full" data-act="consentOk">Souhlasím a pokračovat</button>`;
 }
+// Věk z data narození (RRRR-MM-DD z políčka typu date); null = neplatné
+export function ageFromDate(str, now = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str || '')); if (!m) return null;
+  const [y, mo, d] = m.slice(1).map(Number), b = new Date(y, mo - 1, d);
+  if (b.getMonth() !== mo - 1 || y < 1900 || b > now) return null;
+  return now.getFullYear() - y - ((now.getMonth() + 1) * 100 + now.getDate() < mo * 100 + d ? 1 : 0);
+}
+// Souhlas rodiče bez serveru: telefon dítěte vytvoří náhodný kód (v QR), stránka pro rodiče z něj spočítá 4 číslice k opsání.
+// shortcut: jen překážka (dítě by mohlo načíst QR samo), ne zabezpečení – se serverem ověřit e-mailem rodiče.
+const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const newParentCode = () => [...crypto.getRandomValues(new Uint8Array(10))].map(b => CODE_ABC[b % 32]).join('');
+export const PARENT_CODE_RE = /^[A-HJ-NP-Z2-9]{10}$/;
+export function parentConfirm(code) {
+  let h = 5381;
+  for (const c of 'stopuj-s-aegonem|rodic|' + code) h = (Math.imul(h, 33) ^ c.charCodeAt(0)) >>> 0;
+  return String(h % 10000).padStart(4, '0');
+}
+export function parentPageHTML(cfg, code) {
+  return `<img class="wavehi" src="images/dog/wave.webp" alt=""><h2>Souhlas rodiče</h2>
+  <p class="msg">Vaše dítě chce hrát <b>${esc(cfg.general.appName)}</b> – venku chodí po skutečné mapě, potkává českou faunu a sbírá ji do atlasu.</p>
+  <div class="fact">Aplikace nemá účty, reklamy ani analytiku. Postup zůstává jen v telefonu dítěte. Mapové služby uvidí přibližnou polohu (kvůli zobrazení mapy). V dětském režimu můžete omezit oblast hry a zapnout ztlumení mapy při chůzi.</div>
+  <button class="btn full" data-act="legal">Přečíst podmínky a zásady</button>
+  <label class="fld row">Jsem rodič nebo zákonný zástupce, přečetl(a) jsem zásady a souhlasím, aby dítě aplikaci používalo<input type="checkbox" id="rpOk"></label>
+  <p class="msg small" id="rpErr"></p>
+  <button class="btn primary full" data-act="rpShow" data-code="${esc(code)}">Souhlasím – ukázat potvrzovací kód</button>
+  <div id="rpCode" hidden><p class="msg">Opište tento kód do telefonu dítěte a nastavte tam rodičovský PIN:</p><div class="rpbig">${parentConfirm(code)}</div></div>`;
+}
 
 export function privacyHTML(cfg, overpass, back) {
   const servers = overpass.map(host).map(esc).join(', ');
@@ -62,7 +90,7 @@ export function privacyHTML(cfg, overpass, back) {
   <h3>Kdo za aplikaci odpovídá</h3>
   <p class="kv">Správce osobních údajů: <b>${esc(cfg.general.controller || cfg.general.author)}</b><br>Kontakt: ${contactHTML(cfg)}</p>
   <h3>Co aplikace ukládá</h3>
-  <p class="kv">Jen do tohoto telefonu: postup ve hře, úlovky, fotky z terénu, nastavení a to, že jsi dal(a) souhlas. Rok narození se neukládá. Aplikace nemá vlastní server, účty, reklamy, analytiku ani sledovací cookies a nic z toho nikomu neposílá.</p>
+  <p class="kv">Jen do tohoto telefonu: postup ve hře, úlovky, fotky z terénu, nastavení a to, že jsi dal(a) souhlas. Datum narození se neukládá – jen se z něj spočítá věk. Pokud rodič zadá svůj e-mail, zůstane jen v tomto telefonu; až bude mít aplikace server, použije se jen k potvrzení souhlasu rodiče a k obnově PINu. Aplikace nemá vlastní server, účty, reklamy, analytiku ani sledovací cookies a nic z toho nikomu neposílá.</p>
   <h3>Poloha a mapové služby</h3>
   <p class="kv">GPS se zpracovává jen v telefonu. Aby se zobrazila mapa a poznalo se, v jakém prostředí jsi, telefon si stahuje data z těchto služeb. Ty při tom vidí tvou IP adresu a přibližnou oblast, kterou si prohlížíš:</p>
   <ul class="facts">

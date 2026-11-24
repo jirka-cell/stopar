@@ -8,7 +8,7 @@ import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
 import { openAdmin, download } from './admin.js';
 import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './mapstyle.js';
-import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFrom, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
+import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFromDate, newParentCode, PARENT_CODE_RE, parentConfirm, parentPageHTML, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
 import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz, profileHTML, unlockName } from './progress.js';
 import { evolve, train, trainStat, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, shopHTML, coneIcon } from './economy.js';
@@ -18,6 +18,7 @@ import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
 import { GAMES, contestsHTML, pickHTML, compareText, runGame, contestScore, scoreCode, cleanRecords, miniSkill } from './contests.js';
 import { Dog, dogURL, drillNow, DRILL_TOPICS } from './dog.js';
+import { Splash, pickSplash } from './splash.js';
 import { wildStage, foodFor, isPupa, knownStages } from './stages.js';
 import { ic, icId, fillIcons, classIcon } from './icons.js';
 import { placeKind, taskFor, taskHTML, RES_FOR } from './tasks.js';
@@ -99,10 +100,36 @@ async function init() {
   consentRec = consent;
   parentCfg = cleanParent(await store.get('parent').catch(() => null));
   prefs = (await store.get('prefs').catch(() => null)) || {};
-  if (consentValid(consent)) start(); else openConsent();
+  const rp = /^#rodic=([A-Z0-9]{10})$/.exec(location.hash); // rodič naskenoval QR z telefonu dítěte
+  if (rp && PARENT_CODE_RE.test(rp[1])) { parentPage = rp[1]; locked = true; openM(parentPageHTML(cfg, parentPage)); return; }
+  if (consentValid(consent) && !cfg.general.introAlways) start(); else openWelcome(() => openConsent());
+}
+// Uvítání při prvním spuštění: celá obrazovka s pozadím, nápis bez podkladu (barva podle jasu oblohy), tlačítko Začít
+function openWelcome(then) {
+  const bg = pickSplash({ month: new Date().getMonth() + 1, night: isNight(), kid: true, last: (prefs && prefs.splashLast) || '' });
+  const el = $('splash'); if (!bg || !el) { then(); return; }
+  el.classList.toggle('dark', !!bg.dark);
+  el.innerHTML = `<img class="spbg" src="images/splash/${bg.id}.webp" alt="" onerror="this.remove()">
+    <div class="sptop"><p>Vítej ve hře</p><h1>${esc(cfg.general.appName)}</h1><p class="spwel">Choď venku po skutečné mapě, potkávej českou přírodu a sbírej zvířata do atlasu. Aegon ti bude dělat společníka.</p></div>
+    <div class="spdog"><img src="images/dog/wave.webp" alt=""></div>
+    <button class="btn primary full spgo">Začít</button>`;
+  el.hidden = false;
+  el.querySelector('.spgo').onclick = () => { el.classList.add('out'); setTimeout(() => { el.hidden = true; el.classList.remove('out'); el.innerHTML = ''; }, 450); then(); };
+}
+// Úvodní obrazovka při každém spuštění (ne když aplikaci otevře odkaz na trasu, poklad, farmu nebo akci)
+let splash = null;
+async function showSplash() {
+  if (/^#(trasa|poklad|farma|akce|admin)/.test(location.hash)) return;
+  const w = await store.get('weather').catch(() => null);
+  const wc = w && w.time && Date.now() - w.time < 3 * 3600000 ? weatherCond(w) : '';
+  const bg = pickSplash({ month: new Date().getMonth() + 1, night: isNight(), weather: wc, kid: kidModeOn(parentCfg, consentRec), last: prefs.splashLast || '' });
+  if (!bg) return;
+  prefs.splashLast = bg.id; savePrefs();
+  splash = new Splash($('splash'), { bg, ic, title: esc(cfg.general.appName), sub: isNight() ? 'Noční výprava' : 'Česká příroda venku', hold: !!cfg.general.splashHold, onDone: () => { splash = null; } });
 }
 // Mapa, GPS a stahování dat se spustí až po souhlasu
 function start() {
+  showSplash();
   persist();
   applyConfig(true);
   initMap();
@@ -264,35 +291,41 @@ async function shareCard(uid) {
 }
 
 /* ---------- souhlas, zásady, smazání dat ---------- */
-let consentYear = '', locked = false, wiping = false, consentRec = null, parentCfg = cleanParent(null);
+let consentBirth = '', consentCode = '', parentPage = '', locked = false, wiping = false, consentRec = null, parentCfg = cleanParent(null);
 function openConsent() {
   locked = true;
-  openM(consentHTML(cfg));
-  $('cYear').value = consentYear;
+  if (!consentCode) consentCode = newParentCode(); // stejný kód po celou dobu vyplňování
+  let qr = ''; try { qr = qrSVG(location.origin + location.pathname + '#rodic=' + consentCode, 4); } catch (e) { qr = ''; }
+  openM(consentHTML(cfg, { qr, code: consentCode }));
+  $('cBirth').value = consentBirth;
+  if (state.nick && $('cNick')) $('cNick').value = state.nick;
   onConsentInput();
 }
 function onConsentInput() {
-  if (!$('cYear')) return;
-  consentYear = $('cYear').value;
-  const age = ageFrom(consentYear);
+  if (!$('cBirth')) return;
+  consentBirth = $('cBirth').value;
+  const age = ageFromDate(consentBirth);
   $('cParent').hidden = !(age != null && age < MIN_AGE);
 }
 async function consentOk() {
-  const age = ageFrom($('cYear').value);
+  const age = ageFromDate($('cBirth').value);
   const err = m => { $('cErr').textContent = m; };
-  if (age == null) return err('Zadej rok narození.');
+  if (age == null) return err('Zadej datum narození.');
   if (!$('cOk').checked) return err('Potvrď souhlas s podmínkami a zásadami.');
   const nick = cleanNick($('cNick') ? $('cNick').value : '');
   if (nick && badWord(nick)) return err('Tuhle přezdívku zvol jinou.');
   if (nick) state.nick = nick;
   const parent = age < MIN_AGE;
-  if (parent && !$('cParentOk').checked) return err('Souhlas musí potvrdit rodič nebo zákonný zástupce.');
+  if (parent && $('cCode').value.trim() !== parentConfirm(consentCode)) return err('Potvrzovací kód nesedí. Rodič ho uvidí po naskenování QR kódu.');
+  const mail = parent ? $('cMail').value.trim() : '';
+  if (mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return err('E-mail rodiče nevypadá správně (nebo ho nech prázdný).');
   const pin = parent ? $('cPin').value : '';
   if (parent && !PIN_RE.test(pin)) return err('Rodič nastaví PIN o 4–8 číslicích.');
   if (parent && pin !== $('cPin2').value) return err('PINy se neshodují.');
   // rok narození se neukládá, jen verze podmínek a jestli souhlasil rodič
   try {
     if (parent) await store.set('parentPin', await newPin(pin));
+    if (mail) await store.set('parentEmail', mail);
     await store.set('consent', { v: TERMS_VERSION, time: Date.now(), parent, young: age < cfg.family.kidAge });
   } catch (e) {}
   consentRec = await store.get('consent').catch(() => null);
@@ -518,6 +551,7 @@ function initMap() {
   pitch3d = cfg.layers.buildings === '3d';
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
   // atribuce sbalená do (i), ať nezakrývá mapu ani Aegona
+  map.once('idle', () => { if (splash) splash.step('map'); });
   map.once('load', () => document.querySelectorAll('.maplibregl-ctrl-attrib').forEach(el => el.classList.remove('maplibregl-compact-show')));
   // růžice v horní liště: ukazuje sever; ťuk = zpět na sever, druhý ťuk = kompas (pokud je zapnutý v nastavení)
   const rose = () => { const n = $('roseN'); if (n) n.setAttribute('transform', 'rotate(' + (-map.getBearing()) + ' 20 20)'); document.body.classList.toggle('flatmap', map.getPitch() < 15); };
@@ -567,6 +601,7 @@ function setPos(lat, lon, acc, src, gpsSpeed) {
   checkMute();
   if (still.lat == null || dist(still.lat, still.lon, lat, lon) > cfg.world.hideMove) still = { lat, lon, t: Date.now() };
   pos.lat = lat; pos.lon = lon; pos.acc = acc; pos.src = src;
+  if (splash) splash.step('gps');
   if (!map) return;
   meMk.setLngLat([lon, lat]);
   updateGame();
@@ -971,6 +1006,7 @@ function refreshBirds() {
     mult: (sp, bio, la, lo) => quiet && quietSet.has(bio) && protectedAt(la, lo) ? 0 : base.get(sp.id) ?? 1
   });
   birds = r.birds;
+  if (splash && birds.length) splash.step('animals');
   const ids = new Set(birds.map(b => b.id));
   markers.forEach((_, id) => { if (!ids.has(id)) removeMarker(id); });
   for (const b of birds) {
@@ -1561,7 +1597,7 @@ let logoTaps = 0, logoT = 0;
 mbox.addEventListener('click', e => onModalClick(e));
 mbox.addEventListener('change', e => onModalChange(e));
 mbox.addEventListener('input', e => {
-  if (e.target.id === 'cYear') onConsentInput();
+  if (e.target.id === 'cBirth') onConsentInput();
   else if (e.target.id === 'plLen') { pl.len = Number(e.target.value); $('plLenV').textContent = (pl.len / 1000).toFixed(1).replace('.', ',') + ' km'; }
   else if (e.target.id === 'nightDim') { prefs.dim = Number(e.target.value); $('nightDimV').textContent = prefs.dim + ' %'; savePrefs(); applyNight(); }
   else if (e.target.dataset.pt) { pl.names[e.target.dataset.pt] = e.target.value.slice(0, 30); drawPlanMarkers(); }
@@ -2145,7 +2181,9 @@ function onModalClick(e) {
   else if (act === 'pin') checkPin();
   else if (act === 'importOk') doImport();
   else if (act === 'menu') openMenu();
-  else if (act === 'legal') openM(privacyHTML(cfg, overpassUrls(cfg), 'consentBack'));
+  else if (act === 'legal') openM(privacyHTML(cfg, overpassUrls(cfg), parentPage ? 'rpBack' : 'consentBack'));
+  else if (act === 'rpBack') openM(parentPageHTML(cfg, parentPage));
+  else if (act === 'rpShow') { if (!$('rpOk').checked) { $('rpErr').textContent = 'Nejdřív potvrďte souhlas.'; return; } $('rpCode').hidden = false; a.disabled = true; }
   else if (act === 'consentBack') openConsent();
   else if (act === 'consentOk') consentOk();
   else if (act === 'legalMenu') openM(privacyHTML(cfg, overpassUrls(cfg), 'menu'));

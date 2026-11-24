@@ -19,7 +19,7 @@ export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;'
 export const DEFAULTS = {
   version: CONFIG_VERSION,
   general: {
-    appName: 'Stopař',
+    appName: 'Stopuj s Aegonem',
     headerTitle: 'Stopuj s Aegonem', // nápis v horní liště
     adminPin: '1234',
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
@@ -36,6 +36,8 @@ export const DEFAULTS = {
     dogDemo: false,         // Aegon: všechny klidové pózy dokola (kontrola obrázků)
     dogRandom: false,       // Aegon: náhodná smyčka všech póz včetně reakcí a cvičáku
     dogBig: false,          // Aegon zvětšený na 240 px (kontrola obrázků)
+    introAlways: false,     // uvítání a souhlas prvního spuštění při každém spuštění (test; data se nemažou)
+    splashHold: false,      // úvodní obrazovka zůstane, dokud na ni neťukneš (test)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
     contact: ''                   // kontaktní e-mail pro dotazy a zpětnou vazbu testerů
@@ -405,6 +407,8 @@ export const SCHEMA = [
     ['dogDemo', 'Aegon: všechny pózy dokola (kontrola)', 'bool'],
     ['dogRandom', 'Aegon: náhodná smyčka všech póz', 'bool'],
     ['dogBig', 'Aegon zvětšený (kontrola obrázků)', 'bool'],
+    ['introAlways', 'Uvítání prvního spuštění pokaždé (test)', 'bool'],
+    ['splashHold', 'Úvodní obrazovka zůstane do ťuknutí (test)', 'bool'],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
     ['contact', 'Kontaktní e-mail', 'text']

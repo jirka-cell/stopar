@@ -1244,3 +1244,23 @@ test('biotop z dlaždic mapy: převod tříd, priorita (voda nad lesem), mimo na
   assert.ok(r.birds.length && r.birds.every(b => b.id.endsWith('_p')) && r.birds.some(b => b.bio === 'les'), 'zvířata z biotopu mapy');
   tileBiotopes([], null);
 });
+
+test('úvodní obrazovka a souhlas: výběr pozadí, věk z data, kód rodiče', async () => {
+  const S = await import('../js/splash.js'), { SPLASH } = await import('../js/splash-data.js'), L = await import('../js/legal.js');
+  const { existsSync } = await import('node:fs');
+  assert.equal(SPLASH.length, 35);
+  for (const s of SPLASH) assert.ok(existsSync(new URL('../images/splash/' + s.id + '.webp', import.meta.url)), 'pozadí ' + s.id);
+  const r = () => 0.5;
+  assert.ok(S.pickSplash({ month: 1 }, r).s.includes('zima'), 'v lednu zimní');
+  assert.ok(S.pickSplash({ month: 7, night: true }, r).night, 'v noci noční');
+  assert.ok(S.pickSplash({ month: 10, weather: 'rain' }, r).w.includes('rain'), 'v dešti dešťové');
+  for (let i = 0; i < 40; i++) assert.ok(!S.pickSplash({ month: 11, weather: 'rain', kid: true }, Math.random).harsh, 'dítěti drsné ne');
+  const a = S.pickSplash({ month: 4 }, r); assert.notEqual(S.pickSplash({ month: 4, last: a.id }, r).id, a.id, 'ne dvakrát po sobě');
+  const now = new Date(2026, 10, 24);
+  assert.equal(L.ageFromDate('2011-11-24', now), 15); assert.equal(L.ageFromDate('2011-11-25', now), 14);
+  assert.equal(L.ageFromDate('2030-01-01', now), null); assert.equal(L.ageFromDate('2011-02-30', now), null);
+  const c = L.newParentCode(); assert.match(c, L.PARENT_CODE_RE); assert.notEqual(L.newParentCode(), c);
+  assert.match(L.parentConfirm(c), /^\d{4}$/); assert.equal(L.parentConfirm(c), L.parentConfirm(c));
+  assert.match(L.consentHTML({ general: { appName: 'X' } }, { qr: '<svg></svg>', code: c }), /cBirth[^]*cCode[^]*cMail/);
+});
+

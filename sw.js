@@ -1,5 +1,5 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v3.29.0';
+const VERSION = 'stopar-v3.30.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
@@ -7,7 +7,7 @@ const META = 'stopar-meta';
 const OFFLINE = 'stopar-offline';   // stažené oblasti (offline mapy) – nepromazává se
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/species-batch5.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js', 'js/stages.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/planner.js', 'js/offline.js', 'js/extras.js', 'js/minigames.js', 'js/datamon.js', 'js/icons.js', 'js/farm.js', 'js/tasks.js', 'js/farm3d.js', 'vendor/three/three.module.min.js', 'vendor/three/addons/loaders/GLTFLoader.js', 'vendor/three/addons/utils/BufferGeometryUtils.js',
+  'js/app.js', 'js/splash.js', 'js/splash-data.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/species-batch5.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/contests.js', 'js/dog.js', 'js/stages.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/planner.js', 'js/offline.js', 'js/extras.js', 'js/minigames.js', 'js/datamon.js', 'js/icons.js', 'js/farm.js', 'js/tasks.js', 'js/farm3d.js', 'vendor/three/three.module.min.js', 'vendor/three/addons/loaders/GLTFLoader.js', 'vendor/three/addons/utils/BufferGeometryUtils.js',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'images/dog/sit.webp', 'images/dog/lookR.webp', 'images/dog/yawn1.webp', 'images/dog/yawn.webp', 'images/dog/scratch.webp', 'images/dog/scratch2.webp', 'images/dog/wag.webp',
   'images/dog/car1.webp', 'images/dog/car2.webp', 'images/dog/cold.webp', 'images/dog/cone.webp', 'images/dog/joy2.webp', 'images/dog/night.webp', 'images/dog/offline.webp', 'images/dog/pant.webp', 'images/dog/pant2.webp', 'images/dog/portrait.webp', 'images/dog/run1.webp', 'images/dog/run2.webp', 'images/dog/search.webp', 'images/dog/shake.webp', 'images/dog/shake2.webp', 'images/dog/sleep2.webp', 'images/dog/think.webp', 'images/dog/trophy.webp', 'images/dog/walk1b.webp', 'images/dog/walk2b.webp', 'images/dog/wave.webp',
