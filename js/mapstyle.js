@@ -96,17 +96,18 @@ export function makeStyle(id, o, ctx) {
   road('road-minor', minor, p.minor, 1); road('road-major', major, p.road, 1.45);
   add({ id: 'rail', type: 'line', source: 'om', 'source-layer': 'transportation', filter: ['==', ['get', 'class'], 'rail'], layout: vis(o.rail), paint: { 'line-color': p.rail, 'line-width': 1.5, 'line-dasharray': [3, 2] } });
   if (o.buildings === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
-  if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, minzoom: 12, paint: { 'raster-opacity': .9 } }); });
+  // obrázkové dlaždice tras (cyklo…) jen jemně, ať nepřebíjí mapu
+  if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, minzoom: 13, paint: { 'raster-opacity': .5 } }); });
   // turistické trasy KČT: bílý okraj a barevný střed jako na značce, naučné stezky čárkovaně
   add({ id: 'walk-casing', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .9 } });
   add({ id: 'walk-line', type: 'line', source: 'walk', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#e2602a', 'line-width': 5 } });
   add({ id: 'plan-line', type: 'line', source: 'plan', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['==', ['get', 'sel'], 1], 6, 3], 'line-opacity': ['case', ['==', ['get', 'sel'], 1], 1, .55] } });
-  add({ id: 'kct-casing', type: 'line', source: 'kct', layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 8], 'line-opacity': .9 } });
+  add({ id: 'kct-casing', type: 'line', source: 'kct', layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1.5, 16, 4.5], 'line-opacity': .55 } });
   // line-dasharray nesmí záviset na datech → naučné stezky jako samostatná vrstva
-  const kw = ['interpolate', ['linear'], ['zoom'], 11, 1.5, 16, 3.5];
-  add({ id: 'kct-line', type: 'line', source: 'kct', filter: ['!=', ['get', 'edu'], 1], layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': kw } });
-  add({ id: 'kct-edu', type: 'line', source: 'kct', filter: ['==', ['get', 'edu'], 1], layout: vis(o.trHiking), paint: { 'line-color': ['get', 'color'], 'line-width': kw, 'line-dasharray': [2, 1.5] } });
-  add({ id: 'kct-label', type: 'symbol', source: 'kct', minzoom: 14, layout: { ...vis(o.trHiking), 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11 }, paint: txt({ 'text-color': ['get', 'color'] }) });
+  const kw = ['interpolate', ['linear'], ['zoom'], 11, 0.8, 16, 2.2]; // tence a poloprůhledně jako na turistické mapě
+  add({ id: 'kct-line', type: 'line', source: 'kct', filter: ['!=', ['get', 'edu'], 1], layout: { ...vis(o.trHiking), 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': kw, 'line-opacity': .8 } });
+  add({ id: 'kct-edu', type: 'line', source: 'kct', filter: ['==', ['get', 'edu'], 1], layout: vis(o.trHiking), paint: { 'line-color': ['get', 'color'], 'line-width': kw, 'line-opacity': .8, 'line-dasharray': [2, 1.5] } });
+  add({ id: 'kct-label', type: 'symbol', source: 'kct', minzoom: 15.5, layout: { ...vis(o.trHiking), 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11 }, paint: txt({ 'text-color': ['get', 'color'] }) });
 
   // Herní kruhy: dosah objevování, přesnost GPS, dosah chytání
   add({ id: 'range', type: 'fill', source: 'range', paint: { 'fill-color': p.game, 'fill-opacity': .03 } });

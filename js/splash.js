@@ -31,8 +31,8 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 
 // Ovládání obrazovky; ic = funkce na ikonu, hold = zůstat do ťuknutí (test)
 export class Splash {
-  constructor(el, { bg, ic, title, sub, hold = false, onDone }) {
-    this.el = el; this.done = {}; this.t0 = Date.now(); this.hold = hold; this.onDone = onDone; this.gone = false;
+  constructor(el, { bg, ic, title, sub, hold = false, picker = false, onDone }) {
+    this.el = el; this.done = {}; this.t0 = Date.now(); this.hold = hold || picker; this.onDone = onDone; this.gone = false;
     el.classList.toggle('dark', !!bg.dark);
     el.innerHTML = `<img class="spbg" src="images/splash/${bg.id}.webp" alt="" onerror="this.remove()">
       <div class="sptop"><h1>${title}</h1><p>${sub}</p></div>
@@ -40,6 +40,7 @@ export class Splash {
       <div class="spcard"><ul>${STEPS.map(([k, i, n]) => `<li data-k="${k}">${ic(i)}<span>${n}</span><b class="st">…</b></li>`).join('')}</ul>
       <p class="sptxt" aria-live="polite"></p><div class="spbar"><i></i></div></div>`;
     el.hidden = false;
+    if (picker) this.addPicker(bg);
     const frames = ['walk1', 'walk1b', 'walk2', 'walk2b'];
     let f = 0; const img = el.querySelector('.spdog img');
     const run = () => { img.src = `images/dog/${frames[f++ % 4]}.webp`; };
@@ -48,6 +49,17 @@ export class Splash {
     this.maxT = setTimeout(() => this.check(true), MAX_MS);
     this.minT = setTimeout(() => this.check(), MIN_MS);
     el.addEventListener('click', () => { if (Date.now() - this.t0 >= MIN_MS || this.hold) this.hide(); });
+  }
+  // test: tlačítko Změnit pozadí – projde všech 35 po řadě, ukáže číslo a štítky; obrazovku nezavře
+  addPicker(bg) {
+    const b = document.createElement('button'), lbl = s => s.id + ' · ' + s.s.join(', ') + (s.night ? ' · noc' : '') + (s.w.length ? ' · ' + s.w.join(', ') : '') + (s.harsh ? ' · drsné' : '');
+    let i = SPLASH.findIndex(s => s.id === bg.id);
+    b.className = 'sppick'; b.textContent = '🖼 ' + lbl(bg);
+    b.addEventListener('click', e => {
+      e.stopPropagation(); i = (i + 1) % SPLASH.length; const s = SPLASH[i];
+      this.el.querySelector('.spbg').src = 'images/splash/' + s.id + '.webp'; this.el.classList.toggle('dark', !!s.dark); b.textContent = '🖼 ' + lbl(s);
+    });
+    this.el.appendChild(b);
   }
   say() {
     const k = !navigator.onLine ? 'offline' : STEPS.map(s => s[0]).find(s => !this.done[s]) || 'done';

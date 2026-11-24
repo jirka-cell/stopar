@@ -54,7 +54,7 @@ function render() {
     <button class="btn sm danger" data-act="defaults" data-confirm="Opravdu? Ťukni znovu">Výchozí nastavení</button>
     <button class="btn sm danger" data-act="resetProgress" data-confirm="Smazat úlovky? Ťukni znovu">Smazat postup</button>
   </div>`;
-  for (const s of SCHEMA) h += det('s_' + s.sec, esc(s.title), s.fields.map(f => field(s.sec + '.' + f[0], f[1], f[2], f[3])).join(''));
+  for (const s of SCHEMA) h += det('s_' + (s.id || s.sec), esc(s.title), s.fields.map(f => field(s.sec + '.' + f[0], f[1], f[2], f[3])).join(''));
   for (const L of LISTS) {
     const arr = draft[L.sec] || [];
     const items = arr.map((o, i) => {

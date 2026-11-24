@@ -110,7 +110,7 @@ function openWelcome(then) {
   const el = $('splash'); if (!bg || !el) { then(); return; }
   el.classList.toggle('dark', !!bg.dark);
   el.innerHTML = `<img class="spbg" src="images/splash/${bg.id}.webp" alt="" onerror="this.remove()">
-    <div class="sptop"><p>Vítej ve hře</p><h1>${esc(cfg.general.appName)}</h1><p class="spwel">Choď venku po skutečné mapě, potkávej českou přírodu a sbírej zvířata do atlasu. Aegon ti bude dělat společníka.</p></div>
+    <div class="sptop"><p>Vítej ve hře</p><h1>${esc(cfg.general.appName)}</h1><p class="spwel">Choď venku přírodou, potkávej česká zvířata a sbírej je do atlasu. Aegon ti bude dělat společníka.</p></div>
     <div class="spdog"><img src="images/dog/wave.webp" alt=""></div>
     <button class="btn primary full spgo">Začít</button>`;
   el.hidden = false;
@@ -125,7 +125,7 @@ async function showSplash() {
   const bg = pickSplash({ month: new Date().getMonth() + 1, night: isNight(), weather: wc, kid: kidModeOn(parentCfg, consentRec), last: prefs.splashLast || '' });
   if (!bg) return;
   prefs.splashLast = bg.id; savePrefs();
-  splash = new Splash($('splash'), { bg, ic, title: esc(cfg.general.appName), sub: isNight() ? 'Noční výprava' : 'Česká příroda venku', hold: !!cfg.general.splashHold, onDone: () => { splash = null; } });
+  splash = new Splash($('splash'), { bg, ic, title: esc(cfg.general.appName), sub: isNight() ? 'Noční výprava' : 'Česká příroda venku', hold: !!cfg.general.splashHold, picker: !!cfg.general.splashPicker, onDone: () => { splash = null; } });
 }
 // Mapa, GPS a stahování dat se spustí až po souhlasu
 function start() {
@@ -499,18 +499,36 @@ function zOrderMarkers() {
   const h = map.getContainer().clientHeight || 1;
   markers.forEach(m => { m.el.style.zIndex = 1 + Math.max(0, Math.min(98, Math.round(map.project(m.mk.getLngLat()).y / h * 98))); });
 }
-// Za budovou: přepočet jen když mapa stojí (během pohybu se budovy dočítají a blikalo by to); schovat až po 2 shodných výsledcích
+// Za budovou: zakrytá část značky průsvitná (mřížka 3×3 bodů), viditelná zůstane; přepočet jen když mapa stojí, změna až po 2 shodných výsledcích
+const OCC_ALPHA = 0.3, maskCache = new Map();
+function occMask(key) {
+  if (!maskCache.has(key)) {
+    const c = document.createElement('canvas'); c.width = 3; c.height = 3; const g = c.getContext('2d');
+    [...key].forEach((v, i) => { g.fillStyle = `rgba(0,0,0,${v === '1' ? OCC_ALPHA : 1})`; g.fillRect(i % 3, Math.floor(i / 3), 1, 1); });
+    maskCache.set(key, `url(${c.toDataURL()})`);
+  }
+  return maskCache.get(key);
+}
 function occludeMarkers() {
   zOrderMarkers();
-  if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(m => { m.el.classList.remove('behind'); m.occ = 0; }); return; }
+  const clear = m => { m.el.classList.remove('behind'); m.el.style.webkitMaskImage = m.el.style.maskImage = ''; m.occKey = m.occPrev = ''; };
+  if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(clear); return; }
+  const box = map.getContainer().getBoundingClientRect();
   markers.forEach((m) => {
-    const ll = m.mk.getLngLat(), pt = map.project(ll);
-    const fs2 = map.queryRenderedFeatures([pt.x, pt.y], { layers: ['building-3d'] });
+    const ll = m.mk.getLngLat(), r = m.el.getBoundingClientRect();
+    if (!r.width) return;
     const has = f => { const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; return polys.some(p => inRing(ll.lng, ll.lat, p[0])); };
-    const own = new Set(fs2.filter(has).map(f => f.id)); // budova, ve které zvíře stojí (i když je rozřezaná po dlaždicích)
-    const behind = fs2.some(f => !(f.id != null && own.has(f.id)) && !has(f));
-    m.occ = behind ? (m.occ || 0) + 1 : 0;
-    m.el.classList.toggle('behind', m.occ >= 2);
+    let key = '';
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
+      const px = r.left - box.left + r.width * (x + 0.5) / 3, py = r.top - box.top + r.height * (y + 0.5) / 3;
+      const fs2 = map.queryRenderedFeatures([px, py], { layers: ['building-3d'] });
+      const own = new Set(fs2.filter(has).map(f => f.id)); // budova, ve které zvíře stojí (i rozřezaná po dlaždicích)
+      key += fs2.some(f => !(f.id != null && own.has(f.id)) && !has(f)) ? '1' : '0';
+    }
+    const stable = key === m.occPrev; m.occPrev = key;
+    if (!key.includes('1')) { if (m.occKey) clear(m); return; } // vidět celé hned
+    if (!stable || key === m.occKey) return;
+    m.occKey = key; m.el.classList.add('behind'); m.el.style.webkitMaskImage = m.el.style.maskImage = occMask(key);
   });
 }
 const occSoon = () => { clearTimeout(occT); occT = setTimeout(occludeMarkers, 120); };
@@ -808,10 +826,10 @@ function actState() {
   if (!kid && curView === 'atlasv') return { k: 'key', ic: 'key', lbl: 'Určit', run: () => runAct('key') };
   if (!kid && curView === 'jav') return { k: 'races', ic: 'contests', lbl: 'Závody', run: () => runAct('contests') };
   const b = nearestCatchable();
-  if (b && !muted) return { k: 'catch', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); show('mapv'); const m = markers.get(b.id); if (m) { m.el.classList.add('pick'); setTimeout(() => m.el.classList.remove('pick'), 1200); } if (map) map.easeTo({ center: [b.lon, b.lat], duration: 450 }); setTimeout(() => tapBird(b.id), 500); } };
-  if (kidMode() && !document.body.classList.contains('parent')) return { k: 'find', ic: 'center', lbl: 'Hledat', run: () => { show('mapv'); follow = true; document.body.classList.remove('away'); if (pos.lat != null && map) map.easeTo({ center: [pos.lon, pos.lat], duration: 400 }); toast('Projdi se a sleduj mapu – zvířata se ukážou kolem tebe. 🐾'); } };
+  // Chytit = otevře se foťák: zvíře v dosahu → herní foťák u zvířete; nic v dosahu → skutečný foťák do deníku pozorování
+  if (b && !muted) return { k: 'catch', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); show('mapv'); tapBird(b.id); } };
   if (state.walk && !state.walk.done) return { k: 'route', ic: 'route', lbl: 'Trasa', run: () => { setUi(false); openWalkMgr(); } };
-  return { k: 'plan', ic: 'plan', lbl: 'Plánovat', run: () => { setUi(false); openPlanner(); } };
+  return { k: 'photo', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); jPhoto = null; openM(journalFormHTML(cfg)); const f = $('jPhoto'); if (f) f.click(); } };
 }
 let actNow = null, curView = 'mapv';
 const runAct = act => { const b = document.createElement('button'); b.dataset.act = act; onModalClick({ target: b, preventDefault() {} }); };

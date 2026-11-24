@@ -4,7 +4,7 @@ import { esc } from './config.js';
 // [id, název, co udělat a co má nastat]
 export const CHECKS = [
   ['install', 'Instalace a aktualizace', 'Přidej aplikaci na plochu (Android: Menu → Nainstalovat, iPhone: Sdílet → Přidat na plochu). Spustí se z ikony bez adresního řádku? Při nové verzi se ukáže „Aktualizovat“?'],
-  ['consent', 'Úvodní souhlas', 'Při prvním spuštění se ukáže souhlas dřív než mapa. Zkus rok narození mladšího dítěte: objeví se potvrzení rodiče? Jsou texty srozumitelné?'],
+  ['consent', 'Úvodní souhlas', 'Při prvním spuštění se ukáže uvítání a souhlas dřív než mapa. Zkus datum narození mladšího dítěte: objeví se QR pro rodiče? Naskenuj ho jiným telefonem – sedí potvrzovací kód? Jsou texty srozumitelné?'],
   ['gps', 'GPS a poloha', 'Venku: ukazuje zelená tečka správné místo? Za jak dlouho se chytí GPS? Sedí přesnost vpravo nahoře?'],
   ['map', 'Mapa a styly', 'Mapa se načte a jde posouvat a přibližovat. Je čitelná na slunci? Přepne se večer do nočního stylu?'],
   ['look', 'Panel Vzhled a předvolby', 'Tlačítko Vzhled: vyzkoušej předvolby, zapnutí a vypnutí vrstev a uložení vlastní předvolby. Zůstane nastavení po restartu?'],

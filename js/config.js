@@ -38,6 +38,7 @@ export const DEFAULTS = {
     dogBig: false,          // Aegon zvětšený na 240 px (kontrola obrázků)
     introAlways: false,     // uvítání a souhlas prvního spuštění při každém spuštění (test; data se nemažou)
     splashHold: false,      // úvodní obrazovka zůstane, dokud na ni neťukneš (test)
+    splashPicker: false,    // na úvodní obrazovce tlačítko Změnit pozadí – projít všech 35 (test)
     author: 'Jiří Oboznenko',     // autor aplikace (stránka O aplikaci)
     controller: 'Jiří Oboznenko', // správce osobních údajů (zásady)
     contact: ''                   // kontaktní e-mail pro dotazy a zpětnou vazbu testerů
@@ -393,25 +394,28 @@ export const SCHEMA = [
   { sec: 'general', title: 'Obecné', fields: [
     ['appName', 'Název aplikace', 'text'], ['headerTitle', 'Nápis v horní liště', 'text'],
     ['adminPin', 'PIN do adminu', 'text'],
-    ['simulation', 'Simulace chůze ťukáním do mapy (bez GPS)', 'bool'],
-    ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
-    ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
-    ['testerFab', 'Tlačítko kontrolního seznamu pro testery (vpravo dole)', 'bool'],
-    ['dataMonitor', 'Ukazatel stahovaných dat v rohu mapy', 'bool'],
-    ['unlockAll', 'Odemknout všechna zvířata (test: chytat vše, atlas ukáže vše)', 'bool'],
-    ['infiniteRes', 'Nekonečno surovin a šišek na farmě (test)', 'bool'],
-    ['monthOverride', 'Simulovaný měsíc pro test sezónnosti (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
-    ['farmTest', 'Testovací nástroje farmy (+1/−1 úroveň, prázdná farma)', 'bool'],
-    ['mythTest', 'Bájné dny hned (test)', 'bool'],
-    ['drillTest', 'Cvičák s Hejsty hned (test)', 'bool'],
-    ['dogDemo', 'Aegon: všechny pózy dokola (kontrola)', 'bool'],
-    ['dogRandom', 'Aegon: náhodná smyčka všech póz', 'bool'],
-    ['dogBig', 'Aegon zvětšený (kontrola obrázků)', 'bool'],
-    ['introAlways', 'Uvítání prvního spuštění pokaždé (test)', 'bool'],
-    ['splashHold', 'Úvodní obrazovka zůstane do ťuknutí (test)', 'bool'],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
     ['contact', 'Kontaktní e-mail', 'text']
+  ] },
+  { sec: 'general', id: 'tests', title: 'Testy', fields: [ // vše jen pro testování (hodnoty jsou v general)
+    ['testerFab', 'Ikona kontrolního seznamu pro testery (vlevo nahoře)', 'bool'],
+    ['dataMonitor', 'Ikona stahovaných dat (vlevo nahoře)', 'bool'],
+    ['simulation', 'Simulace chůze ťukáním do mapy (bez GPS)', 'bool'],
+    ['simSpeed', 'Rychlost simulované chůze (m/s)', 'number', { min: 0.5, max: 30, step: 0.1 }],
+    ['showBiotopes', 'Zobrazit vrstvu biotopů z OSM', 'bool'],
+    ['unlockAll', 'Odemknout všechna zvířata (chytat vše, atlas ukáže vše)', 'bool'],
+    ['infiniteRes', 'Nekonečno surovin a šišek na farmě', 'bool'],
+    ['farmTest', 'Testovací nástroje farmy (+1/−1 úroveň, prázdná farma)', 'bool'],
+    ['monthOverride', 'Simulovaný měsíc pro sezónnost (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
+    ['mythTest', 'Bájné dny hned', 'bool'],
+    ['drillTest', 'Cvičák s Hejsty hned', 'bool'],
+    ['dogDemo', 'Aegon: všechny pózy dokola', 'bool'],
+    ['dogRandom', 'Aegon: náhodná smyčka všech póz', 'bool'],
+    ['dogBig', 'Aegon zvětšený', 'bool'],
+    ['introAlways', 'Uvítání prvního spuštění pokaždé', 'bool'],
+    ['splashHold', 'Úvodní obrazovka zůstane do ťuknutí', 'bool'],
+    ['splashPicker', 'Úvodní obrazovka: tlačítko Změnit pozadí', 'bool']
   ] },
   { sec: 'spawn', title: 'Objevování zvířat', fields: [
     ['density', 'Počet zvířat v okruhu (průměr)', 'number', { min: 0, max: 100, step: 1 }],
