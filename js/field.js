@@ -1,7 +1,7 @@
 // Poznávání v terénu: stopy a pobytová znamení na mapě, určovací klíč bez AI, deník skutečných pozorování
 import { esc, parseMap, MONTH_NAMES } from './config.js';
 import { birdImg } from './birds.js';
-import { groupIcon } from './collection.js';
+import { ic, classIcon } from './icons.js';
 import { SPECIES_IMAGES } from './images.js';
 // Obrázek stopy druhu (images/species/{id}_stopa.webp), dokud není, zůstane ťapka
 export const trackImg = (id, cls = '') => SPECIES_IMAGES.has(id + '_stopa') ? `<img class="trk ${cls}" src="images/species/${id}_stopa.webp" alt="" draggable="false">` : '🐾';
@@ -48,10 +48,10 @@ export function keyHTML(cfg, ans, SP) {
   const left = keyFilter(cfg.species, ans), step = KEY_STEPS.find(k => !(k in ans));
   const opt = (k, v, icon, label, sub = '') => `<button class="acard keyopt" data-act="keyAns" data-k="${k}" data-v="${esc(v)}"><div class="kic" aria-hidden="true">${icon}</div><div class="nm">${esc(label)}</div>${sub ? `<div class="rr">${esc(sub)}</div>` : ''}</button>`;
   let q = '';
-  if (step === 'group') q = `<h3>Co jsi viděl?</h3><div class="grid">${[...new Set(cfg.species.filter(s => s.active).map(s => s.group || 'Ostatní'))].map(g => opt('group', g, groupIcon(g), g)).join('')}</div>`;
-  else if (step === 'bio') q = `<h3>Kde?</h3><div class="grid">${cfg.biotopes.filter(b => left.some(s => num(parseMap(s.bio)[b.id]) > 0)).map(b => opt('bio', b.id, `<i style="background:${esc(b.color)}"></i>`, b.name)).join('')}</div>`;
+  if (step === 'group') q = `<h3>Co jsi viděl?</h3><div class="grid">${[...new Set(cfg.species.filter(s => s.active).map(s => s.group || 'Ostatní'))].map(g => opt('group', g, ic(classIcon(g)), g)).join('')}</div>`;
+  else if (step === 'bio') q = `<h3>Kde?</h3><div class="grid">${cfg.biotopes.filter(b => left.some(s => num(parseMap(s.bio)[b.id]) > 0)).map(b => opt('bio', b.id, ic('bio_' + b.id), b.name)).join('')}</div>`;
   else if (step === 'size') q = `<h3>Jak velký?</h3><div class="grid">${SIZES.map(z => opt('size', z[0], ['🐭', '🐈', '🦌'][SIZES.indexOf(z)], z[1], z[2])).join('')}</div>`;
-  else if (step === 'time') q = `<h3>Kdy?</h3><div class="grid">${opt('time', 'day', '☀️', 'Ve dne')}${opt('time', 'night', '🌙', 'V noci nebo za šera')}</div>`;
+  else if (step === 'time') q = `<h3>Kdy?</h3><div class="grid">${opt('time', 'day', ic('s_leto'), 'Ve dne')}${opt('time', 'night', ic('night'), 'V noci nebo za šera')}</div>`;
   return `<h2>Určovací klíč</h2><p class="msg small">Odpovídej, co jsi viděl. Možných druhů: ${left.length}.</p>
   ${left.length && step && left.length > 1 ? q : ''}
   ${left.length && (!step || left.length <= 6) ? `<h3>${left.length === 1 ? 'Je to asi:' : 'Může to být:'}</h3><div class="grid">${left.map(s => `<button class="acard" data-act="keyPick" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${esc(s.name)}</div></button>`).join('')}</div>` : ''}

@@ -821,7 +821,7 @@ function actState() {
   const kid = kidMode() && !document.body.classList.contains('parent');
   if (!kid && curView === 'farmv') return farmSel && !farmSel.startsWith('home') ? { k: 'up', ic: 'farm', lbl: 'Vylepšit', run: () => runFarmUp() } : { k: 'build', ic: 'farm', lbl: 'Stavět', run: () => openFarmCatalog() };
   if (!kid && curView === 'atlasv') return { k: 'key', ic: 'key', lbl: 'Určit', run: () => runAct('key') };
-  if (!kid && curView === 'jav') return { k: 'races', ic: 'contests', lbl: 'Závody', run: () => runAct('contests') };
+  if (curView === 'kamv') return { k: 'races', ic: 'contests', lbl: 'Závody', run: () => runAct('contests') };
   const b = nearestCatchable();
   // Chytit = otevře se foťák: zvíře v dosahu → herní foťák u zvířete; nic v dosahu → skutečný foťák do deníku pozorování
   if (b && !muted) return { k: 'catch', ic: 'catch', lbl: 'Chytit', run: () => { setUi(false); show('mapv'); tapBird(b.id); } };
@@ -905,6 +905,16 @@ function openWalkMgr() {
   <button class="btn full ghost" data-act="close">Zavřít</button>`);
 }
 // Já: profil s Aegonem a dlaždice ve skupinách (místo dlouhého Menu)
+// Kamarádi: hraní s rodinou a kamarády; bez serveru hry, závody, rodinná výprava, poklady a karta výletu, se serverem přibudou přátelé
+function renderKam() {
+  const T = (g, a, i, n) => `<button class="jtile g-${g}" data-act="${a}">${ic(i)}${n}</button>`;
+  const S = (i, n) => `<div class="jtile g-soon" aria-disabled="true">${ic(i)}${n}<small>brzy</small></div>`;
+  $('kamv').innerHTML = `<div class="ja">
+  <div class="kamhead"><h2>Kamarádi</h2><p class="msg small">Hrajte spolu – v rodině, s kamarády ze třídy nebo z oddílu. Přátelé, žebříčky a společné výpravy přibudou, až bude mít aplikace server.</p></div>
+  <div class="jagrp">Hrajte spolu</div><div class="jatiles">${T('hraj', 'games', 'games', 'Minihry')}${T('hraj', 'contests', 'contests', 'Závody')}${T('ven', 'family', 'family', 'Rodinná výprava')}${T('ven', 'treasures', 'treasure', 'Poklad pro kamaráda')}${T('ven', 'trip', 'trip', 'Karta výletu')}</div>
+  <div class="jagrp">Brzy</div><div class="jatiles">${S('family', 'Přátelé')}${S('contests', 'Žebříčky')}${S('route', 'Společné výpravy')}${S('reward', 'Výměna zvířat')}</div>
+  </div>`;
+}
 function renderJa() {
   const lv = levelFor(state.xp, cfg.game), sp = Object.values(state.caught).filter(c => c.count).length;
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -912,8 +922,8 @@ function renderJa() {
   $('jav').innerHTML = `<div class="ja">
   <div class="jahead"><img src="${dogURL('portrait')}" alt=""><div style="flex:1"><h2>${esc(state.nick || 'Ty')} a Aegon <button class="x" data-act="nickEdit" aria-label="Změnit přezdívku">✏️</button></h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
   <div class="jastats"><div><b>${sp}</b>druhů</div><div><b>${km(state.dist)}</b>km celkem</div><div><b>${Math.floor(state.cones)}</b>šišek</div></div>
-  <div class="jagrp">Ven</div><div class="jatiles">${T('ven', 'planner', 'planner', 'Plánovač')}${T('ven', 'treasures', 'treasure', 'Poklady')}${T('ven', 'trip', 'trip', 'Karta výletu')}${T('ven', 'family', 'family', 'Rodinná výprava')}${state.walk && !state.walk.done ? T('ven', 'walkMgr', 'route', 'Moje trasa') : ''}</div>
-  <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'profile', 'quests', 'Úkoly a odznaky')}${T('hraj', 'shop', 'shop', 'Obchod')}${T('hraj', 'contests', 'contests', 'Závody')}</div>
+  <div class="jagrp">Ven</div><div class="jatiles">${T('ven', 'planner', 'planner', 'Plánovač')}${state.walk && !state.walk.done ? T('ven', 'walkMgr', 'route', 'Moje trasa') : ''}</div>
+  <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'profile', 'quests', 'Úkoly a odznaky')}${T('hraj', 'shop', 'shop', 'Obchod')}</div>
   <div class="jagrp">Rodina</div><div class="jatiles">${T('rod', 'parent', 'parent', 'Rodičovská nastavení')}${T('rod', 'pinSet', 'pin', 'Rodičovský PIN')}</div>
   <div class="jagrp">Nastavení a data</div><div class="jatiles">${T('sys', 'nightCfg', 'night', 'Noc a jas')}${T('sys', 'offline', 'offline', 'Offline mapy')}${T('sys', 'dataMgr', 'data', 'Správa dat')}${T('sys', 'export', 'backup', 'Uložit zálohu')}<label class="jtile g-sys">${ic('restore')}Obnovit zálohu<input type="file" accept="application/json,.json" data-import></label>${cfg.general.testerFab ? T('sys', 'checklist', 'tester', 'Testeři') : ''}${!standalone && installEvt ? T('sys', 'install', 'install', 'Instalovat') : ''}${T('sys', 'about', 'about', 'O aplikaci')}${T('sys', 'legalMenu', 'legal', 'Podmínky')}</div>
   <div class="jarow"><label class="fld row">Ztlumit mapu při chůzi (bezpečnost)<input type="checkbox" data-pref="muteWalk"${muteOn() ? ' checked' : ''}${kidMode() ? ' disabled' : ''}></label>
@@ -946,7 +956,6 @@ function askNick(force) {
 }
 function kidLayout() {
   const k = kidMode();
-  const c = $('navCol'); if (c) c.textContent = k ? 'Moje zvířata' : 'Farma';
   const mb = $('menuBtn'); if (mb) mb.textContent = k ? '🛡️ Rodič' : 'Menu';
   if (!k) document.body.classList.remove('parent');
 }
@@ -1601,7 +1610,12 @@ function show(v) {
   if (v === 'jav') renderJa();
   if (v === 'farmv') renderFarmView(); else if (farm3) { farm3.destroy(); farm3 = null; }
   document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === v));
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const sb = v === 'atlasv' || v === 'farmv'; // Sbírka = Atlas + Farma (přepínač nahoře)
+  if (sb) { prefs.sbView = v; savePrefs(); }
+  $('sbtabs').hidden = !sb; document.body.classList.toggle('sb', sb);
+  document.querySelectorAll('#sbtabs button').forEach(b => b.classList.toggle('on', b.dataset.sbv === v));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v || !!(sb && b.dataset.sb)));
+  if (v === 'kamv') renderKam();
   if (v === 'atlasv') renderAtlas();
   if (v === 'sbirkav') renderCollection();
   if (v === 'mapv' && map) setTimeout(() => map.resize(), 50);
@@ -1619,7 +1633,9 @@ mbox.addEventListener('input', e => {
   else onChecklistInput(e.target);
 });
 function bindUI() {
-  document.querySelectorAll('nav button[data-v]').forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
+  document.querySelectorAll('nav button[data-v]').forEach(b => b.addEventListener('click', () => show(b.dataset.sb ? (prefs.sbView || 'atlasv') : b.dataset.v)));
+  $('sbtabs').addEventListener('click', e => { const b = e.target.closest('[data-sbv]'); if (b) show(b.dataset.sbv); });
+  $('kamv').addEventListener('click', onModalClick);
   fillIcons(); document.body.classList.add('on-map');
   $('dataBtn').onclick = () => openDataMgr();
   bindAct();
@@ -1630,7 +1646,6 @@ function bindUI() {
   $('jav').addEventListener('change', e => { onModalChange(e); });
   $('lookBtn').onclick = () => { setUi(false); openLook(); };
   $('menuBtn').onclick = () => { if (kidMode() && !document.body.classList.contains('parent')) parentGate(); else show('jav'); };
-  document.querySelectorAll('nav button[data-kid]').forEach(b => b.addEventListener('click', () => { if (b.dataset.kid === 'games') openGames(); }));
   $('lvlBtn').onclick = openProfile; hudLevel();
   $('coneBtn').onclick = openShop; hudCones();
   $('hbio').addEventListener('click', () => { const err = errorAt(pos.lat, pos.lon); if (err && !protectedAt(pos.lat, pos.lon)) toast('⚠️ Mapová data okolí se teď nedaří stáhnout (' + err + '). Zvířata se zatím ukazují ze všech biotopů, stahování se samo zkouší znovu.'); else openProtected(); });
@@ -2358,10 +2373,10 @@ function filterBar(all) {
   const groups = [...new Set(all.map(s => s.group || 'Ostatní'))];
   const btn = (k, v, icon, label) => `<button class="ico${flt[k].has(v) ? ' on' : ''}" data-flt="${k}" data-v="${esc(v)}" aria-pressed="${flt[k].has(v)}" aria-label="${esc(label)}" title="${esc(label)}"><span aria-hidden="true">${icon}</span></button>`;
   const bios = cfg.biotopes.filter(b => all.some(s => spBios(s).includes(b.id)));
-  return `<div class="iconbar">${groups.map(g => btn('g', g, groupIcon(g), g)).join('')}</div>
+  return `<div class="iconbar">${groups.map(g => btn('g', g, ic(classIcon(g)), g)).join('')}</div>
   <div class="iconbar">${bios.map(b => btn('b', b.id, ic('bio_' + b.id).replace(/<\/?span[^>]*>/g, '') || '•', b.name)).join('')}</div>
   <div class="iconbar">${SEASONS.map(([k, n]) => btn('s', k, ic('s_' + k).replace(/<\/?span[^>]*>/g, ''), n)).join('')}</div>
-  <div class="iconbar">${cfg.rarities.map((r, i) => btn('r', String(r.id), '★'.repeat(i + 1), r.name)).join('')}${btn('x', 'caught', '✔', 'Chycené')}${btn('x', 'missing', '?', 'Nechycené')}${btn('x', 'night', '🌙', 'Noční')}${btn('x', 'verified', '📷', 'Ověřené fotkou')}</div>`;
+  <div class="iconbar">${cfg.rarities.map((r, i) => btn('r', String(r.id), '★'.repeat(i + 1), r.name)).join('')}${btn('x', 'caught', '✔', 'Chycené')}${btn('x', 'missing', '?', 'Nechycené')}${btn('x', 'night', ic('night'), 'Noční')}${btn('x', 'verified', ic('catch'), 'Ověřené fotkou')}</div>`;
 }
 // Atlas zvířat: druhy + poznávání (klíč, deník, kalendář, zraněné zvíře) na jednom místě
 function atlasTabs() {
