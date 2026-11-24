@@ -518,8 +518,6 @@ function refreshTrails() {
   loadTrails(tilesFor([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]), overpassQuery, cfg.osm.cacheDays, () => { kctPending = true; flushMap(); });
 }
 function updateGame() { gamePending = true; flushMap(); }
-// Zakrytí budovami (HTML značky jsou vždy navrchu): budova vykreslená v místě značky, která zvíře neobsahuje, je před ním
-const inRing = (x, y, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 let occT = 0;
 // bližší zvíře (níž na obrazovce) překryje vzdálenější; rozsah 1–99, ať značky nepřekryjí ovládání nad mapou
 function zOrderMarkers() {
@@ -527,38 +525,7 @@ function zOrderMarkers() {
   const h = map.getContainer().clientHeight || 1;
   markers.forEach(m => { m.el.style.zIndex = 1 + Math.max(0, Math.min(98, Math.round(map.project(m.mk.getLngLat()).y / h * 98))); });
 }
-// Za budovou: zakrytá část značky průsvitná (mřížka 3×3 bodů), viditelná zůstane; přepočet jen když mapa stojí, změna až po 2 shodných výsledcích
-const OCC_ALPHA = 0.3, maskCache = new Map();
-function occMask(key) {
-  if (!maskCache.has(key)) {
-    const c = document.createElement('canvas'); c.width = 3; c.height = 3; const g = c.getContext('2d');
-    [...key].forEach((v, i) => { g.fillStyle = `rgba(0,0,0,${v === '1' ? OCC_ALPHA : 1})`; g.fillRect(i % 3, Math.floor(i / 3), 1, 1); });
-    maskCache.set(key, `url(${c.toDataURL()})`);
-  }
-  return maskCache.get(key);
-}
-function occludeMarkers() {
-  zOrderMarkers();
-  const clear = m => { m.el.classList.remove('behind'); m.el.style.webkitMaskImage = m.el.style.maskImage = ''; m.occKey = m.occPrev = ''; };
-  if (!map || !map.getLayer('building-3d') || map.getPitch() < 15) { markers.forEach(clear); return; }
-  const box = map.getContainer().getBoundingClientRect();
-  markers.forEach((m) => {
-    const ll = m.mk.getLngLat(), r = m.el.getBoundingClientRect();
-    if (!r.width) return;
-    const has = f => { const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; return polys.some(p => inRing(ll.lng, ll.lat, p[0])); };
-    let key = '';
-    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
-      const px = r.left - box.left + r.width * (x + 0.5) / 3, py = r.top - box.top + r.height * (y + 0.5) / 3;
-      const fs2 = map.queryRenderedFeatures([px, py], { layers: ['building-3d'] });
-      const own = new Set(fs2.filter(has).map(f => f.id)); // budova, ve které zvíře stojí (i rozřezaná po dlaždicích)
-      key += fs2.some(f => !(f.id != null && own.has(f.id)) && !has(f)) ? '1' : '0';
-    }
-    const stable = key === m.occPrev; m.occPrev = key;
-    if (!key.includes('1')) { if (m.occKey) clear(m); return; } // vidět celé hned
-    if (!stable || key === m.occKey) return;
-    m.occKey = key; m.el.classList.add('behind'); m.el.style.webkitMaskImage = m.el.style.maskImage = occMask(key);
-  });
-}
+function occludeMarkers() { zOrderMarkers(); } // zvířata jsou vidět vždy celá (schovávání za budovy zrušeno 24. 11. 2026)
 const occSoon = () => { clearTimeout(occT); occT = setTimeout(occludeMarkers, 120); };
 const zSoon = () => { clearTimeout(occT); occT = setTimeout(zOrderMarkers, 60); };
 function flushMap() {
@@ -627,7 +594,7 @@ function initMap() {
     setUi(!document.body.classList.contains('ui-open')); // ťuk do prázdné mapy ukáže / schová dolní lištu
   });
   map.on('styledata', () => { kctPending = planPending = true; flushMap(); });
-  map.on('moveend', refreshTrails); map.on('move', zSoon); map.on('idle', () => { occludeMarkers(); setTimeout(occludeMarkers, 350); });
+  map.on('moveend', refreshTrails); map.on('move', zSoon); map.on('idle', occludeMarkers);
   map.on('idle', flushMap); map.on('idle', tileBio);
   if (state.last) setPos(state.last.lat, state.last.lon, null, 'last');
 }
@@ -650,6 +617,7 @@ function setPos(lat, lon, acc, src, gpsSpeed) {
   if (splash) splash.step('gps');
   if (!map) return;
   meMk.setLngLat([lon, lat]);
+  if (modal.classList.contains('on')) return; // pod oknem mapu neposouvat (sekalo se chytání)
   updateGame();
   if (follow) map.easeTo({ center: [lon, lat], duration: 400 });
 }
@@ -799,6 +767,7 @@ function isNight() {
 function tick() {
   applyMapStyle(false); // přepnutí den/noc
   if (pos.lat == null) { hudGPS(); return; }
+  if (modal.classList.contains('on')) { hudDist(); hudGPS(); return; } // okno přes mapu (chytání…): mapa odpočívá, dožene se po zavření
   ensureArea(pos.lat, pos.lon, cfg.spawn.radius + cfg.spawn.cellSize);
   checkHide(); loadWeather(); checkStamps(); announceEvents(); checkBound(); updateDog(); autoFollow(); checkPlaces(); checkWalk(); updateAct(); renderCards(); applyNight();
   refreshBirds();
@@ -1621,8 +1590,8 @@ function banner(m, btn) {
   if (btn) $('bannerBtn').onclick = btn.fn;
 }
 const modal = $('modal'), mbox = $('mbox');
-function openM(h) { mbox.innerHTML = h; modal.classList.add('on'); mbox.scrollTop = 0; }
-function closeM() { modal.classList.remove('on'); enc = null; if (stopGame) { stopGame(); stopGame = null; } }
+function openM(h) { mbox.innerHTML = h; modal.classList.add('on'); document.body.classList.add('modal-open'); mbox.scrollTop = 0; }
+function closeM() { const was = modal.classList.contains('on'); modal.classList.remove('on'); document.body.classList.remove('modal-open'); enc = null; if (stopGame) { stopGame(); stopGame = null; } if (was && pos.lat != null && map) { updateGame(); tick(); } }
 modal.addEventListener('pointerdown', e => { if (e.target === modal && !locked && (!enc || enc.step !== 'photo')) closeM(); });
 
 function show(v) {
