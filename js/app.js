@@ -11,7 +11,7 @@ import { makeStyle, styleIdFor, circle, CONTOUR_THRESHOLDS, STYLES } from './map
 import { TERMS_VERSION, APP_VERSION, MIN_AGE, ageFromDate, newParentCode, PARENT_CODE_RE, parentConfirm, parentPageHTML, consentValid, consentHTML, privacyHTML, aboutHTML, PIN_RE, newPin, verifyPin, pinSetHTML } from './legal.js';
 import { checklistHTML, checklistText, emptyChecklist } from './checklist.js';
 import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz, profileHTML, unlockName } from './progress.js';
-import { evolve, train, trainStat, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, shopHTML, coneIcon } from './economy.js';
+import { evolve, train, trainStat, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, stageRingHTML, shopHTML, coneIcon } from './economy.js';
 import { isTrack, hasSigns, trackImg, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
 import { qrSVG } from './qr.js';
 import { toCode, fromCode } from './family.js';
@@ -124,10 +124,11 @@ function openWelcome(then) {
 let splash = null;
 async function showSplash() {
   if (/^#(trasa|poklad|farma|akce|admin)/.test(location.hash)) return;
+  const el = $('splash'); el.classList.remove('out', 'dark'); el.innerHTML = ''; el.hidden = false; // hned zakryje mapu
   const w = await store.get('weather').catch(() => null);
   const wc = w && w.time && Date.now() - w.time < 3 * 3600000 ? weatherCond(w) : '';
   const bg = pickSplash({ month: new Date().getMonth() + 1, night: isNight(), weather: wc, kid: kidModeOn(parentCfg, consentRec), last: prefs.splashLast || '' });
-  if (!bg) return;
+  if (!bg) { el.hidden = true; return; }
   prefs.splashLast = bg.id; savePrefs();
   splash = new Splash($('splash'), { bg, ic, title: esc(cfg.general.appName), sub: isNight() ? 'Noční výprava' : 'Česká příroda venku', hold: !!cfg.general.splashHold, picker: !!cfg.general.splashPicker, minMs: Math.max(1, Number(cfg.general.splashSeconds) || 10) * 1000, onDone: () => { splash = null; } });
 }
@@ -1057,7 +1058,7 @@ function refreshBirds() {
       markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
     } else m.el.classList.toggle('far', !near);
     markers.get(b.id).el.classList.toggle('inrange', near && !speciesLocked(sp));
-    if (near && cfg.family.vibrate && !buzzed.has(b.id) && (muted || !state.caught[sp.id]?.count) && !speciesLocked(sp)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
+    if (near && cfg.family.vibrate && $('splash').hidden && !buzzed.has(b.id) && (muted || !state.caught[sp.id]?.count) && !speciesLocked(sp)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
   }
   const hb = $('hbio');
   if (r.pending && !birds.length) hb.dataset.loading = '1'; else delete hb.dataset.loading;
@@ -1116,7 +1117,7 @@ function mythMarker(b) {
   el.innerHTML = `<img src="${mythURL(MY(b.myth))}" alt="Bájný tvor">`;
   el.addEventListener('click', ev => { ev.stopPropagation(); tapBird(b.id); });
   markers.set(b.id, { el, mk: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat([b.lon, b.lat]).addTo(map) });
-  if (cfg.family.vibrate && !buzzed.has(b.id)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate([100, 60, 100, 60, 300]); } catch (e) {} }
+  if (cfg.family.vibrate && $('splash').hidden && !buzzed.has(b.id)) { buzzed.add(b.id); try { navigator.vibrate && navigator.vibrate([100, 60, 100, 60, 300]); } catch (e) {} }
 }
 // Jediný pokus, pár sekund, jen ostrá fotka
 function mythEncounter(b) {
@@ -1620,7 +1621,7 @@ function banner(m, btn) {
   if (btn) $('bannerBtn').onclick = btn.fn;
 }
 const modal = $('modal'), mbox = $('mbox');
-function openM(h) { mbox.classList.remove('cpage'); mbox.innerHTML = h; modal.classList.add('on'); document.body.classList.add('modal-open'); mbox.scrollTop = 0; }
+function openM(h) { mbox.classList.remove('cpage'); mbox.style.removeProperty('--ebc'); mbox.innerHTML = h; modal.classList.add('on'); document.body.classList.add('modal-open'); mbox.scrollTop = 0; }
 function closeM() { const was = modal.classList.contains('on'); modal.classList.remove('on'); document.body.classList.remove('modal-open'); enc = null; if (stopGame) { stopGame(); stopGame = null; } if (was && pos.lat != null && map) { updateGame(); tick(); } }
 modal.addEventListener('pointerdown', e => { if (e.target === modal && !locked && (!enc || enc.step !== 'photo')) closeM(); });
 
@@ -1760,6 +1761,7 @@ function renderEnc() {
   } else if (enc.step === 'fled') {
     openM(`<div class="encimg" style="opacity:.4">${birdImg(sp, '', enc.stage)}</div><h2>${esc(sp.name)}</h2><p class="msg">${esc(enc.msg)}</p><button class="btn primary full" data-act="close">Pokračovat</button>`);
   }
+  mbox.style.setProperty('--ebc', BIO[enc.b.bio]?.color || bioColor(sp, BIO)); // pozadí obrázku v barvě biotopu, kde zvíře stojí
 }
 // Kolik jedinců druhu smí hráč mít (roste s úrovní hráče, strop v adminu)
 function levelCap() { const G = cfg.game; return Math.max(1, Math.min(G.maxCap, G.maxBase + G.maxPerLevel * (playerLevel() - 1))); }
@@ -2399,7 +2401,8 @@ const flt = { g: new Set(), r: new Set(), x: new Set(), b: new Set(), s: new Set
 let atlasQ = '', atlasOpen = false, atlasSort = 'group';
 const SEASONS = [['jaro', 'Jaro', [3, 4, 5]], ['leto', 'Léto', [6, 7, 8]], ['podzim', 'Podzim', [9, 10, 11]], ['zima', 'Zima', [12, 1, 2]]];
 const spBios = s => String(s.bio || '').split(',').map(x => x.split(':')[0].trim()).filter(Boolean);
-function toggleFilter(k, v) { const set = flt[k]; set.has(v) ? set.delete(v) : set.add(v); renderAtlas(); }
+const EXCL = { caught: 'missing', missing: 'caught' }; // chycené × nechycené – obojí naráz by dalo prázdný seznam
+function toggleFilter(k, v) { const set = flt[k]; if (set.has(v)) set.delete(v); else { set.add(v); if (k === 'x' && EXCL[v]) set.delete(EXCL[v]); } renderAtlas(); }
 function passFilter(s) {
   const c = state.caught[s.id], ok = !!(c && c.count);
   if (flt.g.size && !flt.g.has(s.group || 'Ostatní')) return false;
@@ -2420,9 +2423,9 @@ function filterPanel(all) {
   const row = (k, v, icon, label) => `<button class="fbtn${flt[k].has(v) ? ' on' : ''}" data-flt="${k}" data-v="${esc(v)}" aria-pressed="${flt[k].has(v)}">${icon}<span>${esc(label)}</span></button>`;
   const bios = cfg.biotopes.filter(b => all.some(s => spBios(s).includes(b.id)));
   return `<div class="fpanel"><h4>Kde žije</h4><div class="frow">${bios.map(b => row('b', b.id, ic('bio_' + b.id), b.name)).join('')}</div>
-  <h4>Roční období</h4><div class="frow">${SEASONS.map(([k, n]) => row('s', k, ic('s_' + k), n)).join('')}</div>
+  <h4>Kdy ho potkáš</h4><div class="frow">${SEASONS.map(([k, n]) => row('s', k, ic('s_' + k), n)).join('')}${row('x', 'night', ic('night'), 'V noci')}</div>
   <h4>Vzácnost</h4><div class="frow">${cfg.rarities.map((r, i) => row('r', String(r.id), `<b class="stars">${'★'.repeat(i + 1)}</b>`, r.name)).join('')}</div>
-  <h4>Moje</h4><div class="frow">${FX.map(([v, t, n]) => row('x', v, t ? `<b class="stars">${t}</b>` : ic(v === 'night' ? 'night' : 'catch'), n)).join('')}</div></div>`;
+  <h4>Moje</h4><div class="frow">${FX.filter(([v]) => v !== 'night').map(([v, t, n]) => row('x', v, t ? `<b class="stars">${t}</b>` : ic(v === 'night' ? 'night' : 'catch'), n)).join('')}</div></div>`;
 }
 function activeChips() {
   const name = (k, v) => k === 'g' ? v : k === 'b' ? (BIO[v]?.name || v) : k === 's' ? (SEASONS.find(x => x[0] === v) || [, v])[1] : k === 'r' ? (RAR[v]?.name || v) : k === 't' ? '#' + v : (FX.find(x => x[0] === v) || [, , v])[2];
@@ -2436,12 +2439,14 @@ function atlasTabs() {
   return `<div class="atabs"><button class="on">${ic('atlas')} Druhy</button>${t.map(([a, i, n]) => `<button data-act="${a}">${ic(i)} ${n}</button>`).join('')}</div>`;
 }
 function renderAtlas() {
+  const gx = $('atlasv').querySelector('.gstrip')?.scrollLeft || 0; // pruh skupin po překreslení neodskočí na začátek
   const all = cfg.species.filter(s => s.active), nAll = all.filter(s => state.caught[s.id]?.count).length;
   const groups = [...new Set(all.map(s => s.group || 'Ostatní'))], nf = ['b', 's', 'r', 'x'].reduce((a, k) => a + flt[k].size, 0);
   $('atlasv').innerHTML = atlasTabs() + `<div class="ahead"><b>Atlas zvířat</b><span>${nAll} / ${all.length}</span></div><div class="prog"><div style="width:${all.length ? nAll / all.length * 100 : 0}%"></div></div>
   <div class="gstrip">${groups.map(g => `<button class="gbtn${flt.g.has(g) ? ' on' : ''}" data-flt="g" data-v="${esc(g)}" aria-pressed="${flt.g.has(g)}">${ic(classIcon(g))}<small>${esc(g)}</small></button>`).join('')}</div>
   <div class="actl"><input type="search" id="atlasQ" placeholder="Hledat zvíře…" value="${esc(atlasQ)}" aria-label="Hledat zvíře"><button class="btn sm${atlasOpen ? ' on' : ''}" data-act="atlasFlt">Filtry${nf ? ' (' + nf + ')' : ''}</button><select data-asort aria-label="Řazení">${SORTS.map(([k, n]) => `<option value="${k}"${atlasSort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
   ${atlasOpen ? filterPanel(all) : ''}<div id="alist"></div>` + mythsHTML(cfg, state, 'reg');
+  const gs = $('atlasv').querySelector('.gstrip'); if (gs) gs.scrollLeft = gx;
   renderAList();
 }
 function renderAList() {
@@ -2564,7 +2569,7 @@ function renderCollection() { $('sbirkav').innerHTML = (cfg.farm.enabled ? `<but
 function openAnimal(uid) {
   const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
   const e = enclosureOf(cfg, sp.group);
-  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp, '', a.stage)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${esc(stageNames(cfg, sp.group)[a.stage] || '')}${a.stage > (a.from || 0) ? ` · 🍼 vypiplaný (chycen jako ${esc(stageNames(cfg, sp.group)[a.from || 0] || '')})` : ''}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
+  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp, '', a.stage)}${stageRingHTML(cfg, a, sp.group)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${esc(stageNames(cfg, sp.group)[a.stage] || '')}${a.stage > (a.from || 0) ? ` · 🍼 vypiplaný (chycen jako ${esc(stageNames(cfg, sp.group)[a.from || 0] || '')})` : ''}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
   ${statsHTML(a.stats)}<div class="kv"><span>Síla:</span> ${power(a)} · <span>chycen:</span> ${new Date(a.date).toLocaleDateString('cs-CZ')}${a.bio ? ' · <span>biotop:</span> ' + esc(BIO[a.bio]?.name || a.bio) : ''}${a.variant ? ' · <span>vzácná forma:</span> ' + esc(variantName(a.variant)) : ''}</div>
   <div class="kv"><span>Ubikace:</span> ${esc(e.icon)} ${esc(e.name)}</div>
   <div class="presetnew"><input type="text" id="nick" maxlength="20" placeholder="Přezdívka" aria-label="Přezdívka" value="${esc(a.nick || '')}"><button class="btn" data-act="nick" data-uid="${esc(uid)}">Uložit</button></div>

@@ -60,7 +60,7 @@ nav button.on{color:var(--acc);font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}
 .chip{font-size:11px;background:var(--acc2);color:#1f5a37;border-radius:10px;padding:2px 8px}
 .chip.r2{background:#fdf0d8;color:#8a5a12}.chip.r3{background:#fbe1dc;color:#93311f}
-.encimg{width:58%;margin:0 auto;background:#f1ede3;border-radius:16px;aspect-ratio:160/140;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.encimg{width:58%;margin:0 auto;background:radial-gradient(closest-side,color-mix(in srgb,var(--ebc,#a9c79a) 60%,#fff),color-mix(in srgb,var(--ebc,#a9c79a) 25%,#fff) 72%,color-mix(in srgb,var(--ebc,#a9c79a) 10%,#f6f3ec));border-radius:16px;aspect-ratio:160/140;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .encimg img{width:100%;height:100%;object-fit:contain}
 .encimg.sil img{filter:brightness(0) opacity(.2)}
 .msg{text-align:center;font-size:14px;margin:10px 0;min-height:20px;line-height:1.45}
@@ -72,7 +72,7 @@ nav button.on{color:var(--acc);font-weight:700}
 .btn.full{width:100%;margin-top:10px;display:block;text-align:center}
 .btn.ghost{background:none}
 .btn.sm{font-size:12px;padding:6px 10px;border-radius:10px}
-.frame{position:relative;width:78%;margin:6px auto;aspect-ratio:160/140;background:#dfe9d3;border-radius:14px;overflow:hidden}
+.frame{position:relative;width:78%;margin:6px auto;aspect-ratio:160/140;background:radial-gradient(closest-side,color-mix(in srgb,var(--ebc,#a9c79a) 60%,#fff),color-mix(in srgb,var(--ebc,#a9c79a) 30%,#eef0e6));border-radius:14px;overflow:hidden}
 .frame img{width:100%;height:100%;object-fit:contain;display:block}
 .frame .cross{position:absolute;inset:18%;border:2px solid rgba(255,255,255,.85);border-radius:8px}
 .bar{position:relative;height:18px;background:#eee8dc;border-radius:9px;margin:10px 4px;overflow:hidden}
@@ -609,3 +609,6 @@ body.zoomfar .bmk,body.zoomfar .mythmk{display:none}
 .kresit{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:6px 10px;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
 .kresit .kno{flex:none;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
 .kresit .im img{width:56px;height:48px;object-fit:contain}.kresit .kt{display:flex;flex-direction:column}.kresit small{color:var(--mut);font-size:12px}
+
+body.dark .encimg:not(.master),body.dark .frame{background:radial-gradient(closest-side,color-mix(in srgb,var(--ebc,#a9c79a) 55%,#1d2419),color-mix(in srgb,var(--ebc,#a9c79a) 18%,#151b12))} /* noc: tmavší pozadí obrázku */
+.encimg{position:relative}.encimg .encring{background:conic-gradient(var(--acc) var(--p),rgba(255,255,255,.9) 0);position:absolute;right:7px;bottom:7px;left:auto;top:auto;transform:none;overflow:visible;box-shadow:none;width:36px;height:36px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))} /* krmný kroužek v rohu obrázku */

@@ -94,14 +94,22 @@ export function cleanInv(inv) {
 
 /* ---------- zobrazení ---------- */
 // Postup k dalšímu stádiu: kroužek (koláč), hvězdičky nebo proužek – volba v adminu
-export function stageProgressHTML(cfg, a, group) {
+function stageInfo(cfg, a, group) {
   const names = stageNames(cfg, group), master = isMaster(cfg, a, group);
   const n = evolveNeed(cfg, a), p = master ? 1 : Math.min(1, a.axp / n.axp);
-  const label = master ? names[a.stage] : `${names[a.stage]} → ${names[a.stage + 1]}: ${Math.floor(a.axp)} / ${n.axp} XP`;
+  return { p, label: master ? names[a.stage] : `${names[a.stage]} → ${names[a.stage + 1]}: ${Math.floor(a.axp)} / ${n.axp} XP` };
+}
+// Kroužek postupu (plní se krmením a tréninkem) do pravého dolního rohu obrázku zvířete
+export function stageRingHTML(cfg, a, group) {
+  if (cfg.game.progressStyle !== 'stars' && cfg.game.progressStyle !== 'bar') { const { p, label } = stageInfo(cfg, a, group); return `<span class="ring encring" style="--p:${Math.round(p * 100)}%" role="img" aria-label="${esc(label)}"></span>`; }
+  return '';
+}
+export function stageProgressHTML(cfg, a, group) {
+  const { p, label } = stageInfo(cfg, a, group);
   const style = cfg.game.progressStyle;
   if (style === 'stars') return `<div class="stage" title="${esc(label)}"><span class="stars5">${'★'.repeat(Math.round(p * 5))}${'☆'.repeat(5 - Math.round(p * 5))}</span> <small>${esc(label)}</small></div>`;
   if (style === 'bar') return `<div class="stage"><div class="prog"><div style="width:${p * 100}%"></div></div><small>${esc(label)}</small></div>`;
-  return `<div class="stage"><span class="ring" style="--p:${Math.round(p * 100)}%" role="img" aria-label="${esc(label)}"></span><small>${esc(label)}</small></div>`;
+  return `<div class="stage"><small>${esc(label)}</small></div>`; // kroužek je v rohu obrázku (stageRingHTML)
 }
 
 export function animalActionsHTML(cfg, st, a, sp, can) {
