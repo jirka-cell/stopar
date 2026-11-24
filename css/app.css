@@ -559,3 +559,42 @@ body.intro #mbox.cpage .introhead h2{font-size:30px;color:#fff;margin:0 0 10px}
 .cpage .introdog{position:absolute;top:-92px;left:50%;transform:translateX(-50%);width:92px;height:auto;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35))}
 .introinfo{display:flex;gap:12px;align-items:flex-start;background:rgba(47,125,79,.07);border-radius:14px;padding:10px 12px;margin:0 0 8px;font-size:14.5px;line-height:1.4}
 .introinfo img.ic{width:34px;height:34px;flex:none}
+/* zvíře v dosahu pulzuje (ťuk = chytit); z dálky se kolečka schovají */
+.bmk.inrange .cls,.bmk.inrange>img{animation:inr 1s ease-in-out infinite alternate}
+@keyframes inr{from{transform:scale(1);filter:drop-shadow(0 0 0 rgba(47,125,79,0))}to{transform:scale(1.14);filter:drop-shadow(0 0 6px rgba(47,125,79,.9))}}
+body.zoomfar .bmk,body.zoomfar .mythmk{display:none}
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:6px 0}.calhead b{font-size:17px;text-transform:capitalize}
+.calnat{background:rgba(47,125,79,.07);border-radius:14px;padding:8px 12px;margin:6px 0 10px;font-size:13.5px}.calnat p{margin:0 0 4px}
+.calfresh small{color:var(--mut)}.calfresh div{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.calfresh img{width:38px;height:38px;object-fit:contain}
+.calw,.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.calw span{text-align:center;font-size:11px;color:var(--mut)}
+.calc{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:2px;font:inherit;color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;cursor:pointer}
+.calc.empty{border:0;background:none}.calc[disabled]{opacity:.45;cursor:default}
+.calc b{font-size:11px;align-self:flex-start;margin-left:3px}.calc.on{border-color:var(--acc);background:rgba(47,125,79,.1)}.calc.today{box-shadow:inset 0 0 0 2px #e2602a}
+.calim img{width:30px;height:26px;object-fit:contain}.calc small{font-size:9.5px;color:var(--mut);line-height:1}
+/* Atlas – Druhy: pruh skupin, hledání, panel filtrů, štítky, pozadí v barvě biotopu */
+.gstrip{display:flex;gap:6px;overflow-x:auto;padding:4px 0 6px;scrollbar-width:none}.gstrip::-webkit-scrollbar{display:none}
+.gbtn{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:62px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:6px 4px;font:inherit;color:var(--ink);cursor:pointer}
+.gbtn img.ic{width:30px;height:30px}.gbtn small{font-size:11px}.gbtn.on{border-color:var(--acc);background:rgba(47,125,79,.12)}
+.actl{display:flex;gap:6px;align-items:center;margin:4px 0 6px}.actl input{flex:1;min-width:0;font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+.actl select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:6px;background:var(--card);color:var(--ink);max-width:40%}
+.actl .btn.on{border-color:var(--acc)!important;color:var(--acc)}
+.fpanel{border:1px solid var(--line);border-radius:14px;padding:6px 10px 10px;margin:0 0 8px;background:var(--card)}.fpanel h4{font-size:12px;color:var(--mut);margin:8px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+.frow{display:flex;flex-wrap:wrap;gap:6px}
+.fbtn{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;background:none;padding:4px 10px 4px 6px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.fbtn img.ic{width:24px;height:24px}.fbtn .stars{font-size:12px;color:#c58a1b}.fbtn.on{border-color:var(--acc);background:rgba(47,125,79,.12)}
+.achips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.achip{border:0;border-radius:12px;background:var(--acc);color:#fff;font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}.achip.clear{background:none;color:var(--mut);border:1px solid var(--line)}
+.grp img.ic{width:22px;height:22px;vertical-align:middle}
+.acard .im{background:radial-gradient(closest-side,color-mix(in srgb,var(--bc,#a9c79a) 55%,transparent),color-mix(in srgb,var(--bc,#a9c79a) 18%,transparent) 70%,transparent);border-radius:50%}
+.acard.miss .im{filter:none}
+.acard .rr{color:#c58a1b}
+/* detail druhu obrázkově */
+.vrow{display:flex;gap:10px;align-items:flex-start;margin:8px 0}.vrow>b{flex:0 0 52px;font-size:12px;color:var(--mut);padding-top:10px}
+.vrow>div{display:flex;flex-wrap:wrap;gap:6px}
+.vtile{display:flex;flex-direction:column;align-items:center;width:62px;text-align:center}.vtile img.ic,.vtile svg{width:40px;height:40px}.vtile small{font-size:10.5px;line-height:1.15;color:var(--mut)}
+.vtile.big img{width:64px;height:64px;object-fit:contain}.vtrack{display:flex!important;gap:8px;align-items:center}.vtrack small{font-size:12px;color:var(--mut)}
+.vtile.sim{cursor:pointer}.vtile.sim img{width:56px;height:48px;object-fit:contain}
+.mbar,.vrow>.mbar{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;flex:1}.mbar span{text-align:center;font-size:10px;padding:3px 0;border-radius:4px;background:var(--line);color:var(--mut)}.mbar span.on{background:var(--acc);color:#fff}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.tag{border:1px solid var(--line);border-radius:12px;background:none;font:inherit;font-size:12px;color:var(--acc);padding:3px 9px;cursor:pointer}.tag.on{background:var(--acc);color:#fff}
+.aegfact{display:flex;gap:10px;align-items:flex-start;margin:10px 0}.aegfact img{width:44px;height:44px;border-radius:50%;flex:none}
+.aegfact p{margin:0;background:rgba(47,125,79,.08);border-radius:4px 14px 14px 14px;padding:8px 12px;font-size:14px}
+.myobs{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:12px}.myobs img.ic{width:18px;height:18px;vertical-align:middle}

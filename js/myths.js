@@ -92,16 +92,18 @@ export function mythFor(cfg, ctx, h) {
 export function cleanMyths(m) {
   return Object.fromEntries(Object.entries(m && typeof m === 'object' ? m : {}).slice(0, 100).map(([k, v]) => [String(k).slice(0, 40), num(v)]));
 }
-// Tajná sekce v atlasu: nechycení jako otazníky
-export function mythsHTML(cfg, st) {
-  if (!cfg.myths.length) return '';
+// Tajné sekce se ukážou až po prvním nálezu: bájní (tajná sekce + Pověsti), sváteční (vlastní záložka)
+export const foundMyth = (cfg, st, fest) => cfg.myths.some(t => !!t.fest === !!fest && st.myths[t.id]);
+// Tajná sekce v atlasu: nechycení jako otazníky; kind 'reg' = bájní, 'fest' = sváteční
+export function mythsHTML(cfg, st, kind = 'reg') {
+  if (!cfg.myths.length || !foundMyth(cfg, st, kind === 'fest')) return '';
   const card = t => st.myths[t.id]
     ? `<div class="acard myth" data-myth="${esc(t.id)}"><div class="im"><img src="${mythURL(t)}" alt="${esc(t.name)}"></div><div class="nm">${esc(t.name)}</div><div class="rr">${new Date(st.myths[t.id]).toLocaleDateString('cs-CZ')}</div></div>`
     : `<div class="acard miss myth"><div class="im"><img src="${mythURL(t)}" alt=""></div><div class="nm">???</div><div class="rr">${t.fest ? esc(FEST_NAMES[t.fest] || 'svátky') : 'tajemství'}</div></div>`;
   const reg = cfg.myths.filter(t => !t.fest), fes = cfg.myths.filter(t => t.fest);
   const n = reg.filter(t => st.myths[t.id]).length, nf = fes.filter(t => st.myths[t.id]).length;
-  return `<div class="grp">🔮 Tajná sekce – bájní tvorové (${n} / ${reg.length})</div><div class="grid">${reg.map(card).join('')}</div>`
-    + (fes.length ? `<div class="grp">🎉 Sváteční tvorové (${nf} / ${fes.length})</div><div class="grid">${fes.map(card).join('')}</div>` : '');
+  return kind === 'fest' ? `<div class="grp">🎉 Sváteční tvorové (${nf} / ${fes.length})</div><div class="grid">${fes.map(card).join('')}</div>`
+    : `<div class="grp">🔮 Tajná sekce – bájní tvorové (${n} / ${reg.length})</div><div class="grid">${reg.map(card).join('')}</div>`;
 }
 export const FEST_NAMES = { dusicky: 'Dušičky', mikulas: 'Mikuláš', vanoce: 'Vánoce', velikonoce: 'Velikonoce', hrady: 'Noc na hradech' };
 // Pověsti: kde a kdy se který tvor ukazuje (z nastavení tvorů)

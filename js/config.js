@@ -96,6 +96,7 @@ export const DEFAULTS = {
     startLat: 50.2306,
     startLon: 12.8711,
     classMarkers: true,     // na mapě jen obrázek třídy (pták, savec…), druh až při setkání
+    animalZoom: 14,         // při menším přiblížení se kolečka zvířat schovají (přehledná mapa z dálky)
     autoFollow: 20,         // s – po kolika sekundách bez dotyku se mapa vrátí na hráče (0 = nikdy)
     muteSpeed: 1.0,         // m/s – nad touto rychlostí se mapa ztlumí („Zastav se a rozhlédni se“)
     stillSpeed: 0.6,        // m/s – děti chytají jen pod touto rychlostí
@@ -472,6 +473,7 @@ export const SCHEMA = [
     ['startLon', 'Výchozí délka', 'number', { step: 0.0001 }],
     ['autoFollow', 'Návrat mapy na hráče po (s bez dotyku, 0 = nikdy)', 'number', { min: 0, max: 600, step: 5 }],
     ['classMarkers', 'Na mapě jen obrázek třídy (druh až při setkání)', 'bool'],
+    ['animalZoom', 'Kolečka zvířat jen od přiblížení', 'number', { min: 10, max: 18, step: 0.5 }],
     ['muteSpeed', 'Ztlumení při chůzi nad (m/s)', 'number', { min: 0.3, max: 5, step: 0.1 }],
     ['stillSpeed', 'Děti chytají jen pod (m/s)', 'number', { min: 0.1, max: 3, step: 0.1 }],
     ['tileCacheMax', 'Max. dlaždic v offline cache', 'number', { min: 0, max: 20000, step: 100 }]

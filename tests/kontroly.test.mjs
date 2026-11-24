@@ -1264,3 +1264,24 @@ test('úvodní obrazovka a souhlas: výběr pozadí, věk z data, kód rodiče',
   assert.match(L.consentHTML({ general: { appName: 'X' } }, { qr: '<svg></svg>', code: c }), /cBirth[^]*cCode[^]*cMail/);
 });
 
+test('kalendář: sám zapíše hraní a úlovky, měsíc s dny', async () => {
+  const K = await import('../js/calendar.js'), { DEFAULTS } = await import('../js/config.js');
+  const days = {}, d = new Date(2026, 10, 24);
+  K.markPlayed(days, d); K.addCatch(days, 'kos', d); K.addCatch(days, 'kos', d);
+  assert.deepEqual(days['2026-11-24'], { p: 1, c: ['kos', 'kos'] });
+  assert.deepEqual(K.cleanDays({ 'x': 1, '2026-11-24': { p: 1, c: ['kos'] } }), { '2026-11-24': { p: 1, c: ['kos'] } });
+  const h = K.myCalendarHTML(DEFAULTS, { days }, 2026, 11, { img: () => '<img>', SP: { kos: { id: 'kos', name: 'Kos' } } });
+  assert.equal((h.match(/data-day=/g) || []).length, 30, 'listopad má 30 dní'); assert.match(h, /data-day="2026-11-24"/);
+  assert.match(K.dayHTML({ days }, '2026-11-24', { img: () => '', SP: { kos: { id: 'kos', name: 'Kos' } } }), /Kos[^]*×2/);
+});
+
+test('atlas: hashtagy z dat, řazení s nechycenými na konci', async () => {
+  const A = await import('../js/atlas.js');
+  const t = A.tagsFor({ night: true, months: '4-9', rarity: '3', bio: 'voda:3,les:1', food: 'hmyz:2', edu: { protection: 'zvláště chráněný' } });
+  for (const x of ['noční', 'tažný', 'vzácný', 'chráněný', 'u_vody', 'v_lese', 'hmyzožravec']) assert.ok(t.includes(x), x);
+  assert.ok(A.tagsFor({ bio: 'louka:1', food: 'listi:2,zrni:1', months: '' }).includes('býložravec'));
+  const st = { caught: { b: { count: 2, best: { date: 5 } }, c: { count: 1, best: { date: 9 } } } };
+  assert.deepEqual(A.sortSpecies([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }], st, 'new').map(s => s.id), ['c', 'b', 'a']);
+  assert.match(A.monthsBar({ months: '1-2' }), /class="on">L/);
+});
+
