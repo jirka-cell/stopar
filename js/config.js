@@ -10,7 +10,7 @@ import { BATCH5 } from './species-batch5.js';
 import { SIGNS } from './signs.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 6;
+export const CONFIG_VERSION = 7;
 // Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
 const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
@@ -47,7 +47,7 @@ export const DEFAULTS = {
     contact: ''                   // kontaktní e-mail pro dotazy a zpětnou vazbu testerů
   },
   spawn: {
-    density: 5,             // očekávaný počet ptáků v okruhu
+    density: 40,            // očekávaný počet zvířat v okruhu (ověřeno venku: chytání zhruba každé 3 minuty chůze)
     radius: 500,            // m – okruh, ve kterém se ptáci zobrazují
     minDistance: 25,        // m – minimální vzdálenost spawnu od hráče
     cellSize: 100,          // m – mřížka deterministických spawnů (stejné pro všechny hráče na místě)
@@ -824,6 +824,8 @@ export function mergeDefaults(cfg) {
     return m;
   });
   delete out.listsKnown; delete out.speciesKnown;
+  // Verze 6 → 7: vyšší výchozí hustota zvířat (5 → 40); vlastní hodnota zůstane
+  if (!(Number(cfg.version) >= 7) && Number(out.spawn.density) === 5) out.spawn.density = DEFAULTS.spawn.density;
   // Verze 5 → 6 (aplikace 4.0, ořez): jedna měna, vývoj za šišky, farma vypnutá, tajemní tvorové kdykoli, jen akvarelová mapa
   if (!(Number(cfg.version) >= 6)) {
     Object.assign(out.game, { unlocks: DEFAULTS.game.unlocks, evolveCost: DEFAULTS.game.evolveCost, know: DEFAULTS.game.know });

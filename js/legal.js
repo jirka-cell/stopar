@@ -2,7 +2,7 @@
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
 export const TERMS_VERSION = 4; // 4: datum narození, souhlas rodiče přes QR, e-mail rodiče
-export const APP_VERSION = '4.0.0';
+export const APP_VERSION = '4.0.1';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };

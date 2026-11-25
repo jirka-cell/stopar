@@ -116,7 +116,9 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 6);
+  assert.equal(m.version, 7);
+  assert.equal(m.spawn.density, 40, 'stará výchozí hustota 5 se zvedne na 40');
+  assert.equal(mergeDefaults({ version: 6, spawn: { density: 12 } }).spawn.density, 12, 'vlastní hustota zůstane');
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
   assert.equal(m.map.attribution, DEFAULTS.map.attribution);
   assert.equal(m.map.tileCacheMax, DEFAULTS.map.tileCacheMax);
