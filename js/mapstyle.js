@@ -21,11 +21,10 @@ export const STYLES = {
     label: '#e8dcc4', halo: '#2b2620', shade: '#e8dcc4', game: '#d9b878' }
 };
 
-// Který styl použít: "auto" = herní den / herní noc podle slunce
+// Který styl použít: od verze 4 jen papír a akvarel (den/noc podle slunce); ostatní styly jen při výslovné volbě v kódu
 export function styleIdFor(choice, night) {
-  if (choice === 'papir' || choice === 'papirnoc') return night ? 'papirnoc' : 'papir'; // papír má svou noční podobu
-  if (choice && choice !== 'auto' && STYLES[choice]) return choice;
-  return night ? 'noc' : 'hra';
+  if (choice && choice !== 'auto' && choice !== 'papir' && choice !== 'papirnoc' && STYLES[choice]) return choice;
+  return night ? 'papirnoc' : 'papir';
 }
 
 // Vrstevnice: interval podle přiblížení [menší, hlavní s popiskem] v metrech

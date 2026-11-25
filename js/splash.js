@@ -1,8 +1,8 @@
 // Úvodní obrazovka: pozadí podle počasí, období a denní doby, běžící Aegon, kroky načítání s vtipnými texty.
-// Ukáže se při každém spuštění aspoň min (nastavení, výchozí 10 s), nejdéle o 3 s déle (pak pustí do aplikace i bez všech dat).
+// Až je poloha i mapa (nebo nejpozději po min, nastavení), objeví se tlačítko Spustit – do aplikace se jde ťuknutím.
 import { SPLASH } from './splash-data.js';
 
-export const MIN_MS = 10000, EXTRA_MS = 3000;
+export const MIN_MS = 8000;
 const SEASON = m => m >= 3 && m <= 5 ? 'jaro' : m >= 6 && m <= 8 ? 'leto' : m >= 9 && m <= 11 ? 'podzim' : 'zima';
 
 // Výběr pozadí (čistá funkce kvůli testu): počasí (jen čerstvé) > noc > období; drsné jen mimo dětský režim; ne stejné jako minule
@@ -46,9 +46,8 @@ export class Splash {
     const run = () => { img.src = `images/dog/${frames[f++ % 4]}.webp`; };
     run(); this.runT = setInterval(run, 180);
     this.txtT = setInterval(() => this.say(), 2200); this.say();
-    this.maxT = setTimeout(() => this.check(true), this.min + EXTRA_MS);
-    this.minT = setTimeout(() => this.check(), this.min);
-    el.addEventListener('click', () => { if (Date.now() - this.t0 >= this.min || this.hold) this.hide(); });
+    this.maxT = setTimeout(() => this.check(true), this.min);
+    if (this.hold) el.addEventListener('click', () => this.hide()); // test: zavře se ťuknutím kamkoli
   }
   // test: tlačítko Změnit pozadí – projde všech 35 po řadě, ukáže číslo a štítky; obrazovku nezavře
   addPicker(bg) {
@@ -74,15 +73,18 @@ export class Splash {
     const bar = this.el.querySelector('.spbar i'); if (bar) bar.style.width = Math.round(n / STEPS.length * 100) + '%';
     this.say(); this.check();
   }
-  // konec: po min, když je poloha i mapa (zvířata nejsou podmínka), nebo o 3 s později; v testu jen ťuknutím
+  // tlačítko Spustit: když je poloha i mapa (zvířata nejsou podmínka), nebo nejpozději po min; v testu jen ťuknutím
   check(timeout = false) {
-    if (this.gone || this.hold) return;
-    if (Date.now() - this.t0 < this.min) return;
-    if (timeout || (this.done.gps && this.done.map)) this.hide();
+    if (this.gone || this.hold || this.go) return;
+    if (!timeout && !(this.done.gps && this.done.map)) return;
+    const b = this.go = document.createElement('button');
+    b.className = 'btn primary full spgo'; b.textContent = 'Spustit';
+    b.addEventListener('click', e => { e.stopPropagation(); this.hide(); });
+    this.el.querySelector('.spcard')?.appendChild(b); b.focus();
   }
   hide() {
     if (this.gone) return; this.gone = true;
-    [this.runT, this.txtT].forEach(clearInterval); [this.maxT, this.minT].forEach(clearTimeout);
+    [this.runT, this.txtT].forEach(clearInterval); clearTimeout(this.maxT);
     this.el.classList.add('out');
     setTimeout(() => { this.el.hidden = true; this.el.classList.remove('out'); this.el.innerHTML = ''; }, 450);
     if (this.onDone) this.onDone();

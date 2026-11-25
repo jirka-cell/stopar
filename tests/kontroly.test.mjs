@@ -116,7 +116,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 5);
+  assert.equal(m.version, 6);
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
   assert.equal(m.map.attribution, DEFAULTS.map.attribution);
   assert.equal(m.map.tileCacheMax, DEFAULTS.map.tileCacheMax);
@@ -125,10 +125,10 @@ test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribu
 });
 
 test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryté', () => {
-  assert.equal(styleIdFor('auto', false), 'hra');
-  assert.equal(styleIdFor('auto', true), 'noc');
+  assert.equal(styleIdFor('auto', false), 'papir', 'od verze 4 je výchozí papír a akvarel');
+  assert.equal(styleIdFor('auto', true), 'papirnoc');
   assert.equal(styleIdFor('papir', true), 'papirnoc'); assert.equal(styleIdFor('papir', false), 'papir');
-  assert.equal(styleIdFor('neexistuje', false), 'hra');
+  assert.equal(styleIdFor('neexistuje', false), 'papir');
   const ctx = { vectorUrl: DEFAULTS.map.vectorUrl, glyphsUrl: DEFAULTS.map.glyphsUrl, demUrl: 'dem://x', contourUrl: 'contour://x', trailsUrl: DEFAULTS.map.trailsUrl, biotopes: DEFAULTS.biotopes, game: { catch: circle(12.87, 50.23, 100) } };
   for (const id of Object.keys(STYLES)) {
     const s = makeStyle(id, DEFAULTS.layers, ctx);
@@ -538,21 +538,21 @@ test('kvíz: správná odpověď je mezi třemi různými možnostmi a sedí s �
   assert.ok(n >= 90, 'kvíz jde skoro u všech druhů: ' + n);
 });
 
-test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce XP jedince i body', async () => {
+test('ekonomika: vypuštění dá šišky podle vzácnosti a stádia, vývoj stojí šišky', async () => {
   const { release, releaseValue, evolve, evolveNeed, stageNames, isMaster, train, buy, useItem } = await import('../js/economy.js');
   const { animalFrom } = await import('../js/collection.js');
   const { cleanProgress } = await import('../js/progress.js');
   const st = Object.assign(cleanProgress({}), { animals: [], inv: {} });
   const a = animalFrom('kos', [50, 50, 50, 50], 90, 'park'); st.animals.push(a);
-  assert.equal(releaseValue(DEFAULTS, { rarity: '3' }, a), 30, 'vědomosti za vypuštění: základ 5 × vzácnost 6');
+  assert.equal(releaseValue(DEFAULTS, { rarity: '3' }, a), 30, 'šišky za vypuštění: základ 5 × vzácnost 6');
   assert.deepEqual(stageNames(DEFAULTS, 'Ptáci'), ['mládě', 'dospělý', 'mistr']);
   assert.deepEqual(stageNames(DEFAULTS, 'Obojživelníci'), ['pulec', 'mladý', 'dospělý', 'mistr']);
-  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'axp');
-  a.axp = evolveNeed(DEFAULTS, a).axp;
-  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'points');
-  st.points = 1000;
+  assert.equal(evolveNeed(DEFAULTS, a).cones, 100);
+  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'cones');
+  st.cones = 1000;
   assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok');
-  assert.equal(a.stage, 1); assert.equal(a.stats[0], 63, 'vývoj +10 % a vypiplané stádium +15 %'); assert.equal(st.points, 970);
+  assert.equal(a.stage, 1); assert.equal(st.cones, 900); assert.equal(evolveNeed(DEFAULTS, a).cones, 200, 'další stádium stojí víc');
+  { const n = st.cones; release(DEFAULTS, st, a, { rarity: '1' }); assert.equal(st.cones, n + 10, 'vypuštění přidá šišky'); st.animals.push(a); }
   { const { wildStage, foodFor, isPupa, knownStages } = await import('../js/stages.js');
     const many = n => Array.from({ length: n }, (_, i) => i / n);
     assert.ok(many(200).every(r => wildStage(DEFAULTS, 'Ptáci', r, 6) <= 1) && many(200).every(r => wildStage(DEFAULTS, 'Hmyz', r, 6) <= 2), 'mistr se v přírodě neobjeví');
@@ -565,12 +565,11 @@ test('ekonomika: vypuštění dá body podle vzácnosti a stádia, vývoj chce X
     assert.equal(foodFor(DEFAULTS, { id: 'liska', group: 'Savci', food: 'hlodavec:1' }, 0), 'hlodavec:1', 'savci jako dospělí');
     for (const f of ['rasy', 'drevo', 'mleko', 'korinky']) assert.ok(DEFAULTS.foods.some(x => x.id === f), 'potravina ' + f);
     assert.deepEqual([...knownStages({ stages: [2] }, [{ sp: 'kos', from: 0, stage: 1 }], 'kos')].sort(), [0, 1, 2], 'známá stádia');
-    const w = Object.assign(animalFrom('kos', [50, 50, 50, 50], 90, ''), { stage: 1, from: 1, axp: 1e6 }); const st2 = { points: 1000, counters: { evolved: 0 } };
-    evolve(DEFAULTS, st2, w, 'Ptáci'); assert.equal(w.stats[0], 63, 'i dospělé chycené zvíře dostane bonus za stádium, které s ním hráč projde'); }
-  a.axp = 1e6; assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok'); assert.ok(isMaster(DEFAULTS, a, 'Ptáci'));
+  }
+  assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'ok'); assert.ok(isMaster(DEFAULTS, a, 'Ptáci'));
   assert.equal(evolve(DEFAULTS, st, a, 'Ptáci'), 'max');
   // trénink: šišky a denní limit
-  const b = animalFrom('kos', [10, 5, 20, 30], 90, 'park');
+  const b = animalFrom('kos', [10, 5, 20, 30], 90, 'park'); st.cones = 0;
   assert.equal(train(DEFAULTS, st, b, '2026-11-21'), 'cones');
   st.cones = 1000;
   for (let i = 0; i < DEFAULTS.game.trainPerDay; i++) assert.equal(train(DEFAULTS, st, b, '2026-11-21'), 'ok');
@@ -1349,4 +1348,15 @@ test('herna 2: zbylé hry – zadání z dat, bludiště, hráz, logická mří�
   const wall = open.map((row, r) => row.map((_, c) => r === 1 && c > 0)); assert.equal(minCut(4, 4, wall), 1);
   const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
   for (const perm of PERMS) for (let t = 0; t < 10; t++) { const cl = gridClues(['A', 'B', 'C'], perm); assert.equal(PERMS.filter(p => cl.every(c => c.f(p))).length, 1, 'nápovědy mají vést k jedinému řešení'); }
+});
+
+test('řada dní v kuse: v měsíci se smí vynechat nejvýš 3 dny', async () => {
+  const { streak, dayKey } = await import('../js/calendar.js');
+  const today = new Date(2026, 10, 25), days = {};
+  const play = (...ds) => ds.forEach(d => { days[dayKey(new Date(2026, 10, d))] = { p: 1, c: [] }; });
+  play(25, 24, 23, 21, 20, 18, 16, 15, 14);
+  assert.equal(streak(days, today), 9, 'vynecháno 22, 19, 17 = 3 dny, řada drží');
+  delete days[dayKey(new Date(2026, 10, 15))];
+  assert.equal(streak(days, today), 7, 'čtvrté vynechání v listopadu řadu ukončí');
+  assert.equal(streak({}, today), 0);
 });

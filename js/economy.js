@@ -17,22 +17,16 @@ export function stageNames(cfg, group) {
   }
   return def;
 }
-// Co je potřeba na další stádium: XP jedince (z tréninku a krmení) a body z vypouštění
+// Co je potřeba na další stádium: šišky (cena × pořadí stádia)
 export function evolveNeed(cfg, a) {
-  const k = a.stage + 1;
-  return { axp: Math.round(num(cfg.game.stageXp, 60) * k), points: Math.round(num(cfg.game.evolveCost, 30) * k) };
+  return { cones: Math.round(num(cfg.game.evolveCost, 100) * (a.stage + 1)) };
 }
 export const isMaster = (cfg, a, group) => a.stage >= stageNames(cfg, group).length - 1;
 export function evolve(cfg, st, a, group) {
   if (isMaster(cfg, a, group)) return 'max';
   const n = evolveNeed(cfg, a);
-  if (a.axp < n.axp) return 'axp';
-  if (st.points < n.points) return 'points';
-  st.points -= n.points; a.axp -= n.axp; a.stage++;
-  // vypiplané stádium (zvíře chycené mladší a vychované hráčem) přidá bonus navíc (výchozí +15 %)
-  const raised = Math.max(0, a.stage - (a.from || 0)), bonus = 1 + num(cfg.game.raiseBonus, 15) / 100;
-  const k = (1 + num(cfg.game.evolveBoost, 10) / 100) * bonus, cap = num(cfg.catch.maxStat, 100) * (1 + a.stage * .25) * bonus ** raised;
-  a.stats = a.stats.map(v => Math.min(cap, Math.round(v * k)));
+  if (st.cones < n.cones) return 'cones';
+  st.cones -= n.cones; a.stage++;
   st.counters.evolved++;
   return 'ok';
 }
@@ -69,7 +63,7 @@ export function releaseValue(cfg, sp, a) {
 export function release(cfg, st, a, sp) {
   const i = st.animals.indexOf(a); if (i < 0) return 0;
   const v = releaseValue(cfg, sp, a);
-  st.animals.splice(i, 1); st.points += v; st.counters.released++;
+  st.animals.splice(i, 1); st.cones += v; st.counters.released++;
   return v;
 }
 
@@ -96,10 +90,10 @@ export function cleanInv(inv) {
 // Postup k dalšímu stádiu: kroužek (koláč), hvězdičky nebo proužek – volba v adminu
 function stageInfo(cfg, a, group) {
   const names = stageNames(cfg, group), master = isMaster(cfg, a, group);
-  const n = evolveNeed(cfg, a), p = master ? 1 : Math.min(1, a.axp / n.axp);
-  return { p, label: master ? names[a.stage] : `${names[a.stage]} → ${names[a.stage + 1]}: ${Math.floor(a.axp)} / ${n.axp} XP` };
+  const p = master ? 1 : a.stage / Math.max(1, names.length - 1);
+  return { p, label: master ? names[a.stage] : `${names[a.stage]} → ${names[a.stage + 1]}: ${evolveNeed(cfg, a).cones} šišek` };
 }
-// Kroužek postupu (plní se krmením a tréninkem) do pravého dolního rohu obrázku zvířete
+// Kroužek postupu (podíl dosažených stádií) do pravého dolního rohu obrázku zvířete
 export function stageRingHTML(cfg, a, group) {
   if (cfg.game.progressStyle !== 'stars' && cfg.game.progressStyle !== 'bar') { const { p, label } = stageInfo(cfg, a, group); return `<span class="ring encring" style="--p:${Math.round(p * 100)}%" role="img" aria-label="${esc(label)}"></span>`; }
   return '';
@@ -113,16 +107,11 @@ export function stageProgressHTML(cfg, a, group) {
 }
 
 export function animalActionsHTML(cfg, st, a, sp, can) {
-  const names = stageNames(cfg, sp.group), master = isMaster(cfg, a, sp.group), n = evolveNeed(cfg, a), G = cfg.game;
-  let h = stageProgressHTML(cfg, a, sp.group);
-  const feeds = invOf(cfg, st, 'feed');
-  if (feeds.length) h += `<div class="rowbtns">${feeds.map(it => `<button class="btn sm" data-act="feed" data-item="${esc(it.id)}">${icId(it.id, esc(it.icon))} ${esc(it.name)} (${st.inv[it.id]})</button>`).join('')}</div>`;
-  h += '<div class="tools">';
-  h += can('train') ? `<button class="btn sm" data-act="train">Trénovat (${num(G.trainCost)} šišek)</button>` : `<button class="btn sm" disabled>Trénink od úr. ${can.level('train')}</button>`;
-  h += !can('evolve') ? `<button class="btn sm" disabled>Vývoj od úr. ${can.level('evolve')}</button>`
-    : master ? `<button class="btn sm" disabled>${esc(names[a.stage])} – nejvyšší stádium</button>`
-    : `<button class="btn sm${a.axp >= n.axp && st.points >= n.points ? ' primary' : ''}" data-act="evolve">Vyvinout na ${esc(names[a.stage + 1])} (${n.points} 📖)</button>`;
-  h += can('release') ? `<button class="btn sm" data-act="release" data-confirm="Opravdu vypustit? Ťukni znovu">Vypustit do přírody (+${releaseValue(cfg, sp, a)} 📖)</button>` : `<button class="btn sm" disabled>Vypouštění od úr. ${can.level('release')}</button>`;
+  const names = stageNames(cfg, sp.group), master = isMaster(cfg, a, sp.group), n = evolveNeed(cfg, a);
+  let h = stageProgressHTML(cfg, a, sp.group) + '<div class="tools">';
+  h += master ? `<button class="btn sm" disabled>${esc(names[a.stage])} – nejvyšší stádium</button>`
+    : `<button class="btn sm${st.cones >= n.cones ? ' primary' : ''}" data-act="evolve">Vyvinout na ${esc(names[a.stage + 1])} (${n.cones} ${cone})</button>`;
+  h += `<button class="btn sm" data-act="release" data-confirm="Opravdu vypustit? Ťukni znovu">Vypustit do přírody (+${releaseValue(cfg, sp, a)} ${cone})</button>`;
   return h + '</div>';
 }
 

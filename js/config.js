@@ -10,7 +10,7 @@ import { BATCH5 } from './species-batch5.js';
 import { SIGNS } from './signs.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 5;
+export const CONFIG_VERSION = 6;
 // Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
 const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
@@ -23,7 +23,7 @@ export const DEFAULTS = {
     appName: 'Stopuj s Aegonem',
     headerTitle: 'Stopuj s Aegonem', // nápis v horní liště
     adminPin: '1234',
-    splashSeconds: 10,      // úvodní obrazovka zůstane aspoň tolik sekund (i když je vše načteno dřív)
+    splashSeconds: 8,       // tlačítko Spustit na úvodní obrazovce nejpozději po tolika sekundách (i bez mapy)
     simulation: false,      // chůze ťukáním do mapy místo GPS (pro testování z domova)
     simSpeed: 1.4,          // m/s při simulované chůzi
     showBiotopes: false,    // ladicí vrstva s biotopy z OSM
@@ -83,7 +83,7 @@ export const DEFAULTS = {
     highAccuracy: true
   },
   map: {
-    style: 'papir',         // auto = herní den/noc podle slunce, jinak hra | noc | data | papir | bio
+    style: 'papir',         // papir = papír a akvarel (den/noc podle slunce)
     compass: true,          // tlačítko režimu kompasu (mapa se otáčí podle telefonu)
     quickLook: true,        // tlačítko „Vzhled“ na mapě (rychlé přepínání bez PINu)
     vectorUrl: 'https://tiles.openfreemap.org/planet',
@@ -219,19 +219,21 @@ export const DEFAULTS = {
     levelGrowth: 1.4,       // každá další úroveň potřebuje tolikrát víc XP
     xpCatch: 10, xpNew: 50, xpVerified: 30, xpPerKm: 20, xpQuiz: 10, xpBadge: 25,
     rarityLevel: '2:3, 3:6',  // vzácnost:úroveň – od které úrovně jde vzácnější zvíře chytit (do té doby silueta)
-    unlocks: 'release:2, shop:2, train:3, contests:3, evolve:4, hide:5', // funkce:úroveň
+    unlocks: 'hide:5',      // funkce:úroveň
     questsPerDay: 3, questsPerWeek: 2,
     quizBonus: 3,           // kolik bodů přidá správná odpověď v kvízu ke všem vlastnostem jedince
     conesPerKm: 50,         // šišky za 1 km skutečné chůze (simulace se nepočítá)
     trainCost: 20, trainPerDay: 3, trainXp: 10, trainGain: 2,
     stageXp: 60,            // XP jedince na další stádium (× pořadí stádia)
-    evolveCost: 30,         // body na další stádium (× pořadí stádia)
+    evolveCost: 100,        // šišky na další stádium (× pořadí stádia)
     evolveBoost: 10,        // % ke všem vlastnostem za stádium
     progressStyle: 'ring',  // ring = kroužek, stars = hvězdičky, bar = proužek
     // vývojová stádia: řádek bez skupiny = výchozí, jinak „Skupina: stádia“
     stages: ': mládě, dospělý, mistr\nObojživelníci: pulec, mladý, dospělý, mistr\nHmyz: larva, kukla, dospělec, mistr\nRyby: plůdek, mladá ryba, dospělá, mistr',
     releaseBase: 5, releaseRarity: '1:1, 2:2.5, 3:6', // vědomosti za vypuštění = základ × vzácnost × (stádium + 1)
-    know: 'quiz:5, track:3, task:5, journal:3, newSpecies:5, keyId:3', // vědomosti 📖 za učení
+    know: 'quiz:15, track:5, task:10, journal:5, newSpecies:10, keyId:5', // šišky za učení
+    quizConesPerDay: 3,     // za kolik kvízů denně jsou šišky
+    streakSkip: 3,          // řada dní v kuse: kolik dní v měsíci se smí vynechat
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5,
     xpContest: 10           // XP za odehranou soutěž
   },
@@ -271,8 +273,8 @@ export const DEFAULTS = {
     festivals: true,        // sváteční tvorové (Dušičky, Mikuláš, Vánoce, Velikonoce) – lehčí, pro děti
     festChance: 0.05,       // šance během svátků
     mythDays: 3,            // bájné dny: 2× ročně (zima, léto) na tolik dní
-    mythChance: 0.02,       // jak často je během bájných dnů místo zvířete bájný tvor (u jeho biotopu)
-    mythMinQuality: 90, mythSeconds: 2, xpMyth: 200 // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
+    mythChance: 0.004,      // jak často je místo zvířete tajemný tvor (u jeho biotopu), kdykoli v roce
+    mythMinQuality: 60, mythSeconds: 4, xpMyth: 200 // chytit jen s ostrostí ≥ X %, jeden pokus do Y s
   },
   // Tajná sekce – bájní tvorové: bio = biotopy nebo výšková pásma, months = měsíce, night = jen v noci
   myths: [
@@ -323,7 +325,7 @@ export const DEFAULTS = {
     defaultRadius: 5000, maxRadius: 10000
   },
   farm: {
-    enabled: true,          // Moje farma: kapacitu zvířat určují příbytky a spižírna (místo úrovně hráče)
+    enabled: false,         // Moje farma (ve verzi 4 vypnutá): kapacitu zvířat určují příbytky a spižírna (místo úrovně hráče)
     maxCap: 60,             // nejvíc míst pro jeden druh
     moveDays: 0,            // přesouvání budov: 0 = kdykoli (testování), později 30 = jednou za měsíc
     capacityCheck: false,   // DOČASNĚ vypnuto: chycená zvířata se ukládají bez ohledu na volná místa v příbytku
@@ -350,6 +352,9 @@ export const DEFAULTS = {
   ],
   // Odznaky: kind = species | catches | km | verified | quiz | level | stamps | released | evolved | album (album = id alba)
   badges: [
+    { id: 'rada7', name: 'Týden v kuse', icon: '🔥', kind: 'streak', value: 7, album: '' },
+    { id: 'rada30', name: 'Měsíc v kuse', icon: '🔥', kind: 'streak', value: 30, album: '' },
+    { id: 'rada100', name: '100 dní v kuse', icon: '🔥', kind: 'streak', value: 100, album: '' },
     { id: 'druhy5', name: '5 druhů', icon: '🌱', kind: 'species', value: 5, album: '' },
     { id: 'druhy25', name: '25 druhů', icon: '🌿', kind: 'species', value: 25, album: '' },
     { id: 'druhy50', name: '50 druhů', icon: '🌳', kind: 'species', value: 50, album: '' },
@@ -398,7 +403,7 @@ export const SCHEMA = [
   { sec: 'general', title: 'Obecné', fields: [
     ['appName', 'Název aplikace', 'text'], ['headerTitle', 'Nápis v horní liště', 'text'],
     ['adminPin', 'PIN do adminu', 'text'],
-    ['splashSeconds', 'Úvodní obrazovka: minimální délka zobrazení (s)', 'number', { min: 1, max: 30, step: 1 }],
+    ['splashSeconds', 'Úvodní obrazovka: tlačítko Spustit nejpozději po (s)', 'number', { min: 1, max: 30, step: 1 }],
     ['author', 'Autor aplikace', 'text'],
     ['controller', 'Správce osobních údajů (jméno nebo firma)', 'text'],
     ['contact', 'Kontaktní e-mail', 'text']
@@ -460,7 +465,7 @@ export const SCHEMA = [
     ['highAccuracy', 'Vysoká přesnost GPS', 'bool']
   ] },
   { sec: 'map', title: 'Mapa', fields: [
-    ['style', 'Styl mapy', 'select', { options: [['auto', 'Krajina (den/noc podle slunce)'], ['papir', 'Papír a akvarel (den/noc podle slunce)']] }],
+    ['style', 'Styl mapy', 'select', { options: [['papir', 'Papír a akvarel (den/noc podle slunce)']] }],
     ['compass', 'Tlačítko režimu kompasu', 'bool'],
     ['quickLook', 'Tlačítko „Vzhled“ na mapě (bez PINu)', 'bool'],
     ['vectorUrl', 'Vektorová mapa (TileJSON URL)', 'text'],
@@ -529,15 +534,15 @@ export const SCHEMA = [
     ['radii', 'Nabídka poloměrů (m, čárkou)', 'text'], ['defaultRadius', 'Výchozí poloměr (m)', 'number', { min: 500, max: 20000, step: 500 }],
     ['maxRadius', 'Největší poloměr (m)', 'number', { min: 1000, max: 20000, step: 500 }]
   ] },
-  { sec: 'farm', title: 'Moje farma', fields: [
+  { sec: 'farm', off: true, title: 'Moje farma', fields: [
     ['enabled', 'Farma zapnutá (kapacita podle příbytků)', 'bool'], ['maxCap', 'Nejvíc míst pro jeden druh', 'number', { min: 5, max: 200, step: 5 }], ['moveDays', 'Přesun budov jednou za (dní, 0 = kdykoli)', 'number', { min: 0, max: 365, step: 1 }],
     ['capacityCheck', 'Hlídat kapacitu příbytků při chytání', 'bool'], ['deedDays', 'Skutečný čin stejného druhu jednou za (dní)', 'number', { min: 0, max: 365, step: 1 }], ['breedChance', 'Chov: denní šance na mládě', 'number', { min: 0, max: 1, step: 0.05 }]
   ] },
-  { sec: 'games', title: 'Minihry', fields: [
+  { sec: 'games', off: true, title: 'Minihry', fields: [
     ['dailyCones', 'Denní strop šišek z miniher', 'number', { min: 0, step: 5 }],
     ['conesEasy', 'Odměna: lehká', 'number', { min: 0, step: 1 }], ['conesMid', 'Odměna: střední', 'number', { min: 0, step: 1 }], ['conesHard', 'Odměna: těžká', 'number', { min: 0, step: 1 }]
   ] },
-  { sec: 'planner', title: 'Plánovač procházek', fields: [
+  { sec: 'planner', off: true, title: 'Plánovač procházek', fields: [
     ['kmh', 'Rychlost pro odhad času (km/h)', 'number', { min: 1, max: 8, step: 0.5 }],
     ['cpCones', 'Odměna na trase: šišky', 'number', { min: 0, step: 1 }], ['cpXp', 'Odměna na trase: XP', 'number', { min: 0, step: 1 }],
     ['finishCones', 'Celá trasa: šišky', 'number', { min: 0, step: 1 }], ['finishXp', 'Celá trasa: XP', 'number', { min: 0, step: 1 }],
@@ -585,15 +590,15 @@ export const SCHEMA = [
     ['rarityLevel', 'Vzácnost odemčená od úrovně (vzácnost:úroveň, …)', 'text'],
     ['unlocks', 'Funkce od úrovně (funkce:úroveň, …)', 'text'],
     ['questsPerDay', 'Denních úkolů', 'number', { min: 0, max: 10, step: 1 }], ['questsPerWeek', 'Týdenních úkolů', 'number', { min: 0, max: 10, step: 1 }],
-    ['quizBonus', 'Bonus za kvíz ke všem vlastnostem', 'number', { min: 0, max: 50, step: 1 }],
+    ['quizConesPerDay', 'Kvízy: za kolik denně jsou šišky', 'number', { min: 0, max: 20, step: 1 }], ['streakSkip', 'Řada dní: povolené vynechání za měsíc', 'number', { min: 0, max: 10, step: 1 }],
     ['conesPerKm', 'Šišky za 1 km chůze', 'number', { min: 0, step: 1 }],
     ['trainCost', 'Trénink: cena (šišky)', 'number', { min: 0, step: 1 }], ['trainPerDay', 'Trénink: max. denně na jedince', 'number', { min: 0, step: 1 }],
     ['trainXp', 'Trénink: XP jedince', 'number', { min: 0, step: 1 }], ['trainGain', 'Trénink: + k nejslabší vlastnosti', 'number', { min: 0, step: 1 }],
-    ['stageXp', 'Vývoj: XP jedince na stádium (× pořadí)', 'number', { min: 1, step: 1 }], ['evolveCost', 'Vývoj: body na stádium (× pořadí)', 'number', { min: 0, step: 1 }],
+    ['stageXp', 'Vývoj: XP jedince na stádium (× pořadí)', 'number', { min: 1, step: 1 }], ['evolveCost', 'Vývoj: šišky na stádium (× pořadí)', 'number', { min: 0, step: 1 }],
     ['evolveBoost', 'Vývoj: % ke všem vlastnostem', 'number', { min: 0, max: 100, step: 1 }],
     ['progressStyle', 'Postup ke stádiu', 'select', { options: [['ring', 'Kroužek (koláč)'], ['stars', 'Hvězdičky'], ['bar', 'Proužek']] }],
     ['stages', 'Vývojová stádia (řádek „Skupina: stádia“, bez skupiny = výchozí)', 'textarea'],
-    ['releaseBase', 'Vypuštění: základ vědomostí', 'number', { min: 0, step: 1 }], ['know', 'Vědomosti za učení (zdroj:počet)', 'text'], ['releaseRarity', 'Vypuštění: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
+    ['releaseBase', 'Vypuštění: základ šišek', 'number', { min: 0, step: 1 }], ['know', 'Šišky za učení (zdroj:počet)', 'text'], ['releaseRarity', 'Vypuštění: násobek podle vzácnosti (vzácnost:násobek)', 'text'],
     ['radiusMult', 'Dalekohled: násobek dosahu', 'number', { min: 1, max: 10, step: 0.1 }], ['radiusMinutes', 'Dalekohled: minut', 'number', { min: 1, step: 1 }],
     ['lensMult', 'Objektiv: násobek zelené zóny', 'number', { min: 1, max: 5, step: 0.1 }],
     ['xpContest', 'XP za odehranou soutěž', 'number', { min: 0, step: 1 }]
@@ -625,27 +630,27 @@ export const LISTS = [
   { sec: 'foods', title: 'Potrava', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
   { sec: 'rarities', title: 'Vzácnosti', label: o => o.id + ' – ' + o.name, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text'], ['weight', 'Váha spawnu', 'number', { min: 0, step: 0.01 }]] },
   { sec: 'rarityGame', title: 'Foto minihra podle vzácnosti', label: o => 'Vzácnost ' + o.id, fields: [['id', 'ID vzácnosti', 'text'], ['zone', 'Šířka zelené zóny (0–1)', 'number', { min: 0.02, max: 1, step: 0.01 }], ['speed', 'Rychlost značky', 'number', { min: 0.1, max: 20, step: 0.1 }]] },
-  { sec: 'stats', title: 'Statistiky', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
+  { sec: 'stats', off: true, title: 'Statistiky', label: o => o.name || o.id, fields: [['id', 'ID', 'text'], ['name', 'Název', 'text']] },
   { sec: 'badges', title: 'Odznaky', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'],
-    ['kind', 'Co se počítá', 'select', { options: [['species', 'druhy'], ['catches', 'úlovky'], ['km', 'km chůze'], ['verified', 'skutečné fotky'], ['quiz', 'správné odpovědi'], ['level', 'úroveň'], ['stamps', 'razítka'], ['released', 'vypuštěná zvířata'], ['evolved', 'vývoj zvířat'], ['album', 'hotové album']] }],
+    ['kind', 'Co se počítá', 'select', { options: [['species', 'druhy'], ['catches', 'úlovky'], ['km', 'km chůze'], ['verified', 'skutečné fotky'], ['quiz', 'správné odpovědi'], ['streak', 'dní v kuse'], ['level', 'úroveň'], ['stamps', 'razítka'], ['released', 'vypuštěná zvířata'], ['evolved', 'vývoj zvířat'], ['album', 'hotové album']] }],
     ['value', 'Kolik', 'number', { min: 1, step: 1 }], ['album', 'Album (id, jen u „hotové album“)', 'text']
   ] },
   { sec: 'albums', title: 'Sběratelská alba', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['species', 'Druhy (id oddělená čárkou)', 'textarea']
   ] },
-  { sec: 'quests', title: 'Úkoly (šablony)', label: o => (o.period === 'week' ? '📅 ' : '☀️ ') + (o.name || o.id), fields: [
+  { sec: 'quests', off: true, title: 'Úkoly (šablony)', label: o => (o.period === 'week' ? '📅 ' : '☀️ ') + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['period', 'Období', 'select', { options: [['day', 'denní'], ['week', 'týdenní']] }],
     ['kind', 'Co splnit', 'select', { options: [['catch', 'chytit zvíře'], ['catchGroup', 'chytit ze skupiny'], ['catchBio', 'chytit v biotopu'], ['newSpecies', 'nový druh'], ['walk', 'ujít (m)'], ['photo', 'skutečná fotka'], ['quiz', 'správná odpověď v kvízu']] }],
     ['param', 'Skupina nebo biotop (id)', 'text'], ['count', 'Kolik', 'number', { min: 1, step: 1 }],
     ['xp', 'Odměna XP', 'number', { min: 0, step: 1 }], ['cones', 'Odměna šišky', 'number', { min: 0, step: 1 }]
   ] },
-  { sec: 'shop', title: 'Obchod', label: o => (o.icon || '') + ' ' + (o.name || o.id) + ' – ' + o.price, fields: [
+  { sec: 'shop', off: true, title: 'Obchod', label: o => (o.icon || '') + ' ' + (o.name || o.id) + ' – ' + o.price, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['price', 'Cena (šišky)', 'number', { min: 0, step: 1 }],
     ['effect', 'Účinek', 'select', { options: [['feed', 'krmení (XP jedince)'], ['lure', 'návnada'], ['lens', 'objektiv'], ['radius', 'dalekohled']] }],
     ['value', 'Hodnota (XP u krmení)', 'number', { min: 0, step: 1 }], ['desc', 'Popis', 'text']
   ] },
-  { sec: 'myths', title: 'Bájní tvorové (tajná sekce)', label: o => o.name || o.id, fields: [
+  { sec: 'myths', title: 'Tajemní tvorové (bájní a sváteční)', label: o => o.name || o.id, fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['active', 'Aktivní', 'bool'], ['bio', 'Biotopy nebo výšková pásma (id, …)', 'text'],
     ['months', 'Měsíce (prázdné = celý rok)', 'text'], ['night', 'Jen v noci', 'bool'], ['fest', 'Svátek (dusicky, mikulas, vanoce, velikonoce, hrady; prázdné = bájný tvor)', 'text'], ['easy', 'Lehčí chytání (pro děti)', 'bool'], ['fact', 'Pověst / zajímavost', 'textarea']
   ] },
@@ -654,7 +659,7 @@ export const LISTS = [
     ['boost', 'Násobky (druh nebo skupina:násobek, …)', 'text'], ['text', 'Popis', 'textarea']
   ] },
   { sec: 'calendar', title: 'Kalendář přírody', label: o => 'Měsíc ' + o.id, fields: [['id', 'Měsíc (1–12)', 'text'], ['text', 'Text', 'textarea']] },
-  { sec: 'enclosures', title: 'Ubikace ve sbírce', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
+  { sec: 'enclosures', off: true, title: 'Ubikace ve sbírce', label: o => (o.icon || '') + ' ' + (o.name || o.id), fields: [
     ['id', 'ID', 'text'], ['name', 'Název', 'text'], ['icon', 'Ikona (emoji)', 'text'], ['groups', 'Skupiny (oddělené čárkou)', 'text']
   ] }
 ];
@@ -819,6 +824,13 @@ export function mergeDefaults(cfg) {
     return m;
   });
   delete out.listsKnown; delete out.speciesKnown;
+  // Verze 5 → 6 (aplikace 4.0, ořez): jedna měna, vývoj za šišky, farma vypnutá, tajemní tvorové kdykoli, jen akvarelová mapa
+  if (!(Number(cfg.version) >= 6)) {
+    Object.assign(out.game, { unlocks: DEFAULTS.game.unlocks, evolveCost: DEFAULTS.game.evolveCost, know: DEFAULTS.game.know });
+    Object.assign(out.world, { mythChance: DEFAULTS.world.mythChance, mythMinQuality: DEFAULTS.world.mythMinQuality, mythSeconds: DEFAULTS.world.mythSeconds });
+    out.farm.enabled = false; out.general.hernaTest = false;
+  }
+  if (out.map.style !== 'papir') out.map.style = 'papir';
   // Verze 4 → 5: vestavěné předvolby pryč, vlastní zůstanou
   if (!(Number(cfg.version) >= 5)) out.mapPresets = out.mapPresets.filter(p => !(p && OLD_PRESETS.has(p.name)));
   // Verze 2 → 3: doplnit nové výchozí předvolby vzhledu (vlastní předvolby zůstanou)

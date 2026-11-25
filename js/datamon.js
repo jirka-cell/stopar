@@ -72,6 +72,7 @@ export function chipHTML(m, rate, open) {
 export function dataHTML(m, day, storage, rate) {
   const st = storage && storage.quota ? `${fmtBytes(storage.usage)} z dostupných ${fmtBytes(storage.quota)}` : 'nezjištěno';
   return `<h2>Správa dat</h2><p class="msg small">Co aplikace stahuje z internetu. Na mobilních datech pomůže stáhnout okolí dopředu přes Wi-Fi (Offline mapy).</p>
+  <button class="btn full" data-act="offline">Offline mapy – stáhnout okolí</button>
   <div class="tools"><div class="album"><b>Teď</b><small>${fmtBytes(rate)}/s</small></div><div class="album"><b>Dnes</b><small>${fmtBytes(totalOf(day && day.cats))}</small></div><div class="album"><b>Od spuštění</b><small>${fmtBytes(totalOf(m.session))}</small></div></div>
   ${sparkSVG(m.hist, 300, 54)}
   <h3>Dnes podle druhu</h3>${bars(day ? day.cats : {})}

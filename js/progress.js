@@ -1,5 +1,6 @@
 // Postup hráče: XP a úrovně, odznaky, sběratelská alba, denní a týdenní úkoly, kvíz po úlovku
 import { esc, parseMap } from './config.js';
+import { streak } from './calendar.js';
 import { hash01 } from './geo.js';
 import { ic, ICON_FILES } from './icons.js';
 
@@ -42,6 +43,7 @@ function badgeValue(b, st, level, cfg) {
   switch (b.kind) {
     case 'species': return caughtN;
     case 'level': return level;
+    case 'streak': return streak(st.days || {}, new Date(), num(cfg.game.streakSkip, 3));
     case 'album': { const a = cfg.albums.find(x => x.id === b.album); if (!a) return 0; const p = albumProgress(a, st.caught); return p.total && p.have >= p.total ? 1 : 0; }
     default: return num(st.counters[b.kind]);
   }
@@ -129,14 +131,11 @@ export function makeQuiz(sp, all, rand = Math.random) {
 /* ---------- profil ---------- */
 export function profileHTML(cfg, st, lv, extra = '') {
   const G = cfg.game, pct = Math.round(lv.into / lv.need * 100);
-  const quests = currentQuests(cfg, st);
-  const qrow = i => `<div class="quest${i.done ? ' done' : ''}"><span>${i.done ? '✔' : esc(i.t.period === 'week' ? '📅' : '☀️')} ${esc(i.t.name)}</span><span>${i.t.kind === 'walk' ? (i.p / 1000).toFixed(1).replace('.', ',') + ' / ' + (num(i.t.count) / 1000).toFixed(1).replace('.', ',') + ' km' : i.p + ' / ' + num(i.t.count, 1)}</span></div>`;
   const nextUnlocks = Object.entries(parseMap(G.unlocks)).concat(Object.entries(parseMap(G.rarityLevel)).map(([r, l]) => ['vzacnost' + r, l]))
     .filter(([, l]) => l > lv.level).sort((a, b) => a[1] - b[1]).slice(0, 3);
-  return `<h2>Úroveň ${lv.level}</h2>
+  return `<h2>Odznaky a alba</h2><p class="msg small">Úroveň ${lv.level}</p>
   <div class="prog" title="${lv.into} / ${lv.need} XP"><div style="width:${pct}%"></div></div><p class="msg small">${lv.into} / ${lv.need} XP do další úrovně · celkem ${Math.round(st.xp)} XP</p>
   ${nextUnlocks.length ? `<p class="msg small">Brzy odemkneš: ${nextUnlocks.map(([k, l]) => esc(unlockName(cfg, k)) + ' (úr. ' + l + ')').join(', ')}</p>` : ''}
-  <h3>Úkoly</h3>${quests.map(qrow).join('') || '<p class="msg small">Žádné úkoly.</p>'}
   <h3>Sběratelská alba</h3><div class="albums">${cfg.albums.map(a => { const p = albumProgress(a, st.caught); return `<div class="album${p.have >= p.total && p.total ? ' done' : ''}"><span class="aic" aria-hidden="true">${ICON_FILES.has('alb_' + a.id) ? ic('alb_' + a.id) : esc(a.icon)}</span><b>${esc(a.name)}</b><small>${p.have} / ${p.total}</small><div class="prog"><div style="width:${p.total ? p.have / p.total * 100 : 0}%"></div></div></div>`; }).join('')}</div>
   <h3>Odznaky</h3><div class="badges">${cfg.badges.map(b => `<div class="badge${st.badges[b.id] ? ' on' : ''}" title="${esc(b.name)}">${ICON_FILES.has('badge_' + b.id) ? `<span class="medal full" aria-hidden="true">${ic('badge_' + b.id)}</span>` : ICON_FILES.has('badge') ? `<span class="medal" aria-hidden="true">${ic('badge')}<i>${esc(b.icon)}</i></span>` : `<span aria-hidden="true">${esc(b.icon)}</span>`}<small>${esc(b.name)}</small></div>`).join('')}</div>
   ${extra}
