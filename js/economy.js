@@ -6,22 +6,25 @@ import { power } from './collection.js';
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 
 /* ---------- vývojová stádia ---------- */
-// Admin: řádek „Skupina: stádium, stádium, …“, výchozí řádek bez skupiny
-export function stageNames(cfg, group) {
-  let def = ['mládě', 'dospělý', 'mistr'];
+// Admin: řádek „Skupina: stádium, stádium, …“ nebo „id druhu, id druhu: …“ (přednost má druh), výchozí řádek bez skupiny
+export function stageNames(cfg, group, id = '') {
+  let def = ['mládě', 'dospělý', 'mistr'], byGroup = null;
   for (const line of String(cfg.game.stages || '').split('\n')) {
     const m = /^\s*([^:]*):\s*(.+)$/.exec(line); if (!m) continue;
     const names = m[2].split(',').map(s => s.trim()).filter(Boolean);
     if (names.length < 2) continue;
-    if (!m[1].trim()) def = names; else if (m[1].trim() === group) return names;
+    const keys = m[1].split(',').map(s => s.trim()).filter(Boolean);
+    if (!keys.length) def = names;
+    else if (id && keys.includes(id)) return names;
+    else if (!byGroup && keys.includes(group)) byGroup = names;
   }
-  return def;
+  return byGroup || def;
 }
 // Co je potřeba na další stádium: šišky (cena × pořadí stádia)
 export function evolveNeed(cfg, a) {
   return { cones: Math.round(num(cfg.game.evolveCost, 100) * (a.stage + 1)) };
 }
-export const isMaster = (cfg, a, group) => a.stage >= stageNames(cfg, group).length - 1;
+export const isMaster = (cfg, a, group) => a.stage >= stageNames(cfg, group, a.sp).length - 1;
 export function evolve(cfg, st, a, group) {
   if (isMaster(cfg, a, group)) return 'max';
   const n = evolveNeed(cfg, a);
@@ -89,7 +92,7 @@ export function cleanInv(inv) {
 /* ---------- zobrazení ---------- */
 // Postup k dalšímu stádiu: kroužek (koláč), hvězdičky nebo proužek – volba v adminu
 function stageInfo(cfg, a, group) {
-  const names = stageNames(cfg, group), master = isMaster(cfg, a, group);
+  const names = stageNames(cfg, group, a.sp), master = isMaster(cfg, a, group);
   const p = master ? 1 : a.stage / Math.max(1, names.length - 1);
   return { p, label: master ? names[a.stage] : `${names[a.stage]} → ${names[a.stage + 1]}: ${evolveNeed(cfg, a).cones} šišek` };
 }
@@ -107,7 +110,7 @@ export function stageProgressHTML(cfg, a, group) {
 }
 
 export function animalActionsHTML(cfg, st, a, sp, can) {
-  const names = stageNames(cfg, sp.group), master = isMaster(cfg, a, sp.group), n = evolveNeed(cfg, a);
+  const names = stageNames(cfg, sp.group, sp.id), master = isMaster(cfg, a, sp.group), n = evolveNeed(cfg, a);
   let h = stageProgressHTML(cfg, a, sp.group) + '<div class="tools">';
   h += master ? `<button class="btn sm" disabled>${esc(names[a.stage])} – nejvyšší stádium</button>`
     : `<button class="btn sm${st.cones >= n.cones ? ' primary' : ''}" data-act="evolve">Vyvinout na ${esc(names[a.stage + 1])} (${n.cones} ${cone})</button>`;

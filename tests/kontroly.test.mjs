@@ -116,7 +116,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 8);
+  assert.equal(m.version, 9);
   assert.equal(m.spawn.density, 40, 'stará výchozí hustota 5 se zvedne na 40');
   assert.equal(mergeDefaults({ version: 6, spawn: { density: 12 } }).spawn.density, 12, 'vlastní hustota zůstane');
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
@@ -1078,4 +1078,39 @@ test('řada dní v kuse: v měsíci se smí vynechat nejvýš 3 dny', async () =
   delete days[dayKey(new Date(2026, 10, 15))];
   assert.equal(streak(days, today), 7, 'čtvrté vynechání v listopadu řadu ukončí');
   assert.equal(streak({}, today), 0);
+});
+
+test('doložené opravy údajů o druzích se použijí a sedí na existující druhy', async () => {
+  const { SPECIES_FIXES } = await import('../js/species-fixes.js');
+  const { stageNames } = await import('../js/economy.js');
+  const ids = new Set(DEFAULTS.species.map(s => s.id)), edu = new Set(EDU_FIELDS.map(f => f[0] || f.key || f));
+  for (const [id, f] of Object.entries(SPECIES_FIXES)) {
+    assert.ok(ids.has(id), 'oprava pro neexistující druh ' + id);
+    for (const k of Object.keys(f)) assert.ok(['name', 'lat', 'fact', 'edu'].includes(k), 'neznámé pole ' + k);
+  }
+  const g = id => DEFAULTS.species.find(s => s.id === id);
+  assert.equal(g('strizlik').lat, 'Troglodytes troglodytes');
+  assert.equal(g('strnadrakosni').lat, 'Emberiza schoeniclus');
+  assert.match(g('kapr').edu.redlist, /sazana/, 'u kapra vysvětlení divoké formy');
+  assert.deepEqual(stageNames(DEFAULTS, 'Hmyz', 'kudlanka'), ['mladá nymfa', 'starší nymfa', 'dospělec', 'mistr'], 'kudlanka nemá kuklu');
+  assert.deepEqual(stageNames(DEFAULTS, 'Hmyz', 'babocka')[1], 'kukla', 'motýl kuklu má');
+  assert.equal(stageNames(DEFAULTS, 'Obojživelníci', 'mlok')[0], 'larva');
+  const m = mergeDefaults({ version: 8, species: [{ ...g('strizlik'), lat: 'Nannus troglodytes' }], game: { stages: 'Hmyz: larva, kukla, dospělec, mistr' } });
+  assert.equal(m.species.find(s => s.id === 'strizlik').lat, 'Troglodytes troglodytes', 'oprava i v uloženém nastavení');
+  assert.equal(stageNames(m, 'Hmyz', 'vazka')[0], 'mladá nymfa');
+});
+
+test('kvíz: 10 otázek z chycených zvířat, stejný seed = stejný kvíz, správná odpověď mezi možnostmi, jméno v textu zakryté', async () => {
+  const Q = await import('../js/quiz.js');
+  const all = DEFAULTS.species.filter(s => s.active), ids = ['kos', 'liska', 'jezek', 'skokan', 'babocka', 'vazka', 'strizlik'];
+  const a = Q.buildQuiz(ids, all, Q.seeded(1)), b = Q.buildQuiz(ids, all, Q.seeded(1));
+  assert.equal(a.length, 10); assert.deepEqual(a, b);
+  for (const q of a) {
+    assert.ok(ids.includes(q.sp), 'otázka jen o chyceném zvířeti');
+    assert.equal(q.answers.length, 3); assert.equal(new Set(q.answers).size, 3, 'odpovědi se neopakují');
+    assert.ok(q.correct >= 0 && q.correct < 3);
+  }
+  assert.ok(Object.values(a.reduce((m, q) => (m[q.sp] = (m[q.sp] || 0) + 1, m), {})).every(n => n <= 2), 'druh nejvýš 2×');
+  assert.equal(Q.hideName('Dospělá vážka loví za letu.', 'Vážka ploská'), 'Dospělá … loví za letu.');
+  assert.equal(Q.buildQuiz(['kos'], all, Q.seeded(2)).length <= 2, true);
 });

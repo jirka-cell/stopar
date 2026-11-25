@@ -7,15 +7,20 @@ import { BATCH2 } from './species-batch2.js';
 import { BATCH3 } from './species-batch3.js';
 import { BATCH4 } from './species-batch4.js';
 import { BATCH5 } from './species-batch5.js';
+import { SPECIES_FIXES } from './species-fixes.js';
 import { SIGNS } from './signs.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 8;
+export const CONFIG_VERSION = 9;
 // Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
 const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
 // Text do HTML: znaky, které by šlo zneužít k vložení kódu, se nahradí
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Doložené opravy údajů (js/species-fixes.js) – přepíšou jen opravená pole
+export const applyFix = s => { const f = SPECIES_FIXES[s.id]; return f ? { ...s, ...f, edu: { ...(s.edu || {}), ...(f.edu || {}) } } : s; };
+const STAGE_FIX = 'colek, colekhorsky, colekkarpatsky, colekvelky, mlok: larva, mladý, dospělý, mistr\ncvrcek, knezice, kobylka, kobylkakrovistni, kudlanka, rumenice, sarance, vazka, vazkacernorita, vroubenka: mladá nymfa, starší nymfa, dospělec, mistr';
 
 export const DEFAULTS = {
   version: CONFIG_VERSION,
@@ -194,7 +199,7 @@ export const DEFAULTS = {
     { id: 'mleko', name: 'Ptačí mléko' },
     { id: 'korinky', name: 'Kořínky' }
   ],
-  species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3, ...BATCH4, ...BATCH5].map(s => SIGNS[s.id] && !String((s.edu || {}).signs || '').trim() ? { ...s, edu: { ...s.edu, signs: SIGNS[s.id] } } : s),
+  species: [...SPECIES, ...BATCH1, ...BATCH2, ...BATCH3, ...BATCH4, ...BATCH5].map(s => SIGNS[s.id] && !String((s.edu || {}).signs || '').trim() ? { ...s, edu: { ...s.edu, signs: SIGNS[s.id] } } : s).map(applyFix),
   regions: [               // výšková pásma: id:od_výšky_m (hranice lesa se liší podle zeměpisné šířky)
     { id: 'cz', name: 'Česko', zones: 'nizina:0, pahorkatina:300, vrchovina:600, hory:900, nad_lesem:1300' }
   ],
@@ -229,7 +234,7 @@ export const DEFAULTS = {
     evolveBoost: 10,        // % ke všem vlastnostem za stádium
     progressStyle: 'ring',  // ring = kroužek, stars = hvězdičky, bar = proužek
     // vývojová stádia: řádek bez skupiny = výchozí, jinak „Skupina: stádia“
-    stages: ': mládě, dospělý, mistr\nObojživelníci: pulec, mladý, dospělý, mistr\nHmyz: larva, kukla, dospělec, mistr\nRyby: plůdek, mladá ryba, dospělá, mistr',
+    stages: ': mládě, dospělý, mistr\nObojživelníci: pulec, mladý, dospělý, mistr\nHmyz: larva, kukla, dospělec, mistr\nRyby: plůdek, mladá ryba, dospělá, mistr\n' + STAGE_FIX, // čolci a mlok mají larvu, hmyz s proměnou nedokonalou nymfu (nemá kuklu)
     releaseBase: 5, releaseRarity: '1:1, 2:2.5, 3:6', // vědomosti za vypuštění = základ × vzácnost × (stádium + 1)
     know: 'quiz:15, track:5, task:10, journal:5, newSpecies:10, keyId:5', // šišky za učení
     quizConesPerDay: 3,     // za kolik kvízů denně jsou šišky
@@ -824,6 +829,11 @@ export function mergeDefaults(cfg) {
     return m;
   });
   delete out.listsKnown; delete out.speciesKnown;
+  // Verze 8 → 9: doložené opravy údajů o druzích a názvy stádií (čolci, mlok, hmyz s nymfou) i v uloženém nastavení
+  if (!(Number(cfg.version) >= 9)) {
+    out.species = out.species.map(applyFix);
+    if (!String(out.game.stages || '').includes('nymfa')) out.game.stages = String(out.game.stages || '').trim() + '\n' + STAGE_FIX;
+  }
   // Verze 6 → 7: vyšší výchozí hustota zvířat (5 → 40); vlastní hodnota zůstane
   if (!(Number(cfg.version) >= 7) && Number(out.spawn.density) === 5) out.spawn.density = DEFAULTS.spawn.density;
   // Verze 5 → 6 (aplikace 4.0, ořez): jedna měna, vývoj za šišky, farma vypnutá, tajemní tvorové kdykoli, jen akvarelová mapa

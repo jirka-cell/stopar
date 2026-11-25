@@ -1,5 +1,5 @@
 // Service worker: offline aplikace + cache mapových dat (vektorové dlaždice, terén, trasy, písma)
-const VERSION = 'stopar-v4.1.0';
+const VERSION = 'stopar-v4.2.0';
 const SHELL = VERSION + '-shell';
 const TILES = 'stopar-tiles-v2';   // nový název = stará obrázková cache z Leafletu se při aktivaci smaže
 const STATIC = 'stopar-static';    // popis vektorové mapy (TileJSON) a písma popisků
@@ -7,7 +7,7 @@ const META = 'stopar-meta';
 const OFFLINE = 'stopar-offline';   // stažené oblasti (offline mapy) – nepromazává se
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/splash.js', 'js/splash-data.js', 'js/signs.js', 'js/calendar.js', 'js/atlas.js', 'js/keydata.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/species-batch5.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/dog.js', 'js/stages.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/offline.js', 'js/extras.js', 'js/datamon.js', 'js/icons.js', 'js/tasks.js', 'vendor/three/three.module.min.js', 'vendor/three/addons/loaders/GLTFLoader.js', 'vendor/three/addons/utils/BufferGeometryUtils.js',
+  'js/app.js', 'js/splash.js', 'js/splash-data.js', 'js/signs.js', 'js/calendar.js', 'js/atlas.js', 'js/keydata.js', 'js/config.js', 'js/store.js', 'js/geo.js', 'js/osm.js', 'js/spawn.js', 'js/birds.js', 'js/admin.js', 'js/mapstyle.js', 'js/species.js', 'js/species-batch1.js', 'js/species-batch2.js', 'js/species-batch3.js', 'js/species-batch4.js', 'js/species-batch5.js', 'js/species-fixes.js', 'js/quiz.js', 'js/elevation.js', 'js/legal.js', 'js/checklist.js', 'js/collection.js', 'js/art.js', 'js/images.js', 'js/progress.js', 'js/economy.js', 'js/world.js', 'js/field.js', 'js/family.js', 'js/qr.js', 'js/dog.js', 'js/stages.js', 'js/mapui.js', 'js/myths.js', 'js/treasure.js', 'js/trails.js', 'js/offline.js', 'js/extras.js', 'js/datamon.js', 'js/icons.js', 'js/tasks.js', 'vendor/three/three.module.min.js', 'vendor/three/addons/loaders/GLTFLoader.js', 'vendor/three/addons/utils/BufferGeometryUtils.js',
   'images/mapa/tex_papir.webp', 'images/mapa/tex_les.webp', 'images/mapa/tex_louka.webp', 'images/mapa/tex_pole.webp', 'images/mapa/tex_mokrad.webp', 'images/mapa/tex_voda.webp', 'images/mapa/tex_skaly.webp', 'images/mapa/tex_pisek.webp', 'images/mapa/tex_mesto.webp', 'images/mapa/tex_park.webp',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre-contour/index.min.js',
   'images/dog/sit.webp', 'images/dog/lookR.webp', 'images/dog/yawn1.webp', 'images/dog/yawn.webp', 'images/dog/scratch.webp', 'images/dog/scratch2.webp', 'images/dog/wag.webp',

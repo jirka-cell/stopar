@@ -162,6 +162,8 @@ ul.facts{margin:6px 0;padding-left:18px;font-size:13px;line-height:1.45}
 #hbio.link{text-decoration:underline dotted;cursor:pointer}
 .tgmk{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#fff;border:2px solid #b5562b;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}
 .tgmk span{transform:rotate(45deg);font-size:15px}
+.qzimg{display:flex;justify-content:center;margin:4px 0 8px}.qzimg img{max-width:180px;max-height:160px;object-fit:contain}
+.answers .btn.right{background:#cfe6bf;border-color:#5b8f3a}.answers .btn.wrong{background:#f2c9bf;border-color:#b5562b}
 .tgmk.pic{width:40px;height:40px;border:0;background:none;box-shadow:none;border-radius:0;transform:none}
 .tgmk.pic img{width:40px;height:40px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
 .tgmk.pic.done img{opacity:.55}

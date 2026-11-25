@@ -13,7 +13,7 @@ export function wildStage(cfg, group, r, month) {
   return adult;
 }
 
-export const isPupa = (cfg, sp, stage) => stage === 1 && stageNames(cfg, sp.group)[1] === 'kukla';
+export const isPupa = (cfg, sp, stage) => stage === 1 && stageNames(cfg, sp.group, sp.id)[1] === 'kukla';
 
 // Potrava podle stádia (stejný zápis jako sp.food: „hmyz:1, zrni:0.5“); '' = nejí
 const GROUP_FOOD = {
