@@ -18,13 +18,28 @@ export const STYLES = {
   papirnoc: { name: 'Papír a akvarel – noc',
     bg: '#2b2620', wood: '#3a4230', grass: '#353a2a', farm: '#3c3828', wet: '#2f3c36', water: '#2e4a55', waterLine: '#4f7380', rock: '#45403a', sand: '#463e2e',
     res: '#38322a', ind: '#3a332b', park: '#3a4630', bld: '#4a4236', bldLine: '#6a5e4c', road: '#a89a80', roadCase: '#1e1a15', minor: '#7a6e5a', path: '#b08a5a', rail: '#7a6e5a',
-    label: '#e8dcc4', halo: '#2b2620', shade: '#e8dcc4', game: '#d9b878' }
+    label: '#e8dcc4', halo: '#2b2620', shade: '#e8dcc4', game: '#d9b878' },
+  // pohádková mapa: plochy jsou akvarelové textury (images/mapa/tex_*.webp), barvy jen pro čáry a popisky
+  pohadka: { name: 'Pohádka',
+    bg: '#f2e8d2', wood: '#9fbf7f', grass: '#cfe0a0', farm: '#e8d398', wet: '#b6d0b0', water: '#8fc4c4', waterLine: '#6fb0b8', rock: '#cfc4ad', sand: '#ead8a8',
+    res: '#e6d2b4', ind: '#ddcbb0', park: '#b8d58f', bld: '#d9c09a', bldLine: '#b89a70', road: '#fbf3e0', roadCase: '#c4a67a', minor: '#f4e8cc', path: '#a8784a', rail: '#9a8468',
+    label: '#5e4326', halo: '#f7eedb', shade: '#6a5136', game: '#7a5a2f',
+    tex: { bg: 'tex_papir', wood: 'tex_les', grass: 'tex_louka', farm: 'tex_pole', wet: 'tex_mokrad', water: 'tex_voda', rock: 'tex_skaly', sand: 'tex_pisek', res: 'tex_mesto', park: 'tex_park' } },
+  // pohádkový soumrak: stejné textury přitlumené do teplého fialovohnědého večera (ne černá noc)
+  pohadkanoc: { name: 'Pohádka – soumrak',
+    bg: '#4a3a4a', wood: '#4f5a44', grass: '#5c5e48', farm: '#6a5c44', wet: '#4c5a54', water: '#3f5a68', waterLine: '#6f8fa0', rock: '#5e5650', sand: '#6a5e4c',
+    res: '#5a4a48', ind: '#564844', park: '#55603f', bld: '#6a5a50', bldLine: '#8a7864', road: '#c8b490', roadCase: '#3a2e34', minor: '#9a8a70', path: '#d0a070', rail: '#8a7a68',
+    label: '#f4e6cc', halo: '#3a2e38', shade: '#f0dcc0', game: '#f0c878',
+    tex: { wood: 'tex_les', grass: 'tex_louka', farm: 'tex_pole', wet: 'tex_mokrad', water: 'tex_voda', rock: 'tex_skaly', sand: 'tex_pisek', res: 'tex_mesto', park: 'tex_park' }, texOpacity: .45 }
 };
+// Textury pohádkových stylů (názvy obrázků v mapě = soubory v images/mapa/)
+export const TEXTURES = ['tex_papir', 'tex_les', 'tex_louka', 'tex_pole', 'tex_mokrad', 'tex_voda', 'tex_skaly', 'tex_pisek', 'tex_mesto', 'tex_park'];
 
-// Který styl použít: od verze 4 jen papír a akvarel (den/noc podle slunce); ostatní styly jen při výslovné volbě v kódu
+// Který styl použít: výchozí Pohádka (den/soumrak podle slunce), na výběr Papír a akvarel
 export function styleIdFor(choice, night) {
-  if (choice && choice !== 'auto' && choice !== 'papir' && choice !== 'papirnoc' && STYLES[choice]) return choice;
-  return night ? 'papirnoc' : 'papir';
+  if (choice === 'papir' || choice === 'papirnoc') return night ? 'papirnoc' : 'papir';
+  if (choice && !['auto', 'pohadka', 'pohadkanoc'].includes(choice) && STYLES[choice]) return choice;
+  return night ? 'pohadkanoc' : 'pohadka';
 }
 
 // Vrstevnice: interval podle přiblížení [menší, hlavní s popiskem] v metrech
@@ -57,17 +72,21 @@ export function makeStyle(id, o, ctx) {
   const txt = (extra = {}) => ({ 'text-color': p.label, 'text-halo-color': p.halo, 'text-halo-width': 1.6, ...extra });
   const g = ctx.game || {};
 
-  add({ id: 'bg', type: 'background', paint: { 'background-color': p.bg } });
-  add({ id: 'landuse-res', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['residential', 'suburb', 'neighbourhood', 'commercial', 'retail']), paint: { 'fill-color': p.res } });
+  // výplň plochy: textura (pohádkové styly) nebo barva
+  const T = p.tex || {}, fill = k => T[k] ? { 'fill-pattern': T[k], 'fill-opacity': p.texOpacity ?? 1 } : { 'fill-color': p[k] };
+  add({ id: 'bg', type: 'background', paint: T.bg ? { 'background-pattern': T.bg } : { 'background-color': p.bg } });
+  add({ id: 'landuse-res', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['residential', 'suburb', 'neighbourhood', 'commercial', 'retail']), paint: fill('res') });
   add({ id: 'landuse-ind', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['industrial', 'railway', 'garages']), paint: { 'fill-color': p.ind } });
-  [['farmland', p.farm], ['grass', p.grass], ['wetland', p.wet], ['wood', p.wood]].forEach(([c, col]) =>
-    add({ id: 'lc-' + c, type: 'fill', source: 'om', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], c], paint: { 'fill-color': col } }));
-  add({ id: 'lc-rock', type: 'fill', source: 'om', 'source-layer': 'landcover', filter: cls(['rock', 'sand']), layout: vis(o.landDetail), paint: { 'fill-color': ['match', ['get', 'class'], 'rock', p.rock, p.sand] } });
-  add({ id: 'park', type: 'fill', source: 'om', 'source-layer': 'park', filter: ['!', cls(['national_park', 'nature_reserve', 'protected_area'])], paint: { 'fill-color': p.park } });
-  add({ id: 'landuse-green', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['cemetery', 'pitch', 'stadium', 'playground']), paint: { 'fill-color': p.park } });
+  [['farmland', 'farm'], ['grass', 'grass'], ['wetland', 'wet'], ['wood', 'wood']].forEach(([c, k]) =>
+    add({ id: 'lc-' + c, type: 'fill', source: 'om', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], c], paint: fill(k) }));
+  add({ id: 'lc-rock', type: 'fill', source: 'om', 'source-layer': 'landcover', filter: cls(['rock', 'sand']), layout: vis(o.landDetail),
+    paint: T.rock ? { 'fill-pattern': ['match', ['get', 'class'], 'rock', T.rock, T.sand], 'fill-opacity': p.texOpacity ?? 1 } : { 'fill-color': ['match', ['get', 'class'], 'rock', p.rock, p.sand] } });
+  add({ id: 'park', type: 'fill', source: 'om', 'source-layer': 'park', filter: ['!', cls(['national_park', 'nature_reserve', 'protected_area'])], paint: fill('park') });
+  add({ id: 'landuse-green', type: 'fill', source: 'om', 'source-layer': 'landuse', filter: cls(['cemetery', 'pitch', 'stadium', 'playground']), paint: fill('park') });
   if (o.hillshade && ctx.demUrl) add({ id: 'hillshade', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': p.shade, 'hillshade-exaggeration': .35, 'hillshade-highlight-color': '#ffffff' } });
   if (ctx.contourUrl) add({ id: 'contour', type: 'line', source: 'contours', 'source-layer': 'contours', layout: vis(o.contours), paint: { 'line-color': p.shade, 'line-opacity': .35, 'line-width': ['match', ['get', 'level'], 1, 1.2, .6] } });
-  add({ id: 'water', type: 'fill', source: 'om', 'source-layer': 'water', paint: { 'fill-color': p.water } });
+  if (T.water && p.texOpacity) add({ id: 'water-base', type: 'fill', source: 'om', 'source-layer': 'water', paint: { 'fill-color': p.water } }); // pod přitlumenou texturou
+  add({ id: 'water', type: 'fill', source: 'om', 'source-layer': 'water', paint: fill('water') });
   add({ id: 'waterway', type: 'line', source: 'om', 'source-layer': 'waterway', paint: { 'line-color': p.waterLine, 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1, 18, 6] } });
 
   // Herní obarvení ploch podle biotopů (přibližně z vektorové mapy, barvy z adminu)
@@ -86,7 +105,8 @@ export function makeStyle(id, o, ctx) {
   add({ id: 'biodebug-fill', type: 'fill', source: 'biodebug', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': .35, 'fill-outline-color': ['get', 'color'] } });
   add({ id: 'biodebug-line', type: 'line', source: 'biodebug', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': ['get', 'color'], 'line-width': 4, 'line-opacity': .8 } });
 
-  if (o.buildings === 'flat') add({ id: 'building', type: 'fill', source: 'om', 'source-layer': 'building', minzoom: 14, paint: { 'fill-color': p.bld, 'fill-outline-color': p.bldLine } });
+  const bld = p.tex && o.buildings === '3d' ? 'flat' : o.buildings; // pohádka: budovy naplocho, 3D kvádry kazí kreslený vzhled
+  if (bld === 'flat') add({ id: 'building', type: 'fill', source: 'om', 'source-layer': 'building', minzoom: 14, paint: { 'fill-color': p.bld, 'fill-outline-color': p.bldLine, 'fill-opacity': p.tex ? .6 : 1 } }); // v pohádce prosvítá textura zástavby
   add({ id: 'path', type: 'line', source: 'om', 'source-layer': 'transportation', filter: cls(['path', 'track']), layout: vis(o.paths), paint: { 'line-color': p.path, 'line-width': ['interpolate', ['linear'], ['zoom'], 14, .8, 18, 3], 'line-dasharray': [2, 1.5] } });
   const minor = cls(['minor', 'service']), major = cls(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']);
   const w = k => ['interpolate', ['exponential', 1.6], ['zoom'], 12, .6 * k, 18, 14 * k];
@@ -94,7 +114,7 @@ export function makeStyle(id, o, ctx) {
   road('road-minor-case', minor, p.roadCase, 1.25); road('road-major-case', major, p.roadCase, 1.75);
   road('road-minor', minor, p.minor, 1); road('road-major', major, p.road, 1.45);
   add({ id: 'rail', type: 'line', source: 'om', 'source-layer': 'transportation', filter: ['==', ['get', 'class'], 'rail'], layout: vis(o.rail), paint: { 'line-color': p.rail, 'line-width': 1.5, 'line-dasharray': [3, 2] } });
-  if (o.buildings === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
+  if (bld === '3d') add({ id: 'building-3d', type: 'fill-extrusion', source: 'om', 'source-layer': 'building', minzoom: 15, paint: { 'fill-extrusion-color': p.bld, 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
   // obrázkové dlaždice tras (cyklo…) jen jemně, ať nepřebíjí mapu
   if (ctx.trailsUrl) TRAILS.forEach(([k, t]) => { if (o[k] && t !== 'hiking') add({ id: 'tr-' + t, type: 'raster', source: 'tr-' + t, minzoom: 13, paint: { 'raster-opacity': .5 } }); });
   // turistické trasy KČT: bílý okraj a barevný střed jako na značce, naučné stezky čárkovaně

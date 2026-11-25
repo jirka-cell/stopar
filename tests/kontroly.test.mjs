@@ -116,7 +116,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 7);
+  assert.equal(m.version, 8);
   assert.equal(m.spawn.density, 40, 'stará výchozí hustota 5 se zvedne na 40');
   assert.equal(mergeDefaults({ version: 6, spawn: { density: 12 } }).spawn.density, 12, 'vlastní hustota zůstane');
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
@@ -126,11 +126,18 @@ test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribu
   assert.equal(mergeDefaults(m).map.startZoom, 16, 'nová verze se už neposouvá');
 });
 
-test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryté', () => {
-  assert.equal(styleIdFor('auto', false), 'papir', 'od verze 4 je výchozí papír a akvarel');
-  assert.equal(styleIdFor('auto', true), 'papirnoc');
+test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryté', async () => {
+  assert.equal(styleIdFor('auto', false), 'pohadka', 'výchozí je pohádková mapa');
+  assert.equal(styleIdFor('pohadka', true), 'pohadkanoc', 'v noci soumrak');
+  assert.equal(mergeDefaults({ version: 7, map: { style: 'papir' } }).map.style, 'pohadka', 'verze 8 přepne na pohádku');
+  assert.equal(mergeDefaults({ version: 8, map: { style: 'papir' } }).map.style, 'papir', 'pak volba zůstane');
+  { const ctx0 = { vectorUrl: 'x', glyphsUrl: 'y', biotopes: [], game: {} }, s = makeStyle('pohadka', DEFAULTS.layers, ctx0);
+    const used = new Set(s.layers.flatMap(l => [l.paint?.['fill-pattern'], l.paint?.['background-pattern']]).flat(Infinity).filter(x => typeof x === 'string' && x.startsWith('tex_')));
+    assert.ok(used.size >= 9, 'pohádka používá textury');
+    const { existsSync } = await import('node:fs');
+    for (const t of used) assert.ok(existsSync(new URL(`../images/mapa/${t}.webp`, import.meta.url)), 'chybí textura ' + t); }
   assert.equal(styleIdFor('papir', true), 'papirnoc'); assert.equal(styleIdFor('papir', false), 'papir');
-  assert.equal(styleIdFor('neexistuje', false), 'papir');
+  assert.equal(styleIdFor('neexistuje', false), 'pohadka');
   const ctx = { vectorUrl: DEFAULTS.map.vectorUrl, glyphsUrl: DEFAULTS.map.glyphsUrl, demUrl: 'dem://x', contourUrl: 'contour://x', trailsUrl: DEFAULTS.map.trailsUrl, biotopes: DEFAULTS.biotopes, game: { catch: circle(12.87, 50.23, 100) } };
   for (const id of Object.keys(STYLES)) {
     const s = makeStyle(id, DEFAULTS.layers, ctx);
@@ -200,13 +207,13 @@ test('druhy: nové výchozí se doplní, smazané výchozí se nevrátí, vlastn
   for (const s of DEFAULTS.species) for (const [k] of EDU_FIELDS) assert.ok(k in s.edu, `${s.id} nemá pole ${k}`);
 });
 
-test('verze 4 → 5: vestavěné předvolby vzhledu se odeberou, vlastní zůstanou; výchozí vzhled Papír a akvarel', () => {
+test('verze 4 → 5: vestavěné předvolby vzhledu se odeberou, vlastní zůstanou; výchozí vzhled Pohádka', () => {
   const m = mergeDefaults({ version: 4, mapPresets: [{ name: 'Moje', style: 'hra', layers: { contours: true } }, { name: 'Úsporný', style: 'auto', layers: {} }, { name: 'Les a hory', style: 'auto', layers: {} }] });
   assert.deepEqual(m.mapPresets.map(p => p.name), ['Moje']);
   const again = mergeDefaults({ ...m, mapPresets: [...m.mapPresets, { name: 'Výlet', style: 'papir', layers: {} }] });
   assert.equal(again.mapPresets.length, 2, 've verzi 5 si předvolbu se starým názvem jde znovu vytvořit');
   const d = mergeDefaults(null);
-  assert.equal(d.map.style, 'papir'); assert.equal(d.layers.buildings, '3d');
+  assert.equal(d.map.style, 'pohadka'); assert.equal(d.layers.buildings, '3d');
   assert.ok(d.layers.contours && d.layers.trHiking && d.layers.trCycling && d.layers.peaks && d.layers.protected && d.layers.roadNames);
   assert.ok(!d.layers.hillshade && !d.layers.biotopes && !d.layers.poiShop);
 });
@@ -702,29 +709,6 @@ test('události od rodičů: odkaz se zakóduje a dekóduje, cíle se počítaj�
   assert.equal(insideBound(p, 50.005, 14), true); assert.equal(insideBound(p, 50.02, 14), false);
 });
 
-test('soutěže: hodnocení šikovnosti, skóre půl na půl se zvířetem, kód výsledku se přečte a odhalí překlep', async () => {
-  const { sprintSkill, tahSkill, schovkaSkill, rytmusSkill, contestScore, scoreCode, readScoreCode, lemniscate, cleanRecords } = await import('../js/contests.js');
-  assert.equal(sprintSkill([250, 250], 0), 1); assert.equal(sprintSkill([1000], 0), 0); assert.equal(sprintSkill([], 0), 0);
-  assert.ok(Math.abs(sprintSkill([625], 1) - 0.45) < 1e-9);
-  assert.equal(tahSkill(0, 4), 1); assert.equal(tahSkill(40, 4), 0); assert.equal(tahSkill(0, 15), 0);
-  assert.equal(schovkaSkill(5, 5, 0), 1); assert.equal(schovkaSkill(0, 5, 500), 0);
-  assert.equal(rytmusSkill([0, 0, 0]), 1); assert.equal(rytmusSkill([-200, 200]), 0);
-  assert.equal(contestScore(1, 100, 100), 1000); assert.equal(contestScore(0, 50, 100), 250); assert.equal(contestScore(2, 500, 100), 1000, 'strop');
-  const when = Date.UTC(2026, 10, 21, 12);
-  for (const [g, s] of [['sprint', 812], ['tah', 0], ['schovka', 1000], ['rytmus', 437]]) {
-    const c = scoreCode(g, s, when), r = readScoreCode(c);
-    assert.match(c, /^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
-    assert.equal(r.game, g); assert.equal(r.score, s); assert.equal(new Date(r.date).toISOString().slice(0, 10), '2026-11-21');
-    assert.deepEqual(readScoreCode(c.toLowerCase().replace('-', ' ')), r, 'malá písmena a mezera nevadí');
-  }
-  const c = scoreCode('sprint', 812, when), typo = (c[0] === '2' ? '3' : '2') + c.slice(1);
-  assert.equal(readScoreCode(typo), null, 'překlep se pozná');
-  assert.equal(readScoreCode('nesmysl'), null);
-  assert.equal(lemniscate(300, 200).length, 240);
-  assert.deepEqual(Object.keys(cleanRecords({ sprint: { score: 5000, sp: 'kos', date: 1 }, nic: { score: 1 } })), ['sprint']);
-  assert.equal(cleanRecords({ sprint: { score: 5000 } }).sprint.score, 1000);
-});
-
 test('pes Aegon: priorita stavů (událost, vystavení, čenichání, chůze, odpočinek) a kresby všech póz', async () => {
   const { dogPose, POSES, dogURL } = await import('../js/dog.js');
   const base = { now: 1000, eventUntil: 0, event: '', inRange: false, near: false, walking: false, idleMs: 0, night: false, dir: 1, sleepMs: 360000, lieMs: 120000 };
@@ -860,34 +844,6 @@ test('styl mapy: vlastnosti, které MapLibre neumí měnit podle dat, nejsou dat
   }
 });
 
-test('plánovač: graf pěšin, nejkratší cesta, okruh dané délky, zjednodušení a polyline do odkazu', async () => {
-  const P = await import('../js/planner.js');
-  // mřížka 7×7 uzlů po ~100 m: vodorovně pěšiny (levné), svisle ulice (dražší)
-  const els = [], id = (r, c) => r * 10 + c + 1;
-  for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) els.push({ type: 'node', id: id(r, c), lat: 50 + r * 0.0009, lon: 14 + c * 0.0014 });
-  for (let r = 0; r < 7; r++) els.push({ type: 'way', id: 1000 + r, tags: { highway: 'footway' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(c => id(r, c)) });
-  for (let c = 0; c < 7; c++) els.push({ type: 'way', id: 2000 + c, tags: { highway: 'residential' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(r => id(r, c)) });
-  const g = P.buildGraph({ elements: els });
-  assert.equal(g.nodes.size, 49);
-  assert.equal(P.nearestNode(g, [50.0001, 14.0001]), id(0, 0));
-  const path = P.route(g, id(0, 0), id(0, 6));
-  assert.equal(path.length, 7, 'po pěšině rovně'); assert.deepEqual(path, [0, 1, 2, 3, 4, 5, 6].map(c => id(0, c)));
-  assert.equal(P.route(g, id(0, 0), 99999), null);
-  const loops = P.suggestLoops(g, [50.0027, 14.0042], 1200);
-  assert.ok(loops.length >= 1, 'aspoň jeden okruh');
-  for (const L of loops) { assert.ok(L.len > 500 && L.len < 2500, 'délka ~1,2 km: ' + Math.round(L.len)); assert.deepEqual(L.coords[0], L.coords.at(-1), 'okruh končí na startu'); }
-  // zjednodušení a polyline
-  const line = [[50, 14], [50.0001, 14.001], [50, 14.002], [50.01, 14.002]];
-  assert.equal(P.simplify(line, 50).length, 3, 'malá odchylka zmizí');
-  const enc = P.encodePolyline([[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]);
-  assert.equal(enc, '_p~iF~ps|U_ulLnnqC_mqNvxq`@', 'vzorový příklad Google');
-  assert.deepEqual(P.decodePolyline(enc), [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]);
-  assert.equal(P.decodePolyline('_p~'), null);
-  const cps = P.checkpointsAlong([[50, 14], [50, 14.01]], 3);
-  assert.equal(cps.length, 3); assert.ok(Math.abs(cps[1][1] - 14.005) < 1e-9, 'prostřední v polovině');
-  assert.equal(P.cleanRoute({ p: enc, n: 'X' }).n, 'X'); assert.equal(P.cleanRoute({ p: '_p~' }), null);
-});
-
 test('offline: dlaždice pokrývají kruh, odhad odpovídá tabulce variant, adresy jsou úplné', async () => {
   const { tileRange, planUrls, estimate } = await import('../js/offline.js');
   const t14 = tileRange(50.0755, 14.4378, 2000, 14);
@@ -936,60 +892,6 @@ test('drobnosti: každá potrava má obrázek, kód rodinné výpravy se přečt
   assert.equal(readWeekCode('nesmysl'), null);
 });
 
-test('plánovač: průchozí bod se vloží do správného úseku, trasa do cíle, profil a čas chůze', async () => {
-  const P = await import('../js/planner.js');
-  const els = [], id = (r, c) => r * 10 + c + 1;
-  for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) els.push({ type: 'node', id: id(r, c), lat: 50 + r * 0.0009, lon: 14 + c * 0.0014 });
-  for (let r = 0; r < 7; r++) els.push({ type: 'way', id: 1000 + r, tags: { highway: 'footway' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(c => id(r, c)) });
-  for (let c = 0; c < 7; c++) els.push({ type: 'way', id: 2000 + c, tags: { highway: 'footway' }, nodes: [0, 1, 2, 3, 4, 5, 6].map(r => id(r, c)) });
-  const g = P.buildGraph({ elements: els });
-  const L = P.loopThrough(g, [id(0, 0), id(0, 6), id(6, 6)]);
-  assert.equal(L.cuts.length, 4, 'start + 3 úseky okruhu');
-  assert.deepEqual(L.coords[0], L.coords.at(-1));
-  // bod u úseku start → (0,6) se vloží za start
-  const v = P.viaIndex(L, [50.0001, 14.0042]);
-  assert.equal(v.at, 1); assert.ok(v.d < 20);
-  const open = P.loopThrough(g, [id(0, 0), id(0, 6)], false);
-  assert.equal(open.closed, false); assert.ok(Math.abs(open.len - P.dist([50, 14], [50, 14.0084])) < 1, 'do cíle bez návratu');
-  assert.equal(P.loopThrough(g, [id(0, 0)]), null, 'jeden bod není trasa');
-  // profil: rovnoměrné vzorky, stoupání a klesání bez šumu pod 3 m
-  const pr = P.profile([[50, 14], [50, 14.01]], (la, lo) => 200 + (lo - 14) * 10000 + ((lo * 1e5) % 2), 10);
-  assert.equal(pr.h.length, 11); assert.ok(pr.ready);
-  assert.ok(pr.up >= 95 && pr.up <= 102, 'stoupání ~100 m: ' + pr.up); assert.equal(pr.down, 0);
-  assert.equal(P.profile([[50, 14], [50, 14.01]], () => null, 4).ready, false);
-  // čas: 4 km po rovině tempem 4 km/h = 60 min; s 300 m stoupání = 90 min (delší + polovina kratšího)
-  assert.equal(P.walkMinutes(4000, 0, 0, 4), 60);
-  assert.equal(P.walkMinutes(4000, 300, 0, 4), 90);
-  assert.ok(P.walkMinutes(4000, 0, 0, 2.5) > 90, 'pomalejší tempo = delší čas');
-  assert.equal(P.fmtMin(75), '1 h 15 min');
-});
-
-test('minihry: posouvačka jde vždy složit, tahy jen do prázdna, pexeso má dvojice, odměna má denní strop', async () => {
-  const M = await import('../js/minigames.js');
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (const n of [3, 4, 5]) {
-    const t = M.slideShuffle(n, rnd);
-    assert.equal(new Set(t).size, n * n); assert.equal(M.solved(t), false);
-    // parita: složitelné uspořádání (inverze + řádek prázdného)
-    const flat = t.filter(v => v !== n * n - 1); let inv = 0;
-    for (let i = 0; i < flat.length; i++) for (let j = i + 1; j < flat.length; j++) if (flat[i] > flat[j]) inv++;
-    const blankRowFromBottom = n - Math.floor(t.indexOf(n * n - 1) / n);
-    assert.ok(n % 2 ? inv % 2 === 0 : (inv + blankRowFromBottom) % 2 === 1, 'složitelné pro n=' + n);
-  }
-  const t = [0, 1, 2, 3, 4, 5, 6, 8, 7]; // prázdné na pozici 7
-  assert.equal(M.slideMove(t, 3, 0), false, 'daleko od prázdného');
-  assert.equal(M.slideMove(t, 3, 8), true); assert.equal(M.solved(t), true);
-  assert.equal(M.solved(M.swapShuffle(9, rnd)), false);
-  assert.ok(M.rotShuffle(16, rnd).filter(Boolean).length >= 8);
-  const deck = M.pexesoDeck(['a', 'b', 'c', 'd', 'e'], 4, rnd);
-  assert.equal(deck.length, 8); for (const x of new Set(deck)) assert.equal(deck.filter(y => y === x).length, 2);
-  const cfg = { games: { dailyCones: 25, conesEasy: 5, conesMid: 10, conesHard: 20 } };
-  assert.equal(M.gameReward({ day: 'x', cones: 0 }, cfg, 'hard', 'x'), 20);
-  assert.equal(M.gameReward({ day: 'x', cones: 20 }, cfg, 'hard', 'x'), 5, 'jen do stropu');
-  assert.equal(M.gameReward({ day: 'včera', cones: 25 }, cfg, 'mid', 'dnes'), 10, 'nový den = nový strop');
-  assert.deepEqual(M.cleanGames({ best: { slide_easy: 12, 'x y': 3, swap_mid: -1 }, cones: 'a' }).best, { slide_easy: 12 });
-});
-
 test('biotopy: první se stahuje čtverec pod hráčem, po přesunu zase nejbližší k nové poloze', async () => {
   const cfg = clone(DEFAULTS); cfg.osm.overpassUrl = 'https://a.example/api'; osmSetConfig(cfg); try { await clearOsmCache(); } catch (e) {}
   const realFetch = globalThis.fetch, boxes = [];
@@ -1025,15 +927,7 @@ test('správa dat: přírůstky z průběžných součtů, nový start SW, histo
   assert.equal(D.fmtBytes(1536), '1,5 kB'); assert.equal(D.fmtBytes(5 * 1048576), '5,0 MB');
 });
 
-test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od trasy; ikony mají náhradní emoji', async () => {
-  const P = await import('../js/planner.js');
-  const pts = [[50, 14], [50, 14.01], [50.01, 14.01]];
-  const a = P.progressAlong(pts, [50.0001, 14.005]);
-  assert.ok(Math.abs(a.along - P.dist([50, 14], [50, 14.005])) < 2, 'polovina prvního úseku');
-  assert.ok(a.off > 5 && a.off < 20);
-  const b = P.progressAlong(pts, [50.005, 14.0101]);
-  assert.ok(b.along > P.dist([50, 14], [50, 14.01]), 'už na druhém úseku');
-  assert.ok(Math.abs(a.total - P.pathLength(pts)) < 1e-6);
+test('ikony mají náhradní emoji, odznaky vlastní medaile, cvičák s Hejsty', async () => {
   const I = await import('../js/icons.js'), { existsSync } = await import('node:fs');
   assert.match(I.ic('map'), /icons\/ui\/map\.webp/); assert.match(I.ic('neznama'), /•/); assert.match(I.ic('install'), /📲/);
   for (const n of I.ICON_FILES) assert.ok(existsSync(new URL(`../icons/ui/${n}.${I.ICON_EXT}`, import.meta.url)), 'chybí ikona ' + n);
@@ -1051,7 +945,7 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   assert.equal(D.dogPose(ctx).pose, 'drill'); assert.equal(D.dogPose({ ...ctx, inRange: true }).pose, 'point'); assert.equal(D.dogPose({ ...ctx, near: true }).pose, 'drill', 'zvíře do 200 m cvičák nepřeruší');
 });
 
-test('úkoly podle místa, jízda autem a nové minihry', async () => {
+test('úkoly podle místa a jízda autem', async () => {
   const T = await import('../js/tasks.js');
   assert.equal(T.placeKind({ at: 'park' }), 'park'); assert.equal(T.placeKind({ at: 'Kokořín', kind: 'Hrad nebo zámek' }), 'hrad');
   assert.equal(T.placeKind({ at: 'X', kind: 'Pramen' }), 'voda'); assert.equal(T.placeKind({ at: 'X', kind: 'Neznámé' }), null);
@@ -1068,142 +962,6 @@ test('úkoly podle místa, jízda autem a nové minihry', async () => {
   assert.equal(gpsStep(A, { lat: 50.0001, lon: 14, t: 5000, acc: 8 }, gps, dd).anchor.acc, 8, 'zpřesnění = nový start');
   const w = gpsStep({ ...A, acc: 5 }, { lat: 50.0003, lon: 14, t: 30000, acc: 5 }, gps, dd); assert.equal(w.kind, 'walk'); assert.ok(w.d > 30);
   assert.equal(stepKind(10, 10, gps), 'walk'); assert.equal(stepKind(50, 10, gps), 'ride'); assert.equal(stepKind(200, 10, gps), 'jump');
-  const M = await import('../js/minigames.js');
-  const t = [0, 1, 2, 3, 4, 5, 6, 7, 8]; M.shiftLine(t, 3, true, 0, 1); assert.deepEqual(t.slice(0, 3), [2, 0, 1]); M.shiftLine(t, 3, true, 0, -1); assert.ok(M.solved(t));
-  M.shiftLine(t, 3, false, 1, 1); assert.deepEqual([t[1], t[4], t[7]], [7, 1, 4]);
-  assert.equal(M.solved(M.rowsShuffle(4)), false);
-  const r = M.ringsShuffle(4); assert.equal(r.length, 4); assert.ok(r.some(Boolean));
-  assert.ok(['who', 'rows', 'rings'].every(id => M.PUZZLES.some(p => p.id === id)));
-});
-
-test('závody: minihry jako závody se zvířetem, kód výsledku i pro nové hry, trénink zvedne vlastnost hry', async () => {
-  const K = await import('../js/contests.js');
-  assert.ok(['najdi', 'utek', 'hnizdo', 'rozhled', 'stopar', 'stado', 'vir'].every(id => K.GAMES.some(g => g.id === id && g.mini)));
-  assert.deepEqual(K.GAMES.slice(0, 4).map(g => g.id), ['sprint', 'tah', 'schovka', 'rytmus'], 'staré hry zůstávají na svých místech (staré kódy platí)');
-  const c = K.scoreCode('vir', 777, Date.UTC(2026, 10, 21)), r = K.readScoreCode(c);
-  assert.equal(r.game, 'vir'); assert.equal(r.score, 777);
-  assert.equal(K.miniSkill('who', 0, 5), 1); assert.equal(K.miniSkill('who', 0, 0), 0);
-  assert.ok(K.miniSkill('pexeso', 9) > K.miniSkill('pexeso', 30), 'méně tahů = lepší');
-  assert.ok(K.miniSkill('slide', 1) <= 1);
-  const { trainStat } = await import('../js/economy.js');
-  const cfg = { game: { trainPerDay: 2, trainXp: 10, trainGain: 3 } }, a = { stats: [50, 40, 30, 20], axp: 0 };
-  assert.equal(trainStat(cfg, a, 1, 0.3, 'd'), 'weak'); assert.equal(a.stats[1], 40);
-  assert.equal(trainStat(cfg, a, 1, 0.8, 'd'), 'ok'); assert.equal(a.stats[1], 43); assert.equal(a.axp, 10);
-  trainStat(cfg, a, 1, 0.8, 'd'); assert.equal(trainStat(cfg, a, 1, 0.8, 'd'), 'limit', 'denní limit');
-  assert.equal(trainStat(cfg, a, 1, 0.8, 'd2'), 'ok', 'další den znovu');
-  const b = { stats: [99, 0, 0, 0], axp: 0 }; trainStat(cfg, b, 0, 1, 'x', 100); assert.equal(b.stats[0], 100, 'strop vlastnosti');
-});
-
-
-test('farma: prázdný start, lineární ceny, pomalá výroba se stropem, chůze, pěstování, stavba a automatika', async () => {
-  const F = await import('../js/farm.js');
-  const t0 = Date.UTC(2026, 10, 21, 8), f = F.newFarm(['voliera', 'vybeh'], 12, t0, 42);
-  assert.ok(F.isEmpty(f), 'nová farma je prázdná'); assert.equal(f.seed, 42);
-  assert.deepEqual([F.cost('enc_voliera', 0).wood, F.cost('enc_voliera', 1).wood, F.cost('enc_voliera', 9).wood], [15, 30, 150], 'lineární cena');
-  assert.deepEqual([F.buildMinutes(0), F.buildMinutes(4)], [5, 25], 'lineární doba');
-  f.lv.lumber = 1; f.lv.field = 1; f.res.seeds = 10; const inv = {};
-  F.advance(f, t0 + 2 * 3600000, inv); assert.ok(Math.abs(f.res.wood - 42) < 1e-9, 'dřevník 1/h');
-  for (let i = 1; i <= 3; i++) F.advance(f, t0 + (2 + 72 * i) * 3600000, inv);
-  assert.equal(f.res.wood, F.storeCap(f), 'strop skladu'); assert.ok(inv.krmivo > 0 && inv.krmivo <= 10, 'pole spotřebuje semínka');
-  const w = F.newFarm([], 5, t0), b0 = w.res.wood; F.walkGain(w, 250, 'les'); assert.equal(w.res.wood - b0, 4);
-  assert.equal(F.autoPick({ ...f, auto: true, build: null }, ['store', 'lumber']), null, 'automatika jen u postavených s místem');
-  f.pos.lumber = [2, 0]; assert.equal(F.autoPick({ ...f, auto: true, build: null, res: { wood: 999, stone: 999, seeds: 0 } }, ['store', 'lumber']), 'lumber');
-  const c = F.cleanFarm({ lv: { zlo: 5, store: 99 }, res: { wood: -3 }, seed: 7, guests: { voliera: ['kos', 5] }, deeds: { budka: 9 } }, ['voliera']);
-  assert.equal(c.lv.store, 10); assert.equal(c.seed, 7); assert.deepEqual(c.guests.voliera, ['kos', '5']); assert.equal(c.deeds.budka, 9);
-});
-
-
-test('3D farma: svět ze seedu (hory, řeka, železnice), nepravidelná farma mezi překážkami, políčka, cesty, bonus okolí, stavění a přesun', async () => {
-  const D = await import('../js/farm3d.js'), F = await import('../js/farm.js');
-  const W = D.genWorld(123), W2 = D.genWorld(123), W3 = D.genWorld(124);
-  assert.equal(W.cells.size, D.REGION_SIZE, 'farma má daný počet políček');
-  assert.deepEqual([...W.cells.keys()], [...W2.cells.keys()], 'stejný seed = stejná farma');
-  assert.notDeepEqual([...W.cells.keys()].sort(), [...W3.cells.keys()].sort(), 'jiný seed = jiný tvar');
-  assert.equal(W.cells.get('0,0').t, 'yard');
-  for (const c of W.cells.values()) { const x = Math.sqrt(3) * (c.q + c.r / 2), z = 1.5 * c.r; let m = Infinity; for (let i = 1; i < W.river.length; i++) { const [ax, az] = W.river[i - 1]; m = Math.min(m, Math.hypot(x - ax, z - az)); } assert.ok(m > 0.8 || (!c.q && !c.r), 'farma neleží na řece'); }
-  const ring = [...W.cells.values()].map(c => D.hexDist(c.q, c.r)); assert.ok(Math.max(...ring) >= 3, 'tvar není jen kruh kolem statku');
-  assert.ok(W.peaks.some(p => p.h > 1), 'kopce'); assert.ok(Math.max(...W.peaks.map(p => p.h)) < 3.6, 'pahorkatina bez velehor');
-  for (const b of Object.keys(D.BIOMES)) assert.equal(D.genWorld(W.seed, [], b).cells.size, D.REGION_SIZE, 'farma v každé krajině: ' + b);
-  assert.ok([1, 2, 3].some(k => D.genWorld(k * 71, [], 'hory').peaks.some(p => p.h > 4)), 'hory mají vysoké štíty');
-  { const X = D.genWorld(213, [], 'pahorkatina'), c = X.crossings[0], rd = X.roads[c.road]; let bi = 0; rd.forEach((p, i) => { if (Math.hypot(p[0] - c.x, p[1] - c.z) < Math.hypot(rd[bi][0] - c.x, rd[bi][1] - c.z)) bi = i; }); const dx = rd[bi + 1][0] - rd[bi - 1][0], dz = rd[bi + 1][1] - rd[bi - 1][1]; assert.ok(Math.abs(dx * Math.sin(c.a) + dz * Math.cos(c.a)) / Math.hypot(dx, dz) < 0.05, 'přejezd kolmo'); assert.ok(Math.abs(X.roadProf[c.road][bi] - c.y) < 0.02, 'přejezd ve výšce kolejí');
-    for (const [bx, bz, a] of X.bridges) for (const r2 of X.roads.filter(r3 => r3.some(p => Math.hypot(p[0] - bx, p[1] - bz) < 0.05))) for (const p of r2.filter(p => Math.hypot(p[0] - bx, p[1] - bz) < 1.7)) assert.ok(Math.abs((p[0] - bx) * Math.cos(a) - (p[1] - bz) * Math.sin(a)) < 0.02, 'cesta na most tečně'); }
-  for (const sd of [5, 213, 781, 1207]) { // výšky a sklony komunikací
-    const V = D.genWorld(sd), lineD = (pl, x, z) => Math.min(...pl.slice(1).map((b, i) => { const a2 = pl[i], dx = b[0] - a2[0], dz = b[1] - a2[1], t = Math.max(0, Math.min(1, ((x - a2[0]) * dx + (z - a2[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - a2[0] - dx * t, z - a2[1] - dz * t); }));
-    const slope = (pts, P) => Math.max(0, ...pts.slice(1).map((q, i) => { const l = Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]); return l > 0.05 ? Math.abs(P[i + 1] - P[i]) / l : 0; }));
-    assert.ok(slope(V.rail, V.railProf) <= 0.052, 'sklon trati');
-    V.roads.forEach((rd, k) => { const P = V.roadProf[k]; assert.ok(slope(rd, P) <= 0.16, 'sklon cesty'); assert.ok(Math.abs(P[0] - 0.14) < 1e-9, 'cesta na hex ve výšce políčka'); assert.ok(lineD(V.river, ...rd[0]) >= 4.5, 'most ne hned u farmy');
-      for (const [bx, bz] of V.bridges) rd.forEach((q, i) => { if (Math.hypot(q[0] - bx, q[1] - bz) < 1.6) assert.ok(Math.abs(P[i] - 0.6) < 1e-9, 'cesta ve výšce mostovky'); }); });
-    for (const c of V.cells.values()) if (c.q || c.r) assert.ok(lineD(V.river, Math.sqrt(3) * (c.q + c.r / 2), 1.5 * c.r) >= 2.6, 'farma dál od řeky');
-  }
-  for (const sd of [3, 71, 142, 999]) { const V = D.genWorld(sd); assert.ok(V.station && V.station.d <= 2.6, 'nádraží u farmy'); assert.ok(V.villages.length >= 1 && V.villages[0].houses.length >= 3, 'vesnice'); const e = p => Math.max(Math.abs(p[0]), Math.abs(p[1])); assert.ok(V.roads.every(r => e(r[r.length - 1]) > 27.8) && e(V.rail[0]) > 27.8 && e(V.rail[V.rail.length - 1]) > 27.8, 'cesty a trať až na okraj mapy'); assert.ok(V.Hn(V.rail[40][0], V.rail[40][1]) !== undefined); } assert.ok(W.rail.length > 60 && W.railProf.length === W.rail.length, 'železnice s niveletou');
-  assert.ok(W.H(30, 30) !== undefined && W.H(0, 0) === 0, 'farma je rovná');
-  const W4 = D.genWorld(123, [[9, 0]]); assert.ok(W4.cells.has('9,0'), 'budova zůstane na farmě i po nové krajině');
-  for (const [q, r] of [[0, 0], [2, -1], [-3, 2], [1, 3]]) { const x = Math.sqrt(3) * (q + r / 2), z = 1.5 * r; assert.deepEqual(D.hexAt(x + 0.2, z - 0.2), [q, r]); }
-  assert.equal(D.edgeKey([1, 0], [0, 0]), D.edgeKey([0, 0], [1, 0]), 'sdílená hrana má jeden klíč');
-  const f = F.newFarm([], 5, 0, 123); f.res.wood = 999; f.res.stone = 999; f.res.seeds = 999;
-  const valid = D.validTiles(W, new Set()); assert.ok(valid.length >= D.REGION_SIZE - 2);
-  assert.ok(F.placeBuilding(f, 'lumber', 0, 0, W, 0).err, 'na statek ne');
-  const [a, b, c] = valid;
-  assert.ok(!F.placeBuilding(f, 'lumber', a[0], a[1], W, 0).err); F.advance(f, f.build.until + 1, {});
-  assert.ok(!F.placeBuilding(f, 'quarry', b[0], b[1], W, 0).err); F.advance(f, f.build.until + 1, {});
-  assert.equal(F.moveBuilding(f, 'lumber', b[0], b[1], W, 0, 1000).swapped, 'quarry');
-  assert.match(F.moveBuilding(f, 'quarry', c[0], c[1], W, 30, 2000).err, /za 30 dní/);
-  // políčka a bonus okolí: les vedle dřevníku = +10 %
-  const nb = D.neighbors(...f.pos.lumber).find(([q, r]) => W.cells.has(q + ',' + r) && (q || r) && !Object.values(f.pos).some(p => p[0] === q && p[1] === r));
-  if (D.tileType(W, f.tiles, ...nb) === 'forest') F.setTile(f, W, ...nb, 'meadow');
-  const before = F.farmBonus(f, W).lumber; assert.ok(!F.setTile(f, W, ...nb, 'forest').err);
-  assert.ok(Math.abs(F.farmBonus(f, W).lumber - before - 0.1) < 1e-9, 'les vedle dřevníku přidá 10 %');
-  assert.ok(F.setTile(f, W, ...f.pos.lumber, 'pond').err, 'pod budovou ne'); assert.ok(F.setTile(f, W, 0, 0, 'field').err, 'statek ne');
-  const k = D.edgeKey(a, b); assert.equal(F.toggleRoad(f, k), true); assert.equal(F.toggleRoad(f, k), false); assert.equal(f.roads.length, 0);
-  const inv = {}; const g = F.newFarm([], 5, 0, 1); g.lv.lumber = 1; F.advance(g, 3600000, inv, { lumber: 1.5 }); assert.ok(Math.abs(g.res.wood - 41.5) < 1e-9, 'bonus násobí výrobu');
-  assert.deepEqual(F.cleanFarm({ lv: {}, tiles: { '1,0': 'field', '2,0': 'lava', x: 'field' }, roads: ['0,0|1,0', 'zlo'] }, []).tiles, { '1,0': 'field' });
-  const pos = D.autoPlace(W, {}, ['store', 'pantry']); assert.ok(pos.store && pos.pantry && pos.store.join() !== pos.pantry.join());
-});
-
-test('krajina farmy: železnice má plynulý sklon, mosty jsou kolmo k řece, cesty začínají na hraně farmy', async () => {
-  const D = await import('../js/farm3d.js');
-  let bridges = 0;
-  for (const seed of [3, 17, 58, 99, 123, 777]) {
-    const W = D.genWorld(seed);
-    for (let i = 1; i < W.rail.length; i++) { const l = Math.hypot(W.rail[i][0] - W.rail[i - 1][0], W.rail[i][1] - W.rail[i - 1][1]); assert.ok(Math.abs(W.railProf[i] - W.railProf[i - 1]) / Math.max(l, 0.05) < 0.9, 'bez skoků v niveletě'); }
-    for (const [x, z, a] of W.bridges) {
-      bridges++;
-      let best = null, bd = Infinity; for (let i = 1; i < W.river.length; i++) { const [ax, az] = W.river[i - 1], [bx, bz] = W.river[i], d = Math.hypot((ax + bx) / 2 - x, (az + bz) / 2 - z); if (d < bd) { bd = d; best = [bx - ax, bz - az]; } }
-      const dir = [Math.sin(a), Math.cos(a)], cos = Math.abs(dir[0] * best[0] + dir[1] * best[1]) / Math.hypot(...best);
-      assert.ok(cos < 0.35, 'most téměř kolmo k řece');
-    }
-    for (const rd of W.roads) { const [x, z] = rd[0], [q, r] = D.hexAt(x, z); const inside = W.cells.has(q + ',' + r); const out = D.hexAt(x + (rd[1][0] - x) * 4, z + (rd[1][1] - z) * 4); assert.ok(inside || W.cells.has(out.join()) === false, 'cesta vychází z okraje farmy'); }
-  }
-  assert.ok(bridges > 0, 'aspoň někde most');
-});
-
-test('farma: ozdoby jen pro vzhled – stojí suroviny, zaberou políčko, jdou odstranit', async () => {
-  const D = await import('../js/farm3d.js'), F = await import('../js/farm.js');
-  const W = D.genWorld(123), f = F.newFarm([], 5, 0, 123); f.res.wood = 50; f.res.stone = 50;
-  const [a, b] = D.validTiles(W, new Set());
-  assert.ok(!F.placeDecor(f, W, a[0], a[1], 'barn').err); assert.equal(f.decor[a.join()], 'barn'); assert.equal(f.res.wood, 44);
-  assert.ok(F.placeDecor(f, W, a[0], a[1], 'well').err, 'jedna věc na políčko');
-  assert.ok(F.placeBuilding(f, 'lumber', a[0], a[1], W, 0).err, 'budova ne na ozdobu');
-  assert.ok(F.setTile(f, W, a[0], a[1], 'field').err, 'pod ozdobou se políčko nemění');
-  assert.ok(F.placeDecor(f, W, 0, 0, 'well').err, 'statek ne'); assert.ok(F.placeDecor(f, W, b[0], b[1], 'raketa').err);
-  F.removeDecor(f, ...a); assert.equal(f.decor[a.join()], undefined);
-  assert.deepEqual(F.cleanFarm({ lv: {}, decor: { '1,0': 'mill', '2,0': 'zlo' } }, []).decor, { '1,0': 'mill' });
-});
-
-test('Farma: úkoly s odměnou (jednou) a nádraží s denním vlakem', async () => {
-  const F = await import('../js/farm.js');
-  const f = F.cleanFarm(F.newFarm(['a', 'b']), ['a', 'b']);
-  assert.equal(F.claimTask(f, 'decor2'), null, 'nesplněný úkol nic nedá');
-  f.decor = { '1,0': 'bench', '2,0': 'well' }; const w0 = f.res.wood;
-  assert.deepEqual(F.claimTask(f, 'decor2'), { cones: 5 }); assert.equal(F.claimTask(f, 'decor2'), null, 'podruhé nic');
-  f.lv.enc_a = 3; assert.ok(F.claimTask(f, 'lv3')); assert.equal(f.res.wood, w0 + 20, 'suroviny přičteny');
-  assert.equal(F.trainDelivery(f, '2026-11-21'), 0, 'bez železnice vlak nejezdí');
-  assert.ok(F.buyRail(f, 10).err, 'málo surovin'); f.res.wood = 130; f.res.stone = 90; const r1 = F.rates(f).wood;
-  assert.deepEqual(F.buyRail(f, 60), { cones: 50 }); assert.equal(f.res.wood, 10); assert.ok(F.buyRail(f, 60).err, 'podruhé ne');
-  f.lv.lumber = 1; assert.ok(F.rates(f).wood > 0); assert.equal(F.rates(f).wood, 2 * F.rates({ ...f, rail: false }).wood, 'suroviny ×2'); assert.ok(F.claimTask(f, 'station'));
-  assert.equal(F.trainDelivery(f, '2026-11-21'), 3); assert.equal(F.trainDelivery(f, '2026-11-21'), 0, 'jednou denně');
-  const g = F.cleanFarm(JSON.parse(JSON.stringify(f)), ['a', 'b']); assert.ok(g.tasks.decor2 && g.trainDay === '2026-11-21' && g.rail === true, 'přežije uložení');
-  assert.deepEqual(F.cleanFarm({ ...f, tasks: { hack: 1 } }, ['a', 'b']).tasks, {}, 'neznámé úkoly pryč');
 });
 
 test('zmenšení 3D modelu: polohy po zmenšení odpovídají původním (int16 + posun a měřítko v uzlu)', async () => {
@@ -1310,47 +1068,6 @@ test('určovací klíč: znaky mají všechny druhy všech skupin a kódy sedí 
   assert.equal(rank('Pavoukovci', { znaky: ['kriz'] })[0], 'krizak');
 });
 
-
-test('herna: všechny hry z dat dávají platné zadání (50× každá)', async () => {
-  const { HERNA, sudokuBad } = await import('../js/herna.js');
-  const { SPECIES_IMAGES } = await import('../js/images.js');
-  const sp = DEFAULTS.species.filter(s => s.active), SP = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
-  const ctx = { cfg: DEFAULTS, SP, sp, img: (s, st) => `[${s.id}:${st}]`, ic: n => `<${n}>`, track: id => `{${id}}`, hasImg: k => SPECIES_IMAGES.has(k), stages: () => [], done() {} };
-  assert.equal(HERNA.length, 55);
-  assert.equal(new Set(HERNA.map(g => g.id)).size, 55);
-  for (const g of HERNA) {
-    if (g.play) continue;
-    const k = g.kind || g.g;
-    for (let i = 0; i < 50; i++) {
-      const r = g.gen(ctx, i);
-      if (k === 'sort') { assert.ok(r.items.length >= 6, `${g.id}: málo položek`); const bins = new Set(r.bins.map(b => b[0])); r.items.forEach(([, b]) => assert.ok(bins.has(b), `${g.id}: koš ${b}`)); }
-      else if (k === 'match') { assert.ok(r.length >= 4, `${g.id}: málo dvojic (${r.length})`); assert.equal(new Set(r.map(p => p[1])).size, r.length, `${g.id}: stejné pravé strany`); }
-      else if (k === 'order') { assert.ok(r.items.length >= 3 && r.items.every(Boolean), `${g.id}: pořadí`); }
-      else { assert.ok(r.opts.length >= 2, `${g.id}: možnosti`); assert.equal(new Set(r.opts).size, r.opts.length, `${g.id}: stejné možnosti ${r.opts}`); }
-    }
-  }
-  assert.equal(sudokuBad([[0, 1, 2, 3], [2, 3, 0, 1], [1, 0, 3, 2], [3, 2, 1, 0]]).size, 0);
-  assert.ok(sudokuBad([[0, 0, 2, 3], [2, 3, 0, 1], [1, 2, 3, -1], [3, -1, 1, 0]]).size > 0);
-});
-
-test('herna 2: zbylé hry – zadání z dat, bludiště, hráz, logická mřížka', async () => {
-  const { HERNA } = await import('../js/herna.js');
-  const { HERNA2, bfs, minCut, gridClues } = await import('../js/herna2.js');
-  const { SPECIES_IMAGES } = await import('../js/images.js');
-  const sp = DEFAULTS.species.filter(s => s.active), SP = Object.fromEntries(DEFAULTS.species.map(s => [s.id, s]));
-  const ctx = { cfg: DEFAULTS, SP, sp, img: (s, st) => `[${s.id}:${st}]`, ic: n => `<${n}>`, track: id => `{${id}}`, hasImg: k => SPECIES_IMAGES.has(k), stages: () => [], done() {} };
-  const all = [...HERNA, ...HERNA2], nums = all.map(g => g.n);
-  assert.equal(all.length, 98); assert.equal(new Set(all.map(g => g.id)).size, 98);
-  for (let n = 1; n <= 100; n++) if (n !== 10 && n !== 13) assert.ok(nums.includes(n), `chybí hra č. ${n}`);
-  for (const g of HERNA2.filter(g => g.gen)) for (let i = 0; i < 50; i++) { const r = g.gen(ctx, i); assert.ok(r.opts.length >= 2, g.id); assert.equal(new Set(r.opts).size, r.opts.length, `${g.id}: ${r.opts}`); }
-  assert.equal(bfs(3, 3, [0, 0], (r, c) => r === 2 && c === 2, () => true), 4);
-  assert.equal(bfs(3, 3, [0, 0], (r, c) => r === 2 && c === 2, (r, c) => c !== 1), -1);
-  const open = Array.from({ length: 4 }, () => Array(4).fill(false));
-  assert.equal(minCut(4, 4, open), 4); // celou šířku je potřeba zahradit
-  const wall = open.map((row, r) => row.map((_, c) => r === 1 && c > 0)); assert.equal(minCut(4, 4, wall), 1);
-  const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
-  for (const perm of PERMS) for (let t = 0; t < 10; t++) { const cl = gridClues(['A', 'B', 'C'], perm); assert.equal(PERMS.filter(p => cl.every(c => c.f(p))).length, 1, 'nápovědy mají vést k jedinému řešení'); }
-});
 
 test('řada dní v kuse: v měsíci se smí vynechat nejvýš 3 dny', async () => {
   const { streak, dayKey } = await import('../js/calendar.js');

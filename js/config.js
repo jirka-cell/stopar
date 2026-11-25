@@ -10,7 +10,7 @@ import { BATCH5 } from './species-batch5.js';
 import { SIGNS } from './signs.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 7;
+export const CONFIG_VERSION = 8;
 // Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
 const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
@@ -83,7 +83,7 @@ export const DEFAULTS = {
     highAccuracy: true
   },
   map: {
-    style: 'papir',         // papir = papír a akvarel (den/noc podle slunce)
+    style: 'pohadka',       // pohadka = pohádková mapa s texturami (den/soumrak), papir = papír a akvarel
     compass: true,          // tlačítko režimu kompasu (mapa se otáčí podle telefonu)
     quickLook: true,        // tlačítko „Vzhled“ na mapě (rychlé přepínání bez PINu)
     vectorUrl: 'https://tiles.openfreemap.org/planet',
@@ -465,7 +465,7 @@ export const SCHEMA = [
     ['highAccuracy', 'Vysoká přesnost GPS', 'bool']
   ] },
   { sec: 'map', title: 'Mapa', fields: [
-    ['style', 'Styl mapy', 'select', { options: [['papir', 'Papír a akvarel (den/noc podle slunce)']] }],
+    ['style', 'Styl mapy (výchozí)', 'select', { options: [['pohadka', 'Pohádka (den/soumrak podle slunce)'], ['papir', 'Papír a akvarel (den/noc podle slunce)']] }],
     ['compass', 'Tlačítko režimu kompasu', 'bool'],
     ['quickLook', 'Tlačítko „Vzhled“ na mapě (bez PINu)', 'bool'],
     ['vectorUrl', 'Vektorová mapa (TileJSON URL)', 'text'],
@@ -832,7 +832,7 @@ export function mergeDefaults(cfg) {
     Object.assign(out.world, { mythChance: DEFAULTS.world.mythChance, mythMinQuality: DEFAULTS.world.mythMinQuality, mythSeconds: DEFAULTS.world.mythSeconds });
     out.farm.enabled = false; out.general.hernaTest = false;
   }
-  if (out.map.style !== 'papir') out.map.style = 'papir';
+  if (!(Number(cfg.version) >= 8) || !['pohadka', 'papir'].includes(out.map.style)) out.map.style = 'pohadka'; // verze 8: výchozí pohádková mapa
   // Verze 4 → 5: vestavěné předvolby pryč, vlastní zůstanou
   if (!(Number(cfg.version) >= 5)) out.mapPresets = out.mapPresets.filter(p => !(p && OLD_PRESETS.has(p.name)));
   // Verze 2 → 3: doplnit nové výchozí předvolby vzhledu (vlastní předvolby zůstanou)
