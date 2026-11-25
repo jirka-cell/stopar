@@ -2,6 +2,7 @@
 // chytit jde jen jedním pokusem do pár sekund s velmi ostrou fotkou. Dny jsou dané rokem → celá rodina má stejné.
 import { esc, parseMonths } from './config.js';
 import { hash01 } from './geo.js';
+import { icOr } from './icons.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 const eye = (x, y, r = 5) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff"/><circle cx="${x + r * .15}" cy="${y + r * .15}" r="${r * .55}" fill="#1c1c1e"/><circle cx="${x + r * .35}" cy="${y - r * .25}" r="${r * .22}" fill="#fff"/>`;
@@ -104,14 +105,14 @@ export function mythsHTML(cfg, st, kind = 'reg') {
     : `<div class="acard miss myth"><div class="im"><img src="${mythURL(t)}" alt=""></div><div class="nm">???</div><div class="rr">${t.fest ? esc(FEST_NAMES[t.fest] || 'svátky') : 'tajemství'}</div></div>`;
   const reg = cfg.myths.filter(t => !t.fest), fes = cfg.myths.filter(t => t.fest);
   const n = reg.filter(t => st.myths[t.id]).length, nf = fes.filter(t => st.myths[t.id]).length;
-  return kind === 'fest' ? `<div class="grp">🎉 Sváteční tvorové (${nf} / ${fes.length})</div><div class="grid">${fes.map(card).join('')}</div>`
-    : `<div class="grp">🔮 Tajná sekce – bájní tvorové (${n} / ${reg.length})</div><div class="grid">${reg.map(card).join('')}</div>`;
+  return kind === 'fest' ? `<div class="grp">${icOr('fest', '🎉')} Sváteční tvorové (${nf} / ${fes.length})</div><div class="grid">${fes.map(card).join('')}</div>`
+    : `<div class="grp">${icOr('myth', '🔮')} Tajná sekce – bájní tvorové (${n} / ${reg.length})</div><div class="grid">${reg.map(card).join('')}</div>`;
 }
 export const FEST_NAMES = { dusicky: 'Dušičky', mikulas: 'Mikuláš', vanoce: 'Vánoce', velikonoce: 'Velikonoce', hrady: 'Noc na hradech' };
 // Pověsti: kde a kdy se který tvor ukazuje (z nastavení tvorů)
 export function legendsHTML(cfg, st, BIO, daysTo) {
   const reg = cfg.myths.filter(t => !t.fest);
-  return `<h2>📜 Pověsti</h2><p class="msg small">České pověsti o tvorech z tajné sekce. Ukazují se jen 2× ročně na pár dní, každý u svého místa.${daysTo != null ? ` Další bájné dny začnou za <b>${daysTo}</b> dní.` : ''}</p>
+  return `<h2>${icOr('legends', '📜')} Pověsti</h2><p class="msg small">České pověsti o tvorech z tajné sekce. Ukazují se jen 2× ročně na pár dní, každý u svého místa.${daysTo != null ? ` Další bájné dny začnou za <b>${daysTo}</b> dní.` : ''}</p>
   ${reg.map(t => { const where = String(t.bio || '').split(',').map(x => x.trim()).filter(Boolean).map(b => (BIO[b] ? BIO[b].name : b.replace('_', ' '))).join(', ') || 'kdekoli';
     return `<div class="fcard"><div class="fico"><img src="${mythURL(t)}" alt="" style="width:44px;height:38px;object-fit:contain${st.myths[t.id] ? '' : ';filter:grayscale(1) opacity(.5)'}"></div><div class="finfo"><b>${st.myths[t.id] ? esc(t.name) : '???'}</b><small>📍 ${esc(where)}${t.night ? ' · 🌙 jen v noci' : ''}${t.months ? ' · měsíce ' + esc(t.months) : ''}</small><small>${esc(t.fact || '')}</small></div></div>`; }).join('')}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;

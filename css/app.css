@@ -690,3 +690,10 @@ body.dark .hcard,body.dark .hfeed,body.dark .hflock{background:radial-gradient(c
 .hsnow{display:flex;justify-content:space-around;margin-top:-6px}.hsky{background:#1d2440;border-radius:10px}
 .hwalk{text-align:center}.harrow{font-size:64px;line-height:1;display:inline-block;transition:transform .5s;color:#d4612f}.hdir{font-weight:700;margin:0}
 .hbingo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.hbingo .hcell b{font-size:11px}.hbios{gap:8px}.hbios .hk{font-size:12px}.hbios img.ic{width:30px;height:30px}
+
+/* nové ikony: Herna, alba, odznaky, krajiny farmy; akvarelové pozadí za zvířetem */
+.hlistit .hico{flex:none;width:40px;height:40px;display:flex}.hlistit .hico img.ic{width:40px;height:40px}
+.album .aic img.ic{width:44px;height:44px}.badge .medal.full img.ic{width:100%;height:100%}
+.bcard .bico img.ic{width:40px;height:40px}.fsh-h b img.ic,#mbox h2 img.ic,#mbox h3 img.ic,.grp img.ic{width:1.3em;height:1.3em}
+#mbox[style*="--ebg"] .encimg:not(.master),#mbox[style*="--ebg"] .frame{background:var(--ebg) center/cover}
+body.dark #mbox[style*="--ebg"] .encimg:not(.master),body.dark #mbox[style*="--ebg"] .frame{background:linear-gradient(rgba(16,22,34,.5),rgba(16,22,34,.5)),var(--ebg) center/cover}

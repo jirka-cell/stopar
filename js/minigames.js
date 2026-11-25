@@ -1,6 +1,7 @@
 // Minihry z obrázků zvířat ze sbírky: posouvačka, skládačka (prohazování dílků), otáčení dílků, pexeso.
 // Odměna šišky s denním stropem, aby minihry nepřebily chůzi; další hry se odemykají počtem chycených druhů.
 import { esc } from './config.js';
+import { icOr } from './icons.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 export const PUZZLES = [
@@ -67,12 +68,12 @@ export function gamesHTML(g, caught, cfg, day) {
   return `<h2>Minihry</h2><p class="msg small">Obrázky jsou zvířata z tvé sbírky. Dnes můžeš ještě získat <b>${left}</b> šišek – víc jich přinese procházka.</p>
   ${PUZZLES.map(p => {
     const open = caught >= p.need;
-    return `<div class="mgcard${open ? '' : ' locked'}"><div class="mgtitle"><span class="mgicon" aria-hidden="true">${p.icon}</span><span><b>${esc(p.name)}</b><br><small>${open ? esc(p.desc) : `Odemkne se po ${p.need} chycených druzích (máš ${caught}).`}</small></span></div>
+    return `<div class="mgcard${open ? '' : ' locked'}"><div class="mgtitle"><span class="mgicon" aria-hidden="true">${icOr('g_' + p.id, p.icon)}</span><span><b>${esc(p.name)}</b><br><small>${open ? esc(p.desc) : `Odemkne se po ${p.need} chycených druzích (máš ${caught}).`}</small></span></div>
     ${open ? `<div class="chips">${LEVELS.map(([l, n]) => `<button class="chip" data-act="mgPlay" data-g="${p.id}" data-l="${l}">${n}${g.best[p.id + '_' + l] ? ` · rekord ${g.best[p.id + '_' + l]} tahů` : ''}</button>`).join('')}</div>` : ''}</div>`;
   }).join('')}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
-export const boardHTML = (p, level) => `<h2>${p.icon} ${esc(p.name)} <small class="sub">${esc((LEVELS.find(l => l[0] === level) || [, ''])[1])}</small></h2>
+export const boardHTML = (p, level) => `<h2>${icOr('g_' + p.id, p.icon)} ${esc(p.name)} <small class="sub">${esc((LEVELS.find(l => l[0] === level) || [, ''])[1])}</small></h2>
   <div class="mgboard" id="mgBoard"></div><p class="msg small mginfo" id="mgInfo">${esc(p.desc)}</p>
   <div class="tools"><button class="btn sm" data-act="mgHint">Předloha</button><button class="btn sm ghost" data-act="games">Zpět</button></div>`;
 

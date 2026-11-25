@@ -1,6 +1,7 @@
 // Svět: počasí (MET Norway), šero, sezónní události, kalendář přírody, skrýše, klidová pásma, barevné varianty,
 // chráněná území (karta s odkazy) a turistické cíle s razítky
 import { esc, parseMap, parseMonths, MONTH_NAMES } from './config.js';
+import { icOr } from './icons.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 const lines = s => String(s || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -89,7 +90,7 @@ export function wikiOf(t) {
 const safeHttp = u => /^https?:\/\/[^\s"'<>]+$/.test(String(u || '')) ? u : '';
 export function protectedHTML(t, summary) {
   const w = wikiOf(t), web = safeHttp(t.website);
-  return `<h2>🛡️ ${esc(t.name || 'Chráněné území')}</h2><div class="sub">${esc(protectedType(t))}</div>
+  return `<h2>${icOr('protected', '🛡️')} ${esc(t.name || 'Chráněné území')}</h2><div class="sub">${esc(protectedType(t))}</div>
   ${summary ? `<div class="fact">${esc(summary)}</div><p class="msg small">Text: Wikipedie, licence CC BY-SA 4.0</p>` : w ? '<p class="msg small" id="wikiWait">Načítám popis z Wikipedie…</p>' : ''}
   <h3>Jak se tu chovat</h3><ul class="facts"><li>Choď jen po cestách – zvířata ve hře se tu objevují jen u nich.</li><li>Neruš zvířata, nesbírej rostliny, nekrm zvěř.</li><li>Pes na vodítku, žádné ohně a odpadky.</li><li>Na jaře a v létě hnízdí ptáci – v rákosí a na skalách je klid.</li></ul>
   <h3>Víc informací</h3><div class="rowbtns">${w ? `<a class="btn sm" href="${esc(w.url)}" target="_blank" rel="noopener">Wikipedie</a>` : ''}${web ? `<a class="btn sm" href="${esc(web)}" target="_blank" rel="noopener">Web správy</a>` : ''}<a class="btn sm" href="https://drusop.nature.cz/" target="_blank" rel="noopener">Ústřední seznam ochrany přírody</a></div>

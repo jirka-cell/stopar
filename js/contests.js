@@ -2,6 +2,7 @@
 // Bez serveru: vlastní rekordy a porovnání s rodinou krátkým kódem výsledku.
 import { esc } from './config.js';
 import { birdImg } from './birds.js';
+import { icOr } from './icons.js';
 
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v) : d;
 const clamp = v => Math.max(0, Math.min(1, v));
@@ -78,7 +79,7 @@ export function cleanRecords(r) {
 export function contestsHTML(cfg, st, SP) {
   const caught = Object.keys(st.caught || {}).filter(id => SP[id] && st.caught[id].count > 0).length;
   return `<h2>🏁 Závody</h2><p class="msg small">Vyber hru a svoje zvíře. Výsledek je půl tvoje šikovnost a půl vlastnost zvířete. Výsledek pošleš ostatním kódem. Trénink zlepší zvířeti vlastnost, kterou hra měří.</p>
-  ${GAMES.map(g => { const r = st.records[g.id], open = !g.need || caught >= g.need; return `<div class="shopit${open ? '' : ' locked'}"><span class="aic" aria-hidden="true">${g.icon}</span><span><b>${g.name}</b> <small>(${esc((cfg.stats.find(s => s.id === g.stat) || {}).name || g.stat)})</small><br><small>${open ? esc(g.desc) : 'Otevře se po ' + g.need + ' chycených druzích (máš ' + caught + ').'}</small>${r ? `<br><small>Rekord: <b>${r.score}</b>${SP[r.sp] ? ' · ' + esc(SP[r.sp].name) : ''}</small>` : ''}</span>${open ? `<span class="rbtn"><button class="btn sm primary" data-act="cPick" data-g="${g.id}" data-mode="race">Závod</button><button class="btn sm" data-act="cPick" data-g="${g.id}" data-mode="train">Trénink</button></span>` : ''}</div>`; }).join('')}
+  ${GAMES.map(g => { const r = st.records[g.id], open = !g.need || caught >= g.need; return `<div class="shopit${open ? '' : ' locked'}"><span class="aic" aria-hidden="true">${icOr('g_' + (g.mini || g.id), g.icon)}</span><span><b>${g.name}</b> <small>(${esc((cfg.stats.find(s => s.id === g.stat) || {}).name || g.stat)})</small><br><small>${open ? esc(g.desc) : 'Otevře se po ' + g.need + ' chycených druzích (máš ' + caught + ').'}</small>${r ? `<br><small>Rekord: <b>${r.score}</b>${SP[r.sp] ? ' · ' + esc(SP[r.sp].name) : ''}</small>` : ''}</span>${open ? `<span class="rbtn"><button class="btn sm primary" data-act="cPick" data-g="${g.id}" data-mode="race">Závod</button><button class="btn sm" data-act="cPick" data-g="${g.id}" data-mode="train">Trénink</button></span>` : ''}</div>`; }).join('')}
   <h3>Porovnat s rodinou</h3><p class="msg small">Po hře dostaneš kód výsledku. Kód od ostatních zadej sem:</p>
   <div class="presetnew"><input type="text" id="cCode" maxlength="12" placeholder="např. S4KQ-9MZ7" aria-label="Kód výsledku"><button class="btn" data-act="cCompare">Porovnat</button></div>
   <p class="msg" id="cCmp"></p>
@@ -87,7 +88,7 @@ export function contestsHTML(cfg, st, SP) {
 export function pickHTML(cfg, st, SP, game, mode = 'race') {
   const g = GAMES.find(x => x.id === game), si = cfg.stats.findIndex(s => s.id === g.stat);
   const list = st.animals.filter(a => SP[a.sp]).sort((a, b) => (b.stats[si] || 0) - (a.stats[si] || 0)).slice(0, 30);
-  return `<h2>${g.icon} ${g.name}${mode === 'train' ? ' – trénink' : ''}</h2><p class="msg small">${mode === 'train' ? 'Vyber zvíře, které chceš trénovat – zlepší se mu' : 'Vyber zvíře – počítá se jeho'} ${esc((cfg.stats[si] || {}).name || '').toLowerCase()}.</p>
+  return `<h2>${icOr('g_' + (g.mini || g.id), g.icon)} ${g.name}${mode === 'train' ? ' – trénink' : ''}</h2><p class="msg small">${mode === 'train' ? 'Vyber zvíře, které chceš trénovat – zlepší se mu' : 'Vyber zvíře – počítá se jeho'} ${esc((cfg.stats[si] || {}).name || '').toLowerCase()}.</p>
   ${list.length ? `<div class="grid">${list.map(a => `<button class="acard" data-act="cStart" data-mode="${mode}" data-uid="${esc(a.uid)}"><div class="im">${birdImg(SP[a.sp], '', a.stage)}</div><div class="nm">${esc(a.nick || SP[a.sp].name)}</div><div class="rr">${esc((cfg.stats[si] || {}).name || '')} ${a.stats[si] || 0}</div></button>`).join('')}</div>` : '<p class="msg">Nejdřív chyť nějaké zvíře.</p>'}
   <button class="btn full ghost" data-act="contests">Zpět</button>`;
 }

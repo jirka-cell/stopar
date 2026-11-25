@@ -1039,7 +1039,7 @@ test('průběh po trase: vzdálenost od startu kolmým průmětem a odchylka od 
   assert.match(I.icId('lumber', '🪓'), /b_lumber\.webp/); assert.match(I.icId('enc_voliera', '🐦'), /e_voliera/); assert.equal(I.icId('neznamy', '🪓'), '🪓');
   assert.match(I.icId('w_rain', '🌧️'), /w_rain\.webp/);
   const Pr = await import('../js/progress.js'), { DEFAULTS: DF } = await import('../js/config.js');
-  assert.match(Pr.profileHTML(DF, Object.assign(Pr.cleanProgress({}), { caught: {} }), 1), /class="medal"[^]*badge\.webp/, 'odznak = medaile s emoji uprostřed');
+  assert.match(Pr.profileHTML(DF, Object.assign(Pr.cleanProgress({}), { caught: {} }), 1), /class="medal full"[^]*badge_druhy5\.webp/, 'odznak = vlastní obrázek medaile');
   // cvičák s Hejsty: čtvrtek 17:30–18:15, pózy se střídají, zvíře blízko má přednost
   const D = await import('../js/dog.js');
   assert.ok(D.drillNow(new Date(2026, 10, 26, 17, 30))); assert.ok(D.drillNow(new Date(2026, 10, 26, 18, 14)));
