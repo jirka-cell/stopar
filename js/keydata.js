@@ -2,7 +2,7 @@
 // Ke každé otázce možnosti [kód, popisek, ikona (název v icons/ui nebo barva)]. Data druhu: 'kde|barvy|znaky|chování' (kódy oddělené mezerou).
 export const KEY_Q = {
   'Ptáci': [
-    ['kde', 'Kde byl?', [['V', 'plaval na vodě', 'k_voda'], ['B', 'brodil se u vody', 'k_breh'], ['R', 'v rákosí', 'k_rakosi'], ['Z', 'na zemi', 'k_zem'], ['P', 'na louce, poli', 'k_pole'], ['S', 'na stromě, keři', 'k_strom'], ['K', 'na kmeni', 'k_kmen'], ['D', 'u domů, ve městě', 'k_mesto'], ['L', 'jen v letu', 'k_let']]],
+    ['kde', 'Kde byl?', [['V', 'plaval na vodě', 'k_voda'], ['B', 'brodil se u vody', 'k_breh'], ['R', 'v rákosí', 'k_rakosi'], ['Z', 'na zemi', 'k_zem'], ['P', 'na louce, poli', 'k_pole'], ['S', 'na stromě, keři', 'k_strom'], ['K', 'na kmeni', 'k_kmen'], ['D', 'u domů, ve městě', 'bio_mesto'], ['L', 'jen v letu', 'k_let']]],
     ['barvy', 'Jaké měl barvy?', [['c', 'černá', '#222'], ['b', 'bílá', '#f6f6f2'], ['s', 'šedá', '#9a9fa5'], ['h', 'hnědá', '#8a5a33'], ['r', 'rezavá, oranžová', '#d9762b'], ['z', 'žlutá', '#f2cf2a'], ['e', 'zelená', '#5d9a3a'], ['m', 'modrá', '#3b7bd0'], ['v', 'červená', '#d23a2a']], true],
     ['znaky', 'Čeho sis všiml?', [['cap', 'tmavá čepička / hlava', 'k_cepicka'], ['choch', 'chochol', 'k_chochol'], ['ocas', 'dlouhý ocas', 'k_ocas'], ['kridlo', 'páska na křídle', 'k_kridlo'], ['oko', 'pruh u oka', 'k_oko'], ['skvrny', 'skvrnitý, kropenatý', 'k_skvrny'], ['prsa', 'barevná prsa', 'k_prsa'], ['zrno', 'krátký silný zobák', 'k_zrno'], ['hak', 'zahnutý zobák', 'k_hak'], ['dlouhy', 'dlouhý zobák', 'k_dlouhy'], ['plochy', 'plochý kachní zobák', 'k_plochy'], ['nohy', 'dlouhé nohy', 'k_nohy']], true],
     ['chovani', 'Co dělal?', [['splha', 'šplhal po kmeni', 'k_splha'], ['vrti', 'vrtěl ocasem', 'k_vrti'], ['trepot', 'třepotal se na místě', 'k_trepot'], ['potapi', 'potápěl se', 'k_potapi'], ['letmo', 'chytal hmyz v letu', 'k_letmo'], ['krouzi', 'kroužil vysoko', 'k_krouzi'], ['hejno', 'byl v hejnu', 'k_hejno'], ['zpev', 'zpíval na vrcholku', 'k_zpev']], true]
@@ -35,13 +35,13 @@ export const KEY_Q = {
     ['typ', 'Co to bylo?', [['motyl', 'denní motýl', 'k_t_motyl'], ['mura', 'noční motýl, můra', 'k_t_mura'], ['brouk', 'brouk', 'k_t_brouk'], ['vazka', 'vážka', 'k_t_vazka'], ['vcela', 'včela, čmelák, vosa, mravenec', 'k_t_vcela'], ['kobylka', 'kobylka, saranče, cvrček', 'k_t_kobylka'], ['plostice', 'ploštice', 'k_t_plostice'], ['kudlanka', 'kudlanka', 'k_t_kudlanka']]],
     ['barvy', 'Jakou měl barvu?', [['c', 'černá', '#222'], ['b', 'bílá', '#f6f6f2'], ['z', 'žlutá', '#f2cf2a'], ['r', 'oranžová', '#e0731f'], ['v', 'červená', '#d23a2a'], ['e', 'zelená', '#5d9a3a'], ['m', 'modrá', '#3b7bd0'], ['h', 'hnědá', '#8a5a33'], ['s', 'šedá', '#9a9fa5'], ['k', 'kovově lesklá', '#3aa58f']], true],
     ['znaky', 'Čeho sis všiml?', [['oka', 'oka na křídlech', 'k_oka'], ['tecky', 'tečky', 'k_tecky'], ['pruhy', 'pruhy', 'k_pruhy'], ['tykadla', 'dlouhá tykadla', 'k_tykadla'], ['kusadla', 'kusadla, rohy', 'k_kusadla'], ['pruhledna', 'průhledná křídla', 'k_pruhledna'], ['chlupaty', 'chlupatý', 'k_chlupaty']], true],
-    ['kde', 'Kde byl?', [['F', 'na květu', 'k_kvet'], ['P', 'v trávě, na louce', 'k_pole'], ['V', 'u vody', 'k_voda'], ['W', 'na dřevě, kmeni', 'k_kmen'], ['Z', 'na zemi', 'k_zem'], ['L', 'v lese', 'k_les'], ['D', 'u domu, ve světle', 'k_mesto']], true]
+    ['kde', 'Kde byl?', [['F', 'na květu', 'k_kvet'], ['P', 'v trávě, na louce', 'k_pole'], ['V', 'u vody', 'k_voda'], ['W', 'na dřevě, kmeni', 'k_kmen'], ['Z', 'na zemi', 'k_zem'], ['L', 'v lese', 'k_les'], ['D', 'u domu, ve světle', 'bio_vesnice']], true]
   ],
   'Pavoukovci': [
     ['typ', 'Jaký to byl?', [['kruh', 'pavouk v kruhové síti', 'k_t_kruh'], ['lovec', 'pavouk bez sítě', 'k_t_lovec'], ['splet', 'pavouk v neuspořádané síti', 'k_t_splet'], ['sekac', 'sekáč – drobné tělo, dlouhé nohy', 'k_t_sekac'], ['kliste', 'klíště', 'k_t_kliste']]],
     ['barvy', 'Jakou měl barvu?', [['h', 'hnědá', '#8a5a33'], ['s', 'šedá', '#9a9fa5'], ['c', 'černá', '#222'], ['z', 'žlutá', '#f2cf2a'], ['e', 'zelená', '#5d9a3a'], ['b', 'bílá', '#f6f6f2'], ['v', 'červená, oranžová', '#d2502a']], true],
     ['znaky', 'Čeho sis všiml?', [['kriz', 'křížek na zadečku', 'k_kriz'], ['pruhy', 'pruhy', 'k_pruhy'], ['skvrny', 'skvrny', 'k_skvrny'], ['nohy', 'velmi dlouhé nohy', 'k_nohypavouk'], ['kulaty', 'kulatý velký zadeček', 'k_kulaty'], ['oci', 'velké oči, skáče', 'k_oci']], true],
-    ['kde', 'Kde byl?', [['P', 'v trávě', 'k_pole'], ['F', 'na květu', 'k_kvet'], ['D', 'v domě, sklepě', 'k_mesto'], ['W', 'na zdi, kůře', 'k_kmen'], ['Z', 'na zemi', 'k_zem'], ['V', 'u vody', 'k_voda'], ['L', 'v lese', 'k_les']], true]
+    ['kde', 'Kde byl?', [['P', 'v trávě', 'k_pole'], ['F', 'na květu', 'k_kvet'], ['D', 'v domě, sklepě', 'bio_vesnice'], ['W', 'na zdi, kůře', 'k_kmen'], ['Z', 'na zemi', 'k_zem'], ['V', 'u vody', 'k_voda'], ['L', 'v lese', 'k_les']], true]
   ],
   'Měkkýši': [
     ['typ', 'Co to bylo?', [['plz', 'plž s ulitou na souši', 'k_t_plz'], ['slimak', 'slimák bez ulity', 'k_t_slimak'], ['vodni', 'plž ve vodě', 'k_t_vodniplz'], ['mlz', 'mušle, lastura', 'k_t_mlz']]],
@@ -52,7 +52,7 @@ export const KEY_Q = {
   'Ostatní': [
     ['typ', 'Co to bylo?', [['rak', 'rak s klepety', 'k_t_rak'], ['stinka', 'stínka – plochá, nesvine se', 'k_t_stinka'], ['svinka', 'svinka – svine se do kuličky', 'k_t_svinka']]],
     ['barvy', 'Jakou měl barvu?', [['h', 'hnědá', '#8a5a33'], ['s', 'šedá', '#9a9fa5'], ['c', 'černá', '#222'], ['z', 'žlutavé skvrny', '#e2c98a']], true],
-    ['kde', 'Kde byl?', [['V', 've vodě', 'k_voda'], ['K', 'pod kamenem, dřevem', 'k_kameny'], ['D', 'u domu, ve sklepě', 'k_mesto']], true]
+    ['kde', 'Kde byl?', [['V', 've vodě', 'k_voda'], ['K', 'pod kamenem, dřevem', 'k_kameny'], ['D', 'u domu, ve sklepě', 'bio_vesnice']], true]
   ]
 };
 // Znaky ptáků (dospělý; u odlišného pohlaví obojí)

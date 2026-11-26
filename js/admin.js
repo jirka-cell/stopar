@@ -47,6 +47,7 @@ function render() {
   <p class="small" id="admInfo"></p>
   <div class="tools">
     <button class="btn sm" data-act="respawn">Obnovit zvířata</button>
+    <button class="btn sm" data-act="herna">Herna – vyzkoušet 98 her</button>
     <button class="btn sm" data-act="clearOsm">Smazat cache biotopů</button>
     <button class="btn sm" data-act="cfgExport">Export nastavení</button>
     <label class="btn sm" style="text-align:center">Import nastavení<input type="file" accept=".json,application/json" data-cfgimport hidden></label>
@@ -119,6 +120,7 @@ function onClick(e) {
   else if (act === 'respawn') api.respawn();
   else if (act === 'clearOsm') api.clearOsm();
   else if (act === 'exportAll') api.exportAll();
+  else if (act === 'herna') api.herna();
   else if (act === 'resetProgress') api.resetProgress();
   else if (act === 'cfgExport') download(JSON.stringify(draft, null, 2), 'stopar-nastaveni-' + new Date().toISOString().slice(0, 10) + '.json');
   else if (act === 'defaults') { draft = clone(DEFAULTS); api.save(clone(draft)); render(); }

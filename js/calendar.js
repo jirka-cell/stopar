@@ -58,13 +58,12 @@ export function myCalendarHTML(cfg, st, y, m, { img, km = () => 0, SP = {}, skip
   <div class="calg">${cells}</div>
   <p class="msg small">Hráno ${played} ${played === 1 ? 'den' : played > 1 && played < 5 ? 'dny' : 'dní'} · chyceno ${caught}. Kalendář se vyplňuje sám.</p>
   <p class="msg"><b>Řada: ${rada} ${rada === 1 ? 'den' : rada > 1 && rada < 5 ? 'dny' : 'dní'}</b> v kuse <small>(v měsíci můžeš ${skip}× vynechat)</small></p>
-  <button class="btn full" data-act="journal">Deník pozorování</button>
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }
 export function dayHTML(st, k, { img, km = () => 0, SP = {}, badges = [] }) {
   const r = st.days[k] || { c: [] }, [y, m, d] = k.split('-').map(Number), meters = km(k);
   const list = [...new Set(r.c)].map(id => SP[id]).filter(Boolean);
-  const got = badges.filter(b => st.badges[b.id] && dayKey(new Date(st.badges[b.id])) === k);
+  const got = [...badges.filter(b => st.badges[b.id] && dayKey(new Date(st.badges[b.id])) === k), ...Object.values(st.stamps || {}).filter(s => dayKey(new Date(s.d)) === k).map(s => ({ icon: '', name: s.n }))]; // i odznaky míst
   const notes = (st.journal || []).filter(e => dayKey(new Date(e.date)) === k);
   const extra = (got.length ? `<h3>Odznaky</h3><p class="msg">${got.map(b => esc(b.icon + ' ' + b.name)).join(' · ')}</p>` : '')
     + (notes.length ? `<h3>Deník</h3>${notes.map(e => `<div class="quest"><span><b>${esc((e.sp && SP[e.sp] ? SP[e.sp].name : e.name) || 'Neznámý druh')}</b>${e.note ? `<br><small>${esc(e.note)}</small>` : ''}</span><span>${e.photo != null ? '📷' : ''}</span></div>`).join('')}` : '');

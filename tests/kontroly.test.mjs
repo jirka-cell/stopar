@@ -116,7 +116,7 @@ test('při výpadku Overpass se dotazy neopakují stále dokola a chyba po úsp�
 test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribuce, bez URL obrázkových dlaždic', () => {
   const old = { version: 1, map: { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OSM', minZoom: 13, maxZoom: 19, startZoom: 17, tileCacheMax: 1500 } };
   const m = mergeDefaults(old);
-  assert.equal(m.version, 9);
+  assert.equal(m.version, 10);
   assert.equal(m.spawn.density, 40, 'stará výchozí hustota 5 se zvedne na 40');
   assert.equal(mergeDefaults({ version: 6, spawn: { density: 12 } }).spawn.density, 12, 'vlastní hustota zůstane');
   assert.deepEqual([m.map.minZoom, m.map.maxZoom, m.map.startZoom], [12, 18, 16]);
@@ -127,17 +127,17 @@ test('nastavení z verze 1 (Leaflet) se převede: zoom o 1 menší, nová atribu
 });
 
 test('styl mapy: den/noc podle slunce, unikátní vrstvy, vypnuté vrstvy skryté', async () => {
-  assert.equal(styleIdFor('auto', false), 'pohadka', 'výchozí je pohádková mapa');
-  assert.equal(styleIdFor('pohadka', true), 'pohadkanoc', 'v noci soumrak');
-  assert.equal(mergeDefaults({ version: 7, map: { style: 'papir' } }).map.style, 'pohadka', 'verze 8 přepne na pohádku');
-  assert.equal(mergeDefaults({ version: 8, map: { style: 'papir' } }).map.style, 'papir', 'pak volba zůstane');
+  assert.equal(styleIdFor('auto', false), 'papir', 'výchozí je papír a akvarel (pohádka odložena)');
+  assert.equal(styleIdFor('pohadka', true), 'pohadkanoc', 'pohádka jen při výslovné volbě');
+  assert.equal(mergeDefaults({ version: 9, map: { style: 'pohadka' } }).map.style, 'papir', 'verze 10 vrátí papír');
+  assert.equal(mergeDefaults({ version: 10, map: { style: 'pohadka' } }).map.style, 'pohadka', 'pak volba zůstane');
   { const ctx0 = { vectorUrl: 'x', glyphsUrl: 'y', biotopes: [], game: {} }, s = makeStyle('pohadka', DEFAULTS.layers, ctx0);
     const used = new Set(s.layers.flatMap(l => [l.paint?.['fill-pattern'], l.paint?.['background-pattern']]).flat(Infinity).filter(x => typeof x === 'string' && x.startsWith('tex_')));
     assert.ok(used.size >= 9, 'pohádka používá textury');
     const { existsSync } = await import('node:fs');
     for (const t of used) assert.ok(existsSync(new URL(`../images/mapa/${t}.webp`, import.meta.url)), 'chybí textura ' + t); }
   assert.equal(styleIdFor('papir', true), 'papirnoc'); assert.equal(styleIdFor('papir', false), 'papir');
-  assert.equal(styleIdFor('neexistuje', false), 'pohadka');
+  assert.equal(styleIdFor('neexistuje', false), 'papir');
   const ctx = { vectorUrl: DEFAULTS.map.vectorUrl, glyphsUrl: DEFAULTS.map.glyphsUrl, demUrl: 'dem://x', contourUrl: 'contour://x', trailsUrl: DEFAULTS.map.trailsUrl, biotopes: DEFAULTS.biotopes, game: { catch: circle(12.87, 50.23, 100) } };
   for (const id of Object.keys(STYLES)) {
     const s = makeStyle(id, DEFAULTS.layers, ctx);
@@ -213,7 +213,7 @@ test('verze 4 → 5: vestavěné předvolby vzhledu se odeberou, vlastní zůsta
   const again = mergeDefaults({ ...m, mapPresets: [...m.mapPresets, { name: 'Výlet', style: 'papir', layers: {} }] });
   assert.equal(again.mapPresets.length, 2, 've verzi 5 si předvolbu se starým názvem jde znovu vytvořit');
   const d = mergeDefaults(null);
-  assert.equal(d.map.style, 'pohadka'); assert.equal(d.layers.buildings, '3d');
+  assert.equal(d.map.style, 'papir'); assert.equal(d.layers.buildings, '3d');
   assert.ok(d.layers.contours && d.layers.trHiking && d.layers.trCycling && d.layers.peaks && d.layers.protected && d.layers.roadNames);
   assert.ok(!d.layers.hillshade && !d.layers.biotopes && !d.layers.poiShop);
 });
@@ -927,7 +927,7 @@ test('správa dat: přírůstky z průběžných součtů, nový start SW, histo
   assert.equal(D.fmtBytes(1536), '1,5 kB'); assert.equal(D.fmtBytes(5 * 1048576), '5,0 MB');
 });
 
-test('ikony mají náhradní emoji, odznaky vlastní medaile, cvičák s Hejsty', async () => {
+test('ikony mají náhradní emoji, odznaky vlastní medaile, cvičák s Hestiá', async () => {
   const I = await import('../js/icons.js'), { existsSync } = await import('node:fs');
   assert.match(I.ic('map'), /icons\/ui\/map\.webp/); assert.match(I.ic('neznama'), /•/); assert.match(I.ic('install'), /📲/);
   for (const n of I.ICON_FILES) assert.ok(existsSync(new URL(`../icons/ui/${n}.${I.ICON_EXT}`, import.meta.url)), 'chybí ikona ' + n);
@@ -935,7 +935,7 @@ test('ikony mají náhradní emoji, odznaky vlastní medaile, cvičák s Hejsty'
   assert.match(I.icId('w_rain', '🌧️'), /w_rain\.webp/);
   const Pr = await import('../js/progress.js'), { DEFAULTS: DF } = await import('../js/config.js');
   assert.match(Pr.profileHTML(DF, Object.assign(Pr.cleanProgress({}), { caught: {} }), 1), /class="medal full"[^]*badge_druhy5\.webp/, 'odznak = vlastní obrázek medaile');
-  // cvičák s Hejsty: čtvrtek 17:30–18:15, pózy se střídají, zvíře blízko má přednost
+  // cvičák s Hestiá: čtvrtek 17:30–18:15, pózy se střídají, zvíře blízko má přednost
   const D = await import('../js/dog.js');
   assert.ok(D.drillNow(new Date(2026, 10, 26, 17, 30))); assert.ok(D.drillNow(new Date(2026, 10, 26, 18, 14)));
   assert.ok(!D.drillNow(new Date(2026, 10, 26, 18, 15))); assert.ok(!D.drillNow(new Date(2026, 10, 25, 17, 45)));
@@ -1113,4 +1113,21 @@ test('kvíz: 10 otázek z chycených zvířat, stejný seed = stejný kvíz, spr
   assert.ok(Object.values(a.reduce((m, q) => (m[q.sp] = (m[q.sp] || 0) + 1, m), {})).every(n => n <= 2), 'druh nejvýš 2×');
   assert.equal(Q.hideName('Dospělá vážka loví za letu.', 'Vážka ploská'), 'Dospělá … loví za letu.');
   assert.equal(Q.buildQuiz(['kos'], all, Q.seeded(2)).length <= 2, true);
+});
+
+test('karta výletu: trasa jen 3 dny, body po 20 m, začátek a konec trasy oříznutý, výběr času', async () => {
+  const T = await import('../js/trip.js');
+  const tr = {};
+  for (let i = 0; i <= 60; i++) T.addTrackPoint(tr, '2026-11-26', 50 + i * 0.0002, 12.87, new Date(2026, 10, 26, 10, i).getTime()); // ~22 m na krok
+  assert.equal(T.addTrackPoint(tr, '2026-11-26', 50 + 60 * 0.0002 + 0.00001, 12.87), false, 'bod blíž než 20 m se neuloží');
+  const { path, km } = T.tripPath(tr['2026-11-26'].p, 600, 660);
+  assert.ok(km > 1.2 && km < 1.5, 'délka ~1,3 km');
+  assert.ok(path.length < 61 && path.length > 20, 'okraje odříznuté');
+  assert.ok(path[0][0] > 50 + 0.002, 'začátek (domov) chybí');
+  assert.equal(T.tripPath(tr['2026-11-26'].p, 600, 610).path.length, 0, 'krátký úsek u domova se nekreslí');
+  for (const d of ['2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25']) T.addTrackPoint(tr, d, 50, 12);
+  assert.deepEqual(Object.keys(T.cleanTrack(tr)).sort(), ['2026-11-24', '2026-11-25', '2026-11-26'], 'jen 3 nejnovější dny');
+  T.addTrackCatch(tr, '2026-11-26', 50.001, 12.87, 'kos', new Date(2026, 10, 26, 10, 30).getTime());
+  assert.equal(T.tripCatches(tr['2026-11-26'].c, 600, 660).length, 1); assert.equal(T.tripCatches(tr['2026-11-26'].c, 700, 800).length, 0);
+  assert.equal(T.fmtMin(605), '10:05');
 });

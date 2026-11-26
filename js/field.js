@@ -73,9 +73,9 @@ export function keyHTML(cfg, ans, SP, ctx = {}) {
   return `<h2>Určovací klíč</h2><p class="msg small">Odpovídej, co jsi viděl. Možných druhů: ${left.length}.</p>
   ${left.length && step && left.length > 1 ? q : ''}
   ${left.length && (!step || left.length <= 6) ? `<h3>${left.length === 1 ? 'Je to asi:' : 'Může to být:'}</h3><div class="grid">${left.map(s => `<button class="acard" data-act="keyPick" data-sp="${esc(s.id)}"><div class="im">${birdImg(s)}</div><div class="nm">${esc(s.name)}</div></button>`).join('')}</div>` : ''}
-  ${!left.length ? '<p class="msg">Žádný druh z atlasu neodpovídá. Zkus to znovu, nebo ho zapiš do deníku jako neznámý.</p>' : ''}
+  ${!left.length ? '<p class="msg">Žádný druh z atlasu neodpovídá. Zkus to znovu, nebo ho vyfoť tlačítkem Chytit a zapiš jako neznámý.</p>' : ''}
   <div class="tools">${Object.keys(ans).length ? '<button class="btn sm" data-act="keyBack">Krok zpět</button><button class="btn sm" data-act="keyReset">Začít znovu</button>' : ''}</div>
-  <button class="btn full ghost" data-act="menu">Zpět</button>`;
+  <button class="btn full ghost" data-act="close">Zpět</button>`;
 }
 
 /* ---------- deník pozorování ---------- */
@@ -98,7 +98,7 @@ export function journalHTML(st, SP, year = new Date().getFullYear()) {
   <div class="tools"><div class="album"><b>Letos</b><small>${yr.length} pozorování</small></div><div class="album"><b>Druhů</b><small>${kinds.size}</small></div></div>
   <button class="btn primary full" data-act="jNew">Zapsat pozorování</button>
   ${Object.entries(byMonth).map(([m, es]) => `<h3>${esc(m)}</h3>${es.map(e => `<div class="quest"><span><b>${esc(entryName(e, SP))}</b>${e.note ? `<br><small>${esc(e.note)}</small>` : ''}</span><span><small>${new Date(e.date).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}${e.photo != null ? ' 📷' : ''}</small> <button class="btn sm ghost" data-act="jDel" data-id="${esc(e.id)}" data-confirm="Smazat?" aria-label="Smazat záznam">✕</button></span></div>`).join('')}`).join('') || '<p class="msg">Zatím prázdný.</p>'}
-  <button class="btn full ghost" data-act="menu">Zpět</button>`;
+  <button class="btn full ghost" data-act="close">Zpět</button>`;
 }
 export function journalFormHTML(cfg, pre = '') {
   const sps = cfg.species.filter(s => s.active).slice().sort((a, b) => a.name.localeCompare(b.name, 'cs'));
@@ -107,6 +107,6 @@ export function journalFormHTML(cfg, pre = '') {
   <div class="fld"><label for="jName">Vlastní název (když druh není v seznamu)</label><input type="text" id="jName" maxlength="60"></div>
   <div class="fld"><label for="jNote">Poznámka (co dělal, kolik jich bylo…)</label><textarea id="jNote" maxlength="500"></textarea></div>
   <label class="btn full">Přidat fotku<input type="file" accept="image/*" capture="environment" id="jPhoto" hidden></label>
-  <p class="msg small" id="jInfo">Uloží se čas a místo (přibližně na 100 m).</p>
-  <button class="btn primary full" data-act="jSave">Uložit</button><button class="btn full ghost" data-act="journal">Zpět</button>`;
+  <p class="msg small" id="jInfo">Uloží se ke dni v kalendáři (s časem a místem přibližně na 100 m).</p>
+  <button class="btn primary full" data-act="jSave">Uložit</button><button class="btn full ghost" data-act="close">Zrušit</button>`;
 }

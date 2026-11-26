@@ -5,7 +5,7 @@ import { DOG_IMAGES } from './images.js';
 
 export const POSES = ['sit', 'lookL', 'lookR', 'sad', 'stand', 'walk1', 'walk2', 'point', 'sniff', 'joy', 'jump', 'lie', 'sleep'];
 const SIDE = ['stand', 'walk1', 'walk1b', 'walk2', 'walk2b', 'point', 'sniff', 'sniff2', 'joy', 'joy2', 'jump', 'lie', 'sleep', 'sleep2', 'run1', 'run2', 'offline', 'car1', 'car2']; // z boku hlavou doprava, doleva zrcadlem
-// Cvičák: Aegon s kamarádkou Hejsty (fenka československého vlčáka), každý čtvrtek 17:30–18:15 podle hodin telefonu
+// Cvičák: Aegon s kamarádkou Hestiá (fenka československého vlčáka), každý čtvrtek 17:30–18:15 podle hodin telefonu
 const DUO = ['cvicak-sedi', 'cvicak-lezi', 'cvicak-beh1', 'cvicak-beh2', 'cvicak-aport', 'cvicak-skok', 'cvicak-hra1', 'cvicak-hra2'];
 const DRILL = [['cvicak-sedi', 14], ['beh', 14], ['cvicak-lezi', 14], ['cvicak-aport', 12], ['cvicak-skok', 6], ['hra', 14]]; // [póza, kroků po 350 ms]
 const DRILL_LEN = DRILL.reduce((a, d) => a + d[1], 0);

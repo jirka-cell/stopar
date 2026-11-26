@@ -35,11 +35,11 @@ export const STYLES = {
 // Textury pohádkových stylů (názvy obrázků v mapě = soubory v images/mapa/)
 export const TEXTURES = ['tex_papir', 'tex_les', 'tex_louka', 'tex_pole', 'tex_mokrad', 'tex_voda', 'tex_skaly', 'tex_pisek', 'tex_mesto', 'tex_park'];
 
-// Který styl použít: výchozí Pohádka (den/soumrak podle slunce), na výběr Papír a akvarel
+// Který styl použít: Papír a akvarel (den/noc podle slunce); pohádková mapa je odložená
 export function styleIdFor(choice, night) {
-  if (choice === 'papir' || choice === 'papirnoc') return night ? 'papirnoc' : 'papir';
-  if (choice && !['auto', 'pohadka', 'pohadkanoc'].includes(choice) && STYLES[choice]) return choice;
-  return night ? 'pohadkanoc' : 'pohadka';
+  if (choice === 'pohadka' || choice === 'pohadkanoc') return night ? 'pohadkanoc' : 'pohadka'; // odloženo (26. 11.), jen při výslovné volbě
+  if (choice && !['auto', 'papir', 'papirnoc'].includes(choice) && STYLES[choice]) return choice;
+  return night ? 'papirnoc' : 'papir';
 }
 
 // Vrstevnice: interval podle přiblížení [menší, hlavní s popiskem] v metrech

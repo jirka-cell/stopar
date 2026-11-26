@@ -118,7 +118,7 @@ export function calendarHTML(cfg, now = new Date()) {
   ${ev.length ? `<h3>Právě probíhá</h3>${ev.map(e => `<div class="quest"><span><b>${esc(e.name)}</b><br><small>${esc(e.text)}</small></span></div>`).join('')}` : ''}
   ${fresh.length ? `<h3>Nově se objevují</h3><div class="chips">${fresh.map(s => `<span class="chip">${esc(s.name)}</span>`).join('')}</div>` : ''}
   ${nowSp.length ? `<h3>Jen v tuto dobu</h3><div class="chips">${nowSp.map(s => `<span class="chip">${esc(s.name)}</span>`).join('')}</div>` : ''}
-  <button class="btn full ghost" data-act="menu">Zpět</button>`;
+  <button class="btn full ghost" data-act="close">Zpět</button>`;
 }
 
 /* ---------- turistický deník ---------- */
@@ -126,7 +126,14 @@ export function cleanStamps(s) {
   return Object.fromEntries(Object.entries(s && typeof s === 'object' ? s : {}).slice(0, 2000)
     .map(([k, v]) => [String(k).slice(0, 30), { n: String(v && v.n || '').slice(0, 80), k: String(v && v.k || '').slice(0, 40), i: String(v && v.i || '').slice(0, 8), d: num(v && v.d) }]));
 }
+// Ikona odznaku místa: akvarelová ikona typu místa (images/mapa), jinak emoji z nastavení cílů
+export const MAP_ICON = { '🔭': 'map_vyhlidka', '🗼': 'map_rozhledna', '⛰️': 'map_vrchol', '🏰': 'map_hrad', '🏚️': 'map_zricenina', '💧': 'map_pramen', '🕳️': 'map_jeskyne' };
+const stampIcon = s => MAP_ICON[s.i] ? `<span class="medal full place" aria-hidden="true"><img src="images/mapa/${MAP_ICON[s.i]}.webp" alt=""></span>` : `<span aria-hidden="true">${esc(s.i)}</span>`;
+// Odznaky míst (dřív razítka): seskupené podle typu místa (hrad, rozhledna…), nejnovější první
 export function stampsHTML(st) {
-  const list = Object.values(st.stamps).sort((a, b) => b.d - a.d);
+  const all = Object.values(st.stamps).sort((a, b) => b.d - a.d), kinds = [...new Set(all.map(s => s.k || 'Místa'))];
+  if (all.length) return `<h3>Odznaky míst <small>${all.length}</small></h3>` + kinds.map(k => { const g = all.filter(s => (s.k || 'Místa') === k);
+    return `<div class="bgrp"><b>${esc(k)}</b> <small>${g.length}</small></div><div class="badges">${g.map(s => `<div class="badge on" title="${esc(s.n)}">${stampIcon(s)}<small>${esc(s.n)}<br>${new Date(s.d).toLocaleDateString('cs-CZ')}</small></div>`).join('')}</div>`; }).join('');
+  const list = all;
   return `<h3>Turistický deník</h3>${list.length ? `<div class="badges">${list.map(s => `<div class="badge on" title="${esc(s.n)}"><span aria-hidden="true">${esc(s.i)}</span><small>${esc(s.n)}<br>${new Date(s.d).toLocaleDateString('cs-CZ')}</small></div>`).join('')}</div>` : '<p class="msg small">Dojdi k rozhledně, vrcholu, hradu nebo prameni a získáš razítko.</p>'}`;
 }

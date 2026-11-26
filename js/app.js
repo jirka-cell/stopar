@@ -2,7 +2,7 @@ import { esc, parseMonths, DEFAULTS, mergeDefaults, parseMap, parseNums, clone, 
 import { store, persist } from './store.js';
 import { dist, sunAltitude } from './geo.js';
 import { osmSetConfig, ensureArea, biotopeAt, biotopeGuess, tileBiotopes, errorAt, status as osmStatus, loadedFeatures, clearOsmCache, overpassUrls, protectedAt, spawnAllowed, targetsNear, parksNear, parkAt, overpassQuery, chunkProgress, queueSize } from './osm.js';
-import { refreshWeather, weatherCond, WEATHER_ICON, WEATHER_NAME, activeEvents, speciesMult, inQuietMonths, variantFor, protectedHTML, protectedType, wikiSummary, calendarHTML, cleanStamps, stampsHTML } from './world.js';
+import { MAP_ICON, refreshWeather, weatherCond, WEATHER_ICON, WEATHER_NAME, activeEvents, speciesMult, inQuietMonths, variantFor, protectedHTML, protectedType, wikiSummary, calendarHTML, cleanStamps, stampsHTML } from './world.js';
 import { visibleBirds, currentSlot, currentRegion, currentMonth, spawnCode } from './spawn.js';
 import { elevSetConfig, elevationAt } from './elevation.js';
 import { birdImg, birdURL } from './birds.js';
@@ -15,6 +15,10 @@ import { levelFor, levelNeeded, cleanProgress, checkBadges, questEvent, makeQuiz
 import { evolve, train, trainStat, release, buy, useItem, invOf, cleanInv, isMaster, stageNames, animalActionsHTML, stageRingHTML, shopHTML, coneIcon } from './economy.js';
 import { isTrack, hasSigns, trackImg, trackQuiz, trackHTML, keyHTML, KEY_STEPS, cleanJournal, journalHTML, journalFormHTML, entryName } from './field.js';
 import { qrSVG } from './qr.js';
+import { cleanTrack, addTrackPoint, addTrackCatch, tripPath, tripCatches, tripCard, fmtMin, TRIM_M } from './trip.js';
+import { HERNA as HERNA1, HERNA_GROUPS as HG1, playGame } from './herna.js';
+import { HERNA2, HERNA2_GROUPS } from './herna2.js';
+const HERNA = [...HERNA1, ...HERNA2], HERNA_GROUPS = [...HG1, ...HERNA2_GROUPS];
 import { buildQuiz } from './quiz.js';
 import { toCode, fromCode } from './family.js';
 import { cleanParent, kidModeOn, insideBound, parentHTML, cleanEvent, decodeEvent, eventLink, eventProgress, eventFormHTML, eventShareHTML, eventsListHTML, cleanWalkDays, walkHTML, dayStr, cardBlob, GOALS } from './family.js';
@@ -34,7 +38,7 @@ import { loadTrails, tilesFor, collection as trailsData, clearTrails } from './t
 import { cleanTreasure, treasureLink, decodeTreasure, searchCircle, treasuresHTML, treasureFormHTML, feedersNear, feederReward, parkCell, cleanPlaces, distM } from './treasure.js';
 import { legendsHTML, mythURL, activeWindow, daysToWindow, mythFor, cleanMyths, mythsHTML, foundMyth } from './myths.js';
 import { nextSpeed, muteState, attachGestures, whatsHereHTML, gpsStep } from './mapui.js';
-import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, groupIcon, cleanNick, badWord, variantName } from './collection.js';
+import { animalFrom, cleanAnimal, migrateAnimals, addAnimal, collectionHTML, enclosureOf, power, stars, starCount, groupIcon, cleanNick, badWord, variantName } from './collection.js';
 
 const $ = id => document.getElementById(id);
 // Texty pro různé skupiny živočichů
@@ -57,7 +61,7 @@ function safeAttribution(html) {
 // Stav ze zálohy je nedůvěryhodný: převezme jen známá pole se správnými typy
 function cleanState(s) {
   const out = { caught: {}, gone: {}, dist: num(s && s.dist), simDist: num(s && s.simDist), last: null, animals: [] };
-  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, days: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] }, games: null, farm: null, nick: '', quizDay: { d: '', n: 0 }, v4: true });
+  if (!s || typeof s !== 'object') return Object.assign(out, cleanProgress({}), { inv: {}, radiusUntil: 0, stamps: {}, journal: [], events: [], walkDays: {}, days: {}, records: {}, myths: {}, treasures: [], places: cleanPlaces(null), routes: [], walk: null, fam: { week: -1, codes: [] }, games: null, farm: null, nick: '', quizDay: { d: '', n: 0 }, v4: true, track: {} });
   if (s.last && Number.isFinite(Number(s.last.lat)) && Number.isFinite(Number(s.last.lon))) out.last = { lat: num(s.last.lat), lon: num(s.last.lon) };
   for (const [k, v] of Object.entries(s.gone || {})) out.gone[String(k)] = num(v);
   for (const [id, c] of Object.entries(s.caught || {})) {
@@ -73,7 +77,7 @@ function cleanState(s) {
   }
   // jedinci: starší uložení je nemá → první jedinec z nejlepšího kusu druhu
   out.animals = Array.isArray(s.animals) ? s.animals.map(cleanAnimal).filter(Boolean) : migrateAnimals({ caught: out.caught }).animals;
-  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), days: cleanDays(s.days), records: s.records && typeof s.records === 'object' ? s.records : {}, myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: Array.isArray(s.routes) ? s.routes.slice(-30) : [], walk: null, fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] }, games: s.games && typeof s.games === 'object' ? s.games : null, farm: s.farm && typeof s.farm === 'object' ? s.farm : null, nick: cleanNick(s.nick), v4: !!s.v4, quizDay: s.quizDay && typeof s.quizDay === 'object' ? { d: String(s.quizDay.d || '').slice(0, 10), n: Math.max(0, num(s.quizDay.n)) } : { d: '', n: 0 } });
+  return Object.assign(out, cleanProgress(s), { inv: cleanInv(s.inv), radiusUntil: num(s.radiusUntil), stamps: cleanStamps(s.stamps), journal: cleanJournal(s.journal), events: (Array.isArray(s.events) ? s.events : []).map(cleanEvent).filter(Boolean).slice(-50), walkDays: cleanWalkDays(s.walkDays), days: cleanDays(s.days), records: s.records && typeof s.records === 'object' ? s.records : {}, myths: cleanMyths(s.myths), treasures: (Array.isArray(s.treasures) ? s.treasures : []).map(cleanTreasure).filter(Boolean).slice(-100), places: cleanPlaces(s.places), routes: Array.isArray(s.routes) ? s.routes.slice(-30) : [], walk: null, fam: s.fam && typeof s.fam === 'object' ? { week: num(s.fam.week), codes: (Array.isArray(s.fam.codes) ? s.fam.codes : []).map(String).slice(0, 20) } : { week: -1, codes: [] }, games: s.games && typeof s.games === 'object' ? s.games : null, farm: s.farm && typeof s.farm === 'object' ? s.farm : null, nick: cleanNick(s.nick), v4: !!s.v4, track: cleanTrack(s.track), quizDay: s.quizDay && typeof s.quizDay === 'object' ? { d: String(s.quizDay.d || '').slice(0, 10), n: Math.max(0, num(s.quizDay.n)) } : { d: '', n: 0 } });
 }
 const cleanPhoto = p => p && typeof p === 'object' && safeImage(p.img) && Number.isFinite(Number(p.id))
   ? { id: Number(p.id), sp: String(p.sp ?? ''), img: p.img, date: num(p.date), lat: p.lat == null ? null : num(p.lat), lon: p.lon == null ? null : num(p.lon) } : null;
@@ -216,7 +220,7 @@ function dogFree() {
   dogAway = setTimeout(() => { if (!cfg.dog.enabled) return; el.hidden = false; if (dog) dog.react('joy', 2500); toast('Aegon je zpátky! 🐕'); }, (Number(cfg.dog.freeMinutes) || 2) * 60000);
 }
 function dogTip() {
-  if (drillNow() || (dog && dog.drillTest)) { toast('Aegon: Jsem na cvičáku s Hejsty! Dneska trénujeme ' + DRILL_TOPICS[Math.floor(Date.now() / 6048e5) % DRILL_TOPICS.length] + '.'); return; }
+  if (drillNow() || (dog && dog.drillTest)) { toast('Aegon: Jsem na cvičáku s Hestiá! Dneska trénujeme ' + DRILL_TOPICS[Math.floor(Date.now() / 6048e5) % DRILL_TOPICS.length] + '.'); return; }
   const n = birds.filter(b => SP[b.sp]).length, inR = birds.filter(b => SP[b.sp] && dist(pos.lat, pos.lon, b.lat, b.lon) <= catchRadius()).length;
   toast('Aegon: ' + (inR ? 'Haf! Něco je v dosahu – ťukni na to!' : n ? 'V okolí cítím ' + n + ' ' + (n === 1 ? 'zvíře' : n < 5 ? 'zvířata' : 'zvířat') + '. Pojďme!' : 'Tady nic necítím, zkusíme jinde?'));
   if (dog) dog.react('joy', 1500);
@@ -267,13 +271,15 @@ function shareEvent(id) { const e = state.events.find(x => x.id === id); if (e) 
 let shareEv = null;
 async function shareEventLink() {
   const url = eventLink(shareURL(), shareEv);
-  try { if (navigator.share) { await navigator.share({ title: shareEv.n, text: 'Událost ve hře Stopař: ' + shareEv.n, url }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  try { if (navigator.share) { await navigator.share({ title: shareEv.n, text: 'Událost ve hře Stopuj s Aegonem: ' + shareEv.n, url }); return; } } catch (e) { if (e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(url); toast('Odkaz zkopírován.'); } catch (e) { prompt('Zkopíruj odkaz:', url); }
 }
 // Karta úlovku bez polohy – sdílení nebo stažení
 async function shareCard(uid) {
   const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
-  const blob = await cardBlob(birdURL(sp, a.stage), a.nick || sp.name, sp.name + ' · síla ' + power(a), cfg.stats.map((st, i) => [st.name, a.stats[i] || 0]));
+  const names = stageNames(cfg, sp.group, sp.id), e = sp.edu || {}, bio = BIO[a.bio]?.name || '';
+  const lines = [['Stádium', names[a.stage] || ''], ['Chyceno', new Date(a.date).toLocaleDateString('cs-CZ') + (bio ? ' · ' + bio : '')], ['Velikost', e.length || ''], ['Potrava', e.diet || ''], ['Latinsky', sp.lat || '']].filter(l => l[1]);
+  const blob = await cardBlob(birdURL(sp, a.stage), a.nick || sp.name, a.nick ? sp.name : sp.lat, { bg: BG_IDS.has(a.bio) ? new URL(`images/bg/${a.bio}.webp`, location.href).href : '', dog: dogURL('portrait'), app: cfg.general.appName, stars: starCount(a.stage, names.length), lines });
   if (!blob) { toast('Kartu se nepodařilo vytvořit.'); return; }
   const file = new File([blob], 'stopar-' + sp.id + '.png', { type: 'image/png' });
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: sp.name }); return; } } catch (e) { if (e.name === 'AbortError') return; }
@@ -405,7 +411,9 @@ async function wipeAll() {
   stopGPS(); stopSim();
   // mapové dlaždice prozrazují, kde se hrálo; soubory aplikace zůstanou kvůli offline
   try { for (const k of await caches.keys()) if (k.startsWith('stopar-tiles') || k === 'stopar-static' || k === OFFLINE_CACHE) await caches.delete(k); } catch (e) {}
-  location.reload();
+  // konec: aplikace se zastaví a nic dalšího nezapíše (zavřít se sama nesmí – to dovolí jen prohlížeč)
+  document.body.innerHTML = '<div class="wiped"><h1>Data jsou smazaná</h1><p>Aplikaci teď zavři. Až ji znovu otevřeš, začne se od začátku.</p></div>';
+  try { window.close(); } catch (e) {}
 }
 
 /* ---------- kontrolní seznam pro testery ---------- */
@@ -483,8 +491,6 @@ function gameData() {
   };
 }
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
-// Ikony turistických cílů na mapě (emoji z nastavení cílů → akvarelová ikona v images/mapa)
-const MAP_ICON = { '🔭': 'map_vyhlidka', '🗼': 'map_rozhledna', '⛰️': 'map_vrchol', '🏰': 'map_hrad', '🏚️': 'map_zricenina', '💧': 'map_pramen', '🕳️': 'map_jeskyne' };
 function mapCtx() {
   return {
     vectorUrl: cfg.map.vectorUrl, glyphsUrl: cfg.map.glyphsUrl, trailsUrl: cfg.map.trailsUrl,
@@ -493,7 +499,7 @@ function mapCtx() {
   };
 }
 // Styl mapy: volba hráče (Noc a jas) má přednost před výchozím z adminu
-const mapStyleChoice = () => prefs.mapStyle || cfg.map.style;
+const mapStyleChoice = () => cfg.map.style; // volba hráče (pohádka) odložena
 // Textury pohádkové mapy: načtou se při prvním požadavku stylu, po přepnutí stylu se vloží hned z paměti
 const texCache = new Map();
 function onImageMissing(e) {
@@ -723,7 +729,7 @@ function onGPS(p) {
   const t = p.timestamp || Date.now();
   if (acc <= cfg.gps.maxAccuracy) {
     const st = gpsStep(lastGood, { lat, lon, t, acc }, cfg.gps, dist);
-    if (st.kind === 'walk') { state.dist += st.d; walked(st.d); }
+    if (st.kind === 'walk') { state.dist += st.d; walked(st.d); addTrackPoint(state.track, dayStr(new Date()), lat, lon); } // trasa jen pro kartu výletu, 3 dny, jen v telefonu
     else if (st.kind === 'ride') onRide();
     lastGood = st.anchor;
   }
@@ -808,7 +814,7 @@ function checkStamps() {
     if (state.stamps[t.id] || pos.src === 'last') continue;
     state.stamps[t.id] = { n: t.name, k: t.tg, i: t.icon, d: Date.now() };
     state.counters.stamps++;
-    toast('Razítko: ' + t.icon + ' ' + t.name + ' (+' + cfg.world.xpStamp + ' XP)');
+    toast('Nový odznak místa: ' + t.name + '! Najdeš ho v Odznacích a v kalendáři.'); if (dog) dog.react('trophy', 3000); refreshTargets();
     gainXP(cfg.world.xpStamp); progressEvent({ kind: 'stamp' });
   }
 }
@@ -903,20 +909,64 @@ function renderKam() {
   </div>`;
 }
 /* ---------- Herna (test): nové logické minihry k vyzkoušení a protřídění ---------- */
+/* ---------- Herna (test, jen přes admin): 98 logických her k vyzkoušení a výběru do kvízů ---------- */
+// Hodnocení testera (palec, poznámka, nejlepší výsledek) se ukládá jen v telefonu (prefs.herna) a jde zkopírovat jako text.
+const hernaRec = id => ((prefs.herna ||= {})[id] ||= {});
+function openHerna() {
+  const R = prefs.herna || {}, rated = HERNA.filter(g => R[g.id]?.r).length;
+  const row = g => { const r = R[g.id] || {}; return `<button class="hlistit" data-act="hernaPlay" data-id="${g.id}">${ICON_FILES.has('h_' + g.id) ? `<span class="hico">${ic('h_' + g.id)}</span>` : `<span class="hno">${g.n}</span>`}<span class="ht"><b>${g.n}. ${esc(g.name)}</b><small>${esc(g.desc)}</small></span><span class="hr">${r.r > 0 ? '👍' : r.r < 0 ? '👎' : ''}${r.best != null ? `<small>${r.best} %</small>` : ''}</span></button>`; };
+  openM(`<h2>Herna (test)</h2><p class="msg small">${HERNA.length} nových miniher k vyzkoušení. Po každé hře dej palec a případně poznámku – podle toho je pak protřídíme. Ohodnoceno ${rated} / ${HERNA.length}.</p>
+  ${HERNA_GROUPS.map(([k, n]) => `<h3>${esc(n)}</h3><div class="hlist">${HERNA.filter(g => g.g === k).map(row).join('')}</div>`).join('')}
+  <button class="btn full" data-act="hernaCopy">Zkopírovat hodnocení</button><button class="btn full primary" data-act="hernaSend">Odeslat (WhatsApp)</button><button class="btn full ghost" data-act="close">Zavřít</button>`);
+}
+let hernaCur = null; // běžící hra – opožděný konec staré hry se nezapíše do nové
+function hernaCtx(id) {
+  const token = hernaCur = {}; let ended = false;
+  return { cfg, SP, sp: cfg.species.filter(s => s.active), img: (sp, stage) => birdImg(sp, '', stage), ic, track: id2 => trackImg(id2), hasImg: k => SPECIES_IMAGES.has(k), stages: g => stageNames(cfg, g),
+    pos: () => pos.lat != null ? { lat: pos.lat, lon: pos.lon } : null, bioHere: () => pos.lat != null ? biotopeAt(pos.lat, pos.lon) || biotopeGuess(pos.lat, pos.lon) : null,
+    done: (score, max) => { if (ended || hernaCur !== token) return; ended = true; hernaDone(id, score, max); } };
+}
+function playH(id) {
+  const g = HERNA.find(x => x.id === id); if (!g) return;
+  openM(`<h2>${icOr('h_' + g.id, '')} ${g.n}. ${esc(g.name)}</h2><div id="hgame"></div><div class="tools"><button class="btn sm" data-act="herna">Zpět do herny</button><button class="btn sm" data-act="hernaPlay" data-id="${g.id}">Znovu</button></div>`);
+  try { playGame(g, $('hgame'), hernaCtx(id)); } catch (e) { $('hgame').innerHTML = `<p class="msg">Hra spadla: ${esc(e.message)}</p>`; }
+}
+function hernaDone(id, score, max) {
+  const g = HERNA.find(x => x.id === id), el = $('hgame'); if (!g || !el) return;
+  const pct = max ? Math.round(score / max * 100) : 0, r = hernaRec(id); r.best = Math.max(r.best || 0, pct); r.plays = (r.plays || 0) + 1; savePrefs();
+  el.innerHTML = `<div class="hdone"><p class="hbig">${score} / ${max}</p><p class="msg">${pct >= 80 ? 'Výborně!' : pct >= 50 ? 'Dobrá práce.' : 'Zkus to znovu.'}</p>
+    <p class="msg small">Jak se ti hra líbí?</p><div class="row2"><button class="btn${r.r > 0 ? ' primary' : ''}" data-act="hernaRate" data-id="${id}" data-v="1">👍 Nechat</button><button class="btn${r.r < 0 ? ' primary' : ''}" data-act="hernaRate" data-id="${id}" data-v="-1">👎 Vyřadit</button></div>
+    <textarea id="hnote" rows="2" maxlength="300" placeholder="Poznámka (co upravit, co nefunguje…)">${esc(r.note || '')}</textarea></div>`;
+  $('hnote').addEventListener('input', e => { hernaRec(id).note = e.target.value.slice(0, 300); savePrefs(); });
+}
+function rateH(id, v) {
+  const r = hernaRec(id); r.r = r.r === v ? 0 : v; savePrefs();
+  document.querySelectorAll('[data-act="hernaRate"]').forEach(b => b.classList.toggle('primary', Number(b.dataset.v) === r.r));
+}
+const hernaText = () => { const R = prefs.herna || {}; return 'Herna – hodnocení her\n' + HERNA.map(g => { const r = R[g.id] || {}; return `${g.n}. ${g.name}: ${r.r > 0 ? 'NECHAT' : r.r < 0 ? 'VYŘADIT' : '—'}${r.best != null ? ` (nejlépe ${r.best} %, hráno ${r.plays || 0}×)` : ''}${r.note ? ' – ' + r.note : ''}`; }).join('\n'); };
+async function copyHerna() {
+  const txt = hernaText();
+  try { await navigator.clipboard.writeText(txt); toast('Hodnocení zkopírováno – vlož ho do zprávy.'); } catch (e) { openM(`<h2>Hodnocení</h2><textarea rows="14" style="width:100%">${esc(txt)}</textarea><button class="btn full ghost" data-act="herna">Zpět</button>`); }
+}
+// Odeslat hodnocení: nabídka sdílení telefonu (vybereš WhatsApp), kde chybí, otevře rovnou WhatsApp s textem
+async function sendHerna() {
+  const txt = hernaText();
+  try { if (navigator.share) { await navigator.share({ title: 'Herna – hodnocení', text: txt }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
+}
+// Tužka u přezdívky (než dorazí akvarelová ikona edit od G)
+const PENCIL = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 20l1-5L15.5 4.5a2.1 2.1 0 013 3L8 18z" fill="#e8b04a" stroke="#6a4424" stroke-width="1.5" stroke-linejoin="round"/><path d="M13.5 6.5l3 3" stroke="#6a4424" stroke-width="1.5"/><path d="M4 20l1-5 3 3z" fill="#f3dcb0" stroke="#6a4424" stroke-width="1.2"/></svg>';
 function renderJa() {
   const lv = levelFor(state.xp, cfg.game), sp = Object.values(state.caught).filter(c => c.count).length;
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const T = (g, a, i, n, extra = '') => `<button class="jtile g-${g}" data-act="${a}"${extra}>${ic(i)}${n}</button>`;
   $('jav').innerHTML = `<div class="ja">
-  <div class="jahead"><img src="${dogURL('portrait')}" alt=""><div style="flex:1"><h2>${esc(state.nick || 'Ty')} a Aegon <button class="x" data-act="nickEdit" aria-label="Změnit přezdívku">✏️</button></h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
+  <div class="jahead"><img src="${dogURL('portrait')}" alt=""><div style="flex:1"><h2>${esc(state.nick || 'Ty')} a Aegon <button class="nickedit" data-act="nickEdit" aria-label="Změnit přezdívku">${ICON_FILES.has('edit') ? ic('edit') : PENCIL}</button></h2><small>Úroveň ${lv.level} · ${lv.into} / ${lv.need} XP</small><div class="prog"><div style="width:${Math.round(lv.into / lv.need * 100)}%"></div></div></div></div>
   <div class="jastats"><div><b>${sp}</b>druhů</div><div><b>${km(state.dist)}</b>km celkem</div><div><b>${Math.floor(state.cones)}</b>šišek</div></div>
-  <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'quizGame', 'games', 'Kvíz')}${T('hraj', 'profile', 'quests', 'Odznaky a alba')}${T('ven', 'injured', 'injured', 'Zraněné zvíře')}</div>
+  <div class="jagrp">Hraj</div><div class="jatiles">${T('hraj', 'profile', 'quests', 'Odznaky a alba')}${T('ven', 'injured', 'injured', 'Zraněné zvíře')}</div>
   <div class="jagrp">Rodina</div><div class="jatiles">${T('rod', 'parent', 'parent', 'Rodičovská nastavení')}${T('rod', 'pinSet', 'pin', 'Rodičovský PIN')}</div>
-  <div class="jagrp">Nastavení a data</div><div class="jatiles">${T('sys', 'nightCfg', 'night', 'Noc a jas')}${T('sys', 'dataMgr', 'data', 'Správa dat')}${T('sys', 'export', 'backup', 'Uložit zálohu')}<label class="jtile g-sys">${ic('restore')}Obnovit zálohu<input type="file" accept="application/json,.json" data-import></label>${cfg.general.testerFab ? T('sys', 'checklist', 'tester', 'Testeři') : ''}${!standalone && installEvt ? T('sys', 'install', 'install', 'Instalovat') : ''}${T('sys', 'about', 'about', 'O aplikaci')}${T('sys', 'legalMenu', 'legal', 'Podmínky')}</div>
-  <div class="jarow"><label class="fld row">Ztlumit mapu při chůzi (bezpečnost)<input type="checkbox" data-pref="muteWalk"${muteOn() ? ' checked' : ''}${kidMode() ? ' disabled' : ''}></label>
-  <p class="msg small">Kód rozmístění: <b>${spawnCode(cfg)}</b> – stejný kód = stejná zvířata na stejném místě.</p>
-  <button class="btn full danger" data-act="wipe">Smazat všechna moje data</button>
-  <p class="msg small">Mapa a biotopy: ${safeAttribution(cfg.map.attribution)}</p></div></div>`;
+  <div class="jagrp">Nastavení a data</div><div class="jatiles">${T('sys', 'nightCfg', 'night', 'Noc a jas')}${T('sys', 'dataMgr', 'data', 'Správa dat')}${kidMode() ? '' : T('sys', 'muteToggle', 'map', (muteOn() ? 'Ztlumení mapy: zapnuto' : 'Ztlumení mapy: vypnuto'), muteOn() ? ' aria-pressed="true"' : ' aria-pressed="false"')}${!standalone && installEvt ? T('sys', 'install', 'install', 'Instalovat') : ''}${T('sys', 'about', 'about', 'O aplikaci')}${T('sys', 'legalMenu', 'legal', 'Podmínky')}${T('sys', 'wipe', 'wipe', 'Smazat moje data')}</div>
+  <div class="jarow"><p class="msg small">Mapa a biotopy: ${safeAttribution(cfg.map.attribution)}</p></div></div>`;
 }
 // Noc: tmavé rozhraní (automaticky podle slunce / vždy / nikdy), ztlumení mapy, červené světlo
 function nightOn() { const m = prefs.night || 'auto'; return m === 'on' || (m === 'auto' && isNight()); }
@@ -928,10 +978,7 @@ function applyNight() {
 }
 function nightHTML() {
   const m = prefs.night || 'auto', dim = Number.isFinite(Number(prefs.dim)) ? Number(prefs.dim) : 30;
-  const st = styleIdFor(mapStyleChoice(), false) === 'papir' ? 'papir' : 'pohadka';
-  return `<h2>${ic('night')} Noc a jas</h2>
-  <h3>Vzhled mapy</h3><div class="look"><div class="chips">${[['pohadka', 'Pohádka'], ['papir', 'Papír a akvarel']].map(([k, n]) => `<button class="chip${st === k ? ' on' : ''}" data-act="mapStyle" data-v="${k}">${n}</button>`).join('')}</div></div>
-  <p class="msg small">Večer přepne aplikaci do tmavých barev a ztlumí mapu, aby neoslňovala.</p>
+  return `<h2>${ic('night')} Noc a jas</h2><p class="msg small">Večer přepne aplikaci do tmavých barev a ztlumí mapu, aby neoslňovala.</p>
   <div class="look"><div class="chips">${[['auto', 'Automaticky (podle slunce)'], ['on', 'Vždy tmavě'], ['off', 'Nikdy']].map(([k, n]) => `<button class="chip${m === k ? ' on' : ''}" data-act="nightMode" data-v="${k}">${n}</button>`).join('')}</div></div>
   <div class="fld"><label for="nightDim">Ztlumení mapy v noci: <b id="nightDimV">${dim} %</b></label><input type="range" id="nightDim" min="0" max="70" step="5" value="${dim}"></div>
   <label class="fld row">Červené noční světlo (šetří oči, tma zůstane tmou)<input type="checkbox" data-pref="red"${prefs.red ? ' checked' : ''}></label>
@@ -985,7 +1032,7 @@ function announceEvents() {
 }
 const tgMarkers = new Map();
 function refreshTargets() {
-  const near = targetsNear(pos.lat, pos.lon, cfg.spawn.radius), ids = new Set(near.map(t => t.id));
+  const near = targetsNear(pos.lat, pos.lon, Math.max(cfg.spawn.radius, 1200)), ids = new Set(near.map(t => t.id)); // cíle v celé stažené oblasti (~1 km), ne jen v okruhu zvířat
   tgMarkers.forEach((m, id) => { if (!ids.has(id)) { m.mk.remove(); tgMarkers.delete(id); } });
   for (const t of near) {
     const done = !!state.stamps[t.id], m = tgMarkers.get(t.id);
@@ -1251,6 +1298,82 @@ async function offlineDel(id) {
   renderOffline(); toast('Oblast smazána.');
 }
 /* ---------- karta výletu a rodinná výprava ---------- */
+/* ---------- karta výletu ---------- */
+// Výběr dne (poslední 3 dny s trasou) a času; mapa trasy jen od 15 let, u mladších po zadání rodičovského PINu
+const tripSel = { day: '', from: 0, to: 1440 };
+function openTrip() {
+  const days = [...new Set([dayStr(new Date()), ...Object.keys(state.track)])].sort().reverse().slice(0, 3);
+  if (!days.includes(tripSel.day)) tripSel.day = days[0];
+  const tr = state.track[tripSel.day] || { p: [] }, mins = tr.p.map(a => a[2]);
+  const lo = mins.length ? Math.floor(Math.min(...mins) / 15) * 15 : 0, hi = mins.length ? Math.ceil((Math.max(...mins) + 1) / 15) * 15 : 1440;
+  tripSel.from = Math.max(lo, Math.min(tripSel.from, hi)); tripSel.to = hi; if (tripSel.from >= tripSel.to) tripSel.from = lo;
+  const young = !!(consentRec && consentRec.parent), lbl = k => new Date(k + 'T12:00').toLocaleDateString('cs-CZ', { weekday: 'short', day: 'numeric', month: 'numeric' });
+  openM(`<h2>${ic('trip')} Karta výletu</h2><p class="msg small">Aplikace si pamatuje trasu posledních 3 dnů hraní – jen v tomto telefonu.</p>
+  <div class="look"><div class="chips">${days.map(k => `<button class="chip${k === tripSel.day ? ' on' : ''}" data-act="tripDay" data-day="${k}">${lbl(k)}</button>`).join('')}</div></div>
+  ${tr.p.length > 1 ? `<div class="fld"><label for="tripFrom">Od: <b id="tripFromV">${fmtMin(tripSel.from)}</b></label><input type="range" id="tripFrom" min="${lo}" max="${hi}" step="15" value="${tripSel.from}"></div>
+  <div class="fld"><label for="tripTo">Do: <b id="tripToV">${fmtMin(tripSel.to)}</b></label><input type="range" id="tripTo" min="${lo}" max="${hi}" step="15" value="${tripSel.to}"></div>
+  <label class="fld row">Přidat mapu trasy<input type="checkbox" id="tripMap" checked></label>
+  ${young ? `<div class="fld"><label for="tripPin">Mapu trasy dětem do 15 let povoluje rodič – rodičovský PIN</label><input type="password" id="tripPin" inputmode="numeric" maxlength="8" autocomplete="off"></div>` : ''}
+  <p class="msg small">Začátek a konec trasy se na mapě schválně nezobrazí (asi ${TRIM_M} m), aby nebylo vidět, kde bydlíš.</p>` : '<p class="msg small">Pro tento den aplikace trasu nemá – karta bude bez mapy.</p>'}
+  <p class="msg small" id="tripErr"></p>
+  <button class="btn primary full" data-act="tripGo">Vytvořit kartu</button><button class="btn full ghost" data-act="close">Zavřít</button>`);
+}
+document.getElementById('mbox').addEventListener('input', e => { // posuvníky času karty výletu
+  if (e.target.id === 'tripFrom' || e.target.id === 'tripTo') {
+    const v = Number(e.target.value); if (e.target.id === 'tripFrom') tripSel.from = Math.min(v, tripSel.to - 15); else tripSel.to = Math.max(v, tripSel.from + 15);
+    $('tripFromV').textContent = fmtMin(tripSel.from); $('tripToV').textContent = fmtMin(tripSel.to);
+  }
+});
+// Mapa trasy: skrytá mapa ve stejném stylu, po načtení se nakreslí trasa a místa úlovků a vezme se obrázek
+function tripMapImage(path, catches) {
+  return new Promise(resolve => {
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-2000px;top:0;width:500px;height:500px';
+    document.body.appendChild(box);
+    const all = [...path, ...catches.map(c => [c[0], c[1]])], b = new maplibregl.LngLatBounds();
+    all.forEach(([la, lo]) => b.extend([lo, la]));
+    let m, done = false;
+    const end = img => { if (done) return; done = true; try { m && m.remove(); } catch (e) {} box.remove(); resolve(img); };
+    try {
+      m = new maplibregl.Map({ container: box, style: makeStyle(styleIdFor(cfg.map.style, false), { ...cfg.layers, buildings: 'flat', hillshade: false, contours: false, biotopes: false }, { ...mapCtx(), game: {} }),
+        bounds: b, fitBoundsOptions: { padding: 50, maxZoom: 16 }, interactive: false, attributionControl: false, preserveDrawingBuffer: true, fadeDuration: 0 });
+    } catch (e) { end(null); return; }
+    setTimeout(() => end(null), 12000);
+    m.once('idle', () => {
+      try {
+        const c = document.createElement('canvas'); c.width = 500; c.height = 500; const x = c.getContext('2d');
+        x.drawImage(m.getCanvas(), 0, 0, 500, 500);
+        const P = ([la, lo]) => m.project([lo, la]);
+        x.strokeStyle = '#fff'; x.lineWidth = 9; x.lineJoin = x.lineCap = 'round'; x.beginPath(); path.forEach((p, i) => { const q = P(p); i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y); }); x.stroke();
+        x.strokeStyle = '#e2602a'; x.lineWidth = 5; x.stroke();
+        for (const cc of catches) { const q = P(cc); x.fillStyle = '#2f7d4f'; x.strokeStyle = '#fff'; x.lineWidth = 3; x.beginPath(); x.arc(q.x, q.y, 9, 0, 7); x.fill(); x.stroke(); }
+        end(c);
+      } catch (e) { end(null); }
+    });
+  });
+}
+async function makeTrip() {
+  const k = tripSel.day, tr = state.track[k] || { p: [], c: [] }, wantMap = $('tripMap') ? $('tripMap').checked : false;
+  if (wantMap && consentRec && consentRec.parent) {
+    const rec = await store.get('parentPin').catch(() => null);
+    if (!rec) { $('tripErr').textContent = 'Mapu povolí rodič, až nastaví rodičovský PIN (Já → Rodičovský PIN).'; return; }
+    if (!await pinOk(rec, $('tripPin').value, m => { $('tripErr').textContent = m; })) return;
+  }
+  $('tripErr').textContent = 'Kreslím kartu…';
+  const { path, km } = tripPath(tr.p, tripSel.from, tripSel.to), cs = tripCatches(tr.c, tripSel.from, tripSel.to).filter(c => SP[c[2]]);
+  const d0 = new Date(k + 'T00:00').getTime(), inRange = t => { const m = Math.round((t - d0) / 60000); return m >= tripSel.from && m <= tripSel.to; };
+  const animals = state.animals.filter(a => a.date >= d0 && a.date < d0 + 864e5 && inRange(a.date) && SP[a.sp]).map(a => ({ url: birdURL(SP[a.sp], a.stage), name: a.nick || SP[a.sp].name }));
+  const mapImg = wantMap && path.length > 1 && window.maplibregl ? await tripMapImage(path, cs.filter(c => path.length)) : null;
+  const kmTxt = (tr.p.length > 1 ? km : (state.walkDays[k] || 0) / 1000).toFixed(1).replace('.', ',');
+  const blob = await tripCard({ app: cfg.general.appName, dogUrl: dogURL('portrait'), date: new Date(k + 'T12:00').toLocaleDateString('cs-CZ'), time: tr.p.length > 1 ? fmtMin(tripSel.from) + '–' + fmtMin(tripSel.to) : '', km: kmTxt,
+    mapImg, noMap: wantMap && tr.p.length > 1 && path.length < 2 ? 'Trasa byla moc krátká –\nmapa by ukázala, kde bydlíš.' : 'Karta bez mapy', animals, stamps: Object.values(state.stamps).filter(s => s.d >= d0 && s.d < d0 + 864e5).length,
+    note: mapImg ? 'Začátek a konec trasy jsou schválně skryté, aby nebylo vidět, kde bydlím.' : '' });
+  if (!blob) { $('tripErr').textContent = 'Kartu se nepodařilo vytvořit.'; return; }
+  const file = new File([blob], 'vylet-' + k + '.png', { type: 'image/png' });
+  closeM();
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Můj výlet' }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  const u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = file.name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+  toast('Karta výletu uložena do stažených souborů.');
+}
 async function shareTrip() {
   const d0 = new Date(); d0.setHours(0, 0, 0, 0);
   const todays = state.animals.filter(a => a.date >= d0.getTime() && SP[a.sp]);
@@ -1320,7 +1443,7 @@ function hudBio() {
   hb.innerHTML = esc(t).replace(' ', wc ? `<span title="${WEATHER_NAME[wc]}" role="img" aria-label="${WEATHER_NAME[wc]}">${icId('w_' + wc, WEATHER_ICON[wc])}</span>` : '');
 }
 // V simulaci se ukazují simulované km; do skutečné ušlé vzdálenosti se nepočítají
-function hudDist() { const m = cfg.general.simulation ? state.simDist : (state.walkDays[dayStr(new Date())] || 0); $('hdist').textContent = 'dnes ' + (m / 1000).toFixed(1).replace('.', ',') + ' km' + (cfg.general.simulation ? ' (sim.)' : ''); }
+function hudDist() { const sim = !!cfg.general.simulation, m = sim ? state.simDist : (state.walkDays[dayStr(new Date())] || 0), el = $('hdist'); el.textContent = (sim ? 'simulace ' : 'dnes ') + (m / 1000).toFixed(1).replace('.', ',') + ' km'; el.classList.toggle('sim', sim); el.title = sim ? 'Simulovaný pohyb se do kilometrů, šišek ani kalendáře nepočítá' : ''; } // simulace se nikam nezapočítává
 function hudGPS() {
   const g = $('hgps');
   if (cfg.general.simulation) { g.textContent = 'Simulace'; g.classList.remove('bad'); return; }
@@ -1566,8 +1689,8 @@ function gainKnow(kind, why) {
   addCones(n); setTimeout(() => toast('+' + n + ' šišek ' + (why || '')), 900);
 }
 function addCones(n) { if (n > 0) { state.cones += n; hudCones(); if (dog) dog.react('cone', 2500); } }
-function hudCones() { const b = $('coneBtn'); if (b) b.innerHTML = coneIcon + ' ' + Math.floor(state.cones); refreshJa(); }
-// Záložka Já ukazuje šišky, úroveň a statistiky – při změně se překreslí (jen když je otevřená)
+function hudCones() { const h = $('hcone'); if (h) h.innerHTML = coneIcon + ' ' + Math.floor(state.cones); refreshJa(); }
+// Záložka Já ukazuje šišky, úroveň a souhrn – při změně se překreslí (jen když je otevřená)
 let jaT = 0;
 function refreshJa() { clearTimeout(jaT); jaT = setTimeout(() => { const j = $('jav'); if (j && j.classList.contains('on')) { const y = j.scrollTop; renderJa(); j.scrollTop = y; } }, 50); }
 // Dosah chytání (dalekohled ho na chvíli zvětší)
@@ -1651,10 +1774,11 @@ async function saveJournal() {
   if (!spId && !name) { $('jInfo').textContent = 'Vyber druh nebo napiš název.'; return; }
   let photo = null;
   if (jPhoto) { try { photo = await store.addPhoto({ sp: spId, img: jPhoto, date: Date.now(), lat: null, lon: null, journal: true }); } catch (e) {} }
-  gainKnow('journal', 'za zápis do deníku');
+  gainKnow('journal', 'za pozorování');
   state.journal.push({ id: Date.now().toString(36), sp: spId, name, date: Date.now(), note: $('jNote').value.trim().slice(0, 500), photo,
     lat: pos.lat == null ? null : Math.round(pos.lat * 1000) / 1000, lon: pos.lon == null ? null : Math.round(pos.lon * 1000) / 1000 });
-  jPhoto = null; saveState(); openJournal(); toast('Zapsáno do deníku.');
+  if (photo != null && spId && state.caught[spId]) state.caught[spId].photos = [photo, ...(state.caught[spId].photos || [])]; // fotka i ke kartě druhu
+  jPhoto = null; saveState(); closeM(); toast(photo != null ? 'Fotka uložena ke dni v kalendáři' + (spId && state.caught[spId] ? ' a ke kartě druhu.' : '.') : 'Pozorování uloženo ke dni v kalendáři.');
 }
 function photoAnim() {
   if (!enc || enc.step !== 'photo') return;
@@ -1695,6 +1819,7 @@ function doCatch(q) {
   if (enc.isNew) gainKnow('newSpecies', 'za nový druh');
   if (!c) { c = { count: 0, best: null, verified: false, photos: [] }; state.caught[sp.id] = c; }
   c.count++; addCatch(state.days, sp.id); // kalendář: úlovek ke dni
+  if (pos.lat != null && pos.src === 'gps') addTrackCatch(state.track, dayStr(new Date()), pos.lat, pos.lon, sp.id); // místo úlovku pro kartu výletu
   if (c.verified) st = st.map(v => Math.min(C.maxStat, v + C.realPhotoBonus));
   const sum = a => a.reduce((x, y) => x + y, 0);
   enc.better = !c.best || sum(st) > sum(c.best.stats);
@@ -1747,6 +1872,7 @@ function onModalClick(e) {
   else if (act === 'legalAbout') openM(privacyHTML(cfg, overpassUrls(cfg), 'about'));
   else if (act === 'wipe') openWipe();
   else if (act === 'wipeOk') wipeAll();
+  else if (act === 'muteToggle' && !kidMode()) { prefs.muteWalk = !muteOn(); savePrefs(); renderJa(); toast(muteOn() ? 'Při chůzi se mapa ztlumí (bezpečnost).' : 'Mapa se při chůzi neztlumí.'); }
   else if (act === 'pinSet') openPinSet();
   else if (act === 'pinSave') savePin();
   else if (act === 'resetOk') resetProgress();
@@ -1770,6 +1896,11 @@ function onModalClick(e) {
   else if (act === 'nightCfg') openM(nightHTML());
   else if (act === 'mapStyle') { prefs.mapStyle = a.dataset.v === 'papir' ? 'papir' : 'pohadka'; savePrefs(); applyMapStyle(); openM(nightHTML()); }
   else if (act === 'quizGame') openQuizGame();
+  else if (act === 'herna') openHerna();
+  else if (act === 'hernaPlay') playH(a.dataset.id);
+  else if (act === 'hernaRate') rateH(a.dataset.id, Number(a.dataset.v));
+  else if (act === 'hernaCopy') copyHerna();
+  else if (act === 'hernaSend') sendHerna();
   else if (act === 'qzAns' && qz && !qz.done) { qz.done = true; qz.pick = Number(a.dataset.i); if (qz.pick === qz.Q[qz.i].correct) qz.ok++; quizStep(); }
   else if (act === 'qzNext' && qz) { qz.i++; qz.done = false; if (qz.i < qz.Q.length) quizStep(); else quizEnd(); }
   else if (act === 'qzLike' && qz) { const k = qz.Q[qz.i].key, L = (prefs.quizLikes ||= {}), v = Number(a.dataset.v); if (L[k] === v) delete L[k]; else L[k] = v; savePrefs(); quizStep(); }
@@ -1804,7 +1935,9 @@ function onModalClick(e) {
   else if (act === 'mgHint') { const b = $('mgBoard'); if (b && mgImg) { b.classList.add('hint'); b.style.setProperty('--hint', 'url("' + mgImg + '")'); setTimeout(() => b.classList.remove('hint'), 1500); } }
   else if (act === 'toAtlas') { closeM(); show('atlasv'); openDetail(a.dataset.sp); }
   else if (act === 'toCollection') { const sp = SP[a.dataset.sp]; closeM(); if (sp) colView.enc = enclosureOf(cfg, sp.group).id; colView.sort = 'species'; show('sbirkav'); }
-  else if (act === 'trip') shareTrip();
+  else if (act === 'trip') openTrip();
+  else if (act === 'tripDay') { tripSel.day = a.dataset.day; openTrip(); }
+  else if (act === 'tripGo') makeTrip();
   else if (act === 'offline') openOffline();
   else if (act === 'offR') { off.r = Number(a.dataset.v); renderOffline(); }
   else if (act === 'offGo') offlineGo();
@@ -1967,7 +2100,7 @@ async function openDetail(id) {
   const mine = state.animals.filter(x => x.sp === id).length;
   if (mine) h += `<button class="btn full" data-act="toCollection" data-sp="${esc(id)}">Ve sbírce (${mine})</button>`;
   h += `<label class="btn primary full">Vyfotil jsem ho venku<input type="file" accept="image/*" capture="environment" data-real="${esc(id)}" hidden></label>
-  <p class="msg small">Skutečná fotka dá jednorázově +${cfg.catch.realPhotoBonus} ke všem statistikám. Druh zatím určuješ ty.</p>
+  <p class="msg small">Skutečná fotka se uloží ke kartě druhu. Druh zatím určuješ ty.</p>
   <button class="btn full" data-act="close">Zavřít</button>`;
   enc = null; openM(h); stageSwipe();
 }
@@ -2006,7 +2139,7 @@ const colView = { enc: '', sort: 'new' };
 function renderCollection() { $('sbirkav').innerHTML = collectionHTML(cfg, state, SP, colView); }
 function openAnimal(uid) {
   const a = state.animals.find(x => x.uid === uid), sp = a && SP[a.sp]; if (!sp) return;
-  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp, '', a.stage)}${stageRingHTML(cfg, a, sp.group)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage)}</h2><div class="sub">${esc(stageNames(cfg, sp.group, sp.id)[a.stage] || '')}${a.stage > (a.from || 0) ? ` · vypiplaný (chycen jako ${esc(stageNames(cfg, sp.group, sp.id)[a.from || 0] || '')})` : ''}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
+  openM(`<div class="encimg${a.variant ? ' var-' + esc(a.variant) : ''}${isMaster(cfg, a, sp.group) ? ' master' : ''}">${birdImg(sp, '', a.stage)}${stageRingHTML(cfg, a, sp.group)}</div><h2>${esc(a.nick || sp.name)}${stars(a.stage, stageNames(cfg, sp.group, sp.id).length)}</h2><div class="sub">${esc(stageNames(cfg, sp.group, sp.id)[a.stage] || '')}${a.stage > (a.from || 0) ? ` · vypiplaný (chycen jako ${esc(stageNames(cfg, sp.group, sp.id)[a.from || 0] || '')})` : ''}</div><div class="sub">${a.nick ? esc(sp.name) + ' · ' : ''}${esc(sp.lat)}</div>
   <div class="kv"><span>chycen:</span> ${new Date(a.date).toLocaleDateString('cs-CZ')}${a.bio ? ' · <span>biotop:</span> ' + esc(BIO[a.bio]?.name || a.bio) : ''}${a.variant ? ' · <span>vzácná forma:</span> ' + esc(variantName(a.variant)) : ''}</div>
   <div class="presetnew"><input type="text" id="nick" maxlength="20" placeholder="Přezdívka" aria-label="Přezdívka" value="${esc(a.nick || '')}"><button class="btn" data-act="nick" data-uid="${esc(uid)}">Uložit</button></div>
   <p class="msg small" id="nickErr"></p>
@@ -2097,6 +2230,7 @@ function checkPin() {
     save: c => saveConfig(c),
     close: () => { document.querySelector('nav').style.display = ''; show('mapv'); },
     exportAll: () => exportData(true),
+    herna: () => openHerna(),
     clearOsm: async () => { await clearOsmCache(); clearTrails(); drawBiotopes(); tick(); toast('Cache biotopů smazána.'); },
     resetProgress: async () => openM(`<h2>Smazat postup?</h2><p class="msg">Smažou se úlovky a fotky.</p>${await pinFieldIfSet()}
       <button class="btn danger full" data-act="resetOk">Smazat postup</button><button class="btn full ghost" data-act="close">Zrušit</button>`),

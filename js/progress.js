@@ -137,9 +137,20 @@ export function profileHTML(cfg, st, lv, extra = '') {
   <div class="prog" title="${lv.into} / ${lv.need} XP"><div style="width:${pct}%"></div></div><p class="msg small">${lv.into} / ${lv.need} XP do další úrovně · celkem ${Math.round(st.xp)} XP</p>
   ${nextUnlocks.length ? `<p class="msg small">Brzy odemkneš: ${nextUnlocks.map(([k, l]) => esc(unlockName(cfg, k)) + ' (úr. ' + l + ')').join(', ')}</p>` : ''}
   <h3>Sběratelská alba</h3><div class="albums">${cfg.albums.map(a => { const p = albumProgress(a, st.caught); return `<div class="album${p.have >= p.total && p.total ? ' done' : ''}"><span class="aic" aria-hidden="true">${ICON_FILES.has('alb_' + a.id) ? ic('alb_' + a.id) : esc(a.icon)}</span><b>${esc(a.name)}</b><small>${p.have} / ${p.total}</small><div class="prog"><div style="width:${p.total ? p.have / p.total * 100 : 0}%"></div></div></div>`; }).join('')}</div>
-  <h3>Odznaky</h3><div class="badges">${cfg.badges.map(b => `<div class="badge${st.badges[b.id] ? ' on' : ''}" title="${esc(b.name)}">${ICON_FILES.has('badge_' + b.id) ? `<span class="medal full" aria-hidden="true">${ic('badge_' + b.id)}</span>` : ICON_FILES.has('badge') ? `<span class="medal" aria-hidden="true">${ic('badge')}<i>${esc(b.icon)}</i></span>` : `<span aria-hidden="true">${esc(b.icon)}</span>`}<small>${esc(b.name)}</small></div>`).join('')}</div>
+  ${badgeGroupsHTML(cfg, st)}
   ${extra}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
+}
+// Odznaky roztříděné podle toho, za co jsou (získané první), s počtem v každé skupině
+const BADGE_GROUPS = [['species', 'Druhy'], ['catches', 'Úlovky'], ['km', 'Chůze'], ['streak', 'Řada dní'], ['quiz', 'Kvízy'], ['level', 'Úroveň']];
+const badgeHTML = (b, on) => `<div class="badge${on ? ' on' : ''}" title="${esc(b.name)}">${ICON_FILES.has('badge_' + b.id) ? `<span class="medal full" aria-hidden="true">${ic('badge_' + b.id)}</span>` : ICON_FILES.has('badge') ? `<span class="medal" aria-hidden="true">${ic('badge')}<i>${esc(b.icon)}</i></span>` : `<span aria-hidden="true">${esc(b.icon)}</span>`}<small>${esc(b.name)}</small></div>`;
+export function badgeGroupsHTML(cfg, st) {
+  const list = cfg.badges.filter(b => b.kind !== 'album'), have = list.filter(b => st.badges[b.id]).length;
+  const known = new Set(BADGE_GROUPS.map(g => g[0])), groups = [...BADGE_GROUPS, ['jine', 'Ostatní']];
+  return `<h3>Odznaky <small>${have} / ${list.length}</small></h3>` + groups.map(([k, name]) => {
+    const g = list.filter(b => (known.has(b.kind) ? b.kind : 'jine') === k).sort((a, b) => (st.badges[b.id] ? 1 : 0) - (st.badges[a.id] ? 1 : 0));
+    return g.length ? `<div class="bgrp"><b>${name}</b> <small>${g.filter(b => st.badges[b.id]).length} / ${g.length}</small></div><div class="badges">${g.map(b => badgeHTML(b, st.badges[b.id])).join('')}</div>` : '';
+  }).join('');
 }
 export const UNLOCK_NAMES = { shop: 'obchod', release: 'vypouštění', evolve: 'vývoj zvířat', train: 'trénink', contests: 'soutěže', hide: 'skrýše' };
 export function unlockName(cfg, k) {

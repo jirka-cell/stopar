@@ -123,16 +123,25 @@ export function walkHTML(days, now = new Date()) {
 
 /* ---------- karta úlovku ---------- */
 // Obrázek karty (bez polohy) – jde sdílet přes Web Share API nebo stáhnout
-export async function cardBlob(imgURL, title, sub, stats) {
-  const c = document.createElement('canvas'); c.width = 600; c.height = 800;
+// Karta zvířete ke sdílení (bez polohy): akvarelové pozadí biotopu, zvíře, jméno, hvězdy a základní údaje, v záhlaví Aegon
+// opt = { bg, dog, app, stars, lines: [[popisek, text]] }
+export async function cardBlob(imgURL, title, sub, opt = {}) {
+  const c = document.createElement('canvas'); c.width = 600; c.height = 860;
   const x = c.getContext('2d');
-  x.fillStyle = '#f6f3ec'; x.fillRect(0, 0, 600, 800);
-  x.fillStyle = '#2f7d4f'; x.fillRect(0, 0, 600, 70);
-  x.fillStyle = '#fff'; x.font = 'bold 34px system-ui, sans-serif'; x.fillText('Stopař', 24, 48);
-  const im = new Image(); im.src = imgURL; await im.decode().catch(() => {});
-  try { x.drawImage(im, 60, 100, 480, 420); } catch (e) {}
-  x.fillStyle = '#24301f'; x.font = 'bold 38px system-ui, sans-serif'; x.fillText(title, 30, 580);
-  x.font = 'italic 24px system-ui, sans-serif'; x.fillStyle = '#6b7466'; x.fillText(sub, 30, 616);
-  stats.forEach(([n, v], i) => { const y = 660 + i * 32; x.fillStyle = '#24301f'; x.font = '22px system-ui, sans-serif'; x.fillText(n, 30, y); x.fillStyle = '#e2ddd1'; x.fillRect(200, y - 16, 340, 14); x.fillStyle = '#2f7d4f'; x.fillRect(200, y - 16, Math.min(340, v * 3.4), 14); });
+  const load = async u => { if (!u) return null; const im = new Image(); im.src = u; try { await im.decode(); return im; } catch (e) { return null; } };
+  const [bg, im, dog] = await Promise.all([load(opt.bg), load(imgURL), load(opt.dog)]);
+  x.fillStyle = '#f6f0e2'; x.fillRect(0, 0, 600, 860);
+  if (bg) { x.save(); x.beginPath(); x.roundRect(20, 84, 560, 470, 22); x.clip(); const k = Math.max(560 / bg.width, 470 / bg.height); x.drawImage(bg, 300 - bg.width * k / 2, 319 - bg.height * k / 2, bg.width * k, bg.height * k); x.restore(); }
+  x.fillStyle = '#2f5f3f'; x.fillRect(0, 0, 600, 70);
+  if (dog) x.drawImage(dog, 14, 6, 58, 58);
+  x.fillStyle = '#fff'; x.font = 'bold 30px system-ui, sans-serif'; x.fillText(opt.app || 'Stopuj s Aegonem', dog ? 82 : 24, 46);
+  if (im) { const k = Math.min(440 / im.width, 400 / im.height); x.drawImage(im, 300 - im.width * k / 2, 330 - im.height * k / 2, im.width * k, im.height * k); }
+  x.fillStyle = '#24301f'; x.font = 'bold 36px system-ui, sans-serif'; x.fillText(title, 30, 606);
+  if (opt.stars) { x.fillStyle = '#d9a21b'; x.font = '30px system-ui, sans-serif'; x.fillText('★'.repeat(opt.stars) + '☆'.repeat(3 - opt.stars), 600 - 30 - x.measureText('★★★').width, 606); }
+  x.font = 'italic 22px system-ui, sans-serif'; x.fillStyle = '#6b7466'; x.fillText(sub, 30, 640);
+  (opt.lines || []).slice(0, 5).forEach(([n, v], i) => {
+    const y = 686 + i * 32; x.fillStyle = '#6b7466'; x.font = '20px system-ui, sans-serif'; x.fillText(n, 30, y);
+    x.fillStyle = '#24301f'; x.font = '20px system-ui, sans-serif'; let t = String(v); while (x.measureText(t).width > 410 && t.length > 4) t = t.slice(0, -2); if (t !== String(v)) t = t.replace(/\s*\S*$/, '') + '…'; x.fillText(t, 160, y);
+  });
   return new Promise(res => c.toBlob(res, 'image/png'));
 }

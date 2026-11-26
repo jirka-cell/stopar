@@ -11,7 +11,7 @@ import { SPECIES_FIXES } from './species-fixes.js';
 import { SIGNS } from './signs.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 9;
+export const CONFIG_VERSION = 10;
 // Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
 const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
@@ -39,7 +39,7 @@ export const DEFAULTS = {
     monthOverride: 0,       // simulovaný měsíc 1–12 pro testování sezónnosti (0 = skutečný měsíc)
     farmTest: true,         // testovací nástroje farmy: +1/−1 úroveň zdarma, prázdná farma znovu
     mythTest: false,        // bájné dny hned (rozmístění se pak liší od ostatních)
-    drillTest: false,       // cvičák s Hejsty hned, ne jen ve čtvrtek 17:30–18:15
+    drillTest: false,       // cvičák s Hestiá hned, ne jen ve čtvrtek 17:30–18:15
     dogDemo: false,         // Aegon: všechny klidové pózy dokola (kontrola obrázků)
     dogRandom: false,       // Aegon: náhodná smyčka všech póz včetně reakcí a cvičáku
     dogBig: false,          // Aegon zvětšený na 240 px (kontrola obrázků)
@@ -88,7 +88,7 @@ export const DEFAULTS = {
     highAccuracy: true
   },
   map: {
-    style: 'pohadka',       // pohadka = pohádková mapa s texturami (den/soumrak), papir = papír a akvarel
+    style: 'papir',         // papir = papír a akvarel (den/noc podle slunce); pohádková mapa (pohadka) odložena
     compass: true,          // tlačítko režimu kompasu (mapa se otáčí podle telefonu)
     quickLook: true,        // tlačítko „Vzhled“ na mapě (rychlé přepínání bez PINu)
     vectorUrl: 'https://tiles.openfreemap.org/planet',
@@ -424,7 +424,7 @@ export const SCHEMA = [
     ['farmTest', 'Testovací nástroje farmy (+1/−1 úroveň, prázdná farma)', 'bool'],
     ['monthOverride', 'Simulovaný měsíc pro sezónnost (0 = skutečný)', 'number', { min: 0, max: 12, step: 1 }],
     ['mythTest', 'Bájné dny hned', 'bool'],
-    ['drillTest', 'Cvičák s Hejsty hned', 'bool'],
+    ['drillTest', 'Cvičák s Hestiá hned', 'bool'],
     ['dogDemo', 'Aegon: všechny pózy dokola', 'bool'],
     ['dogRandom', 'Aegon: náhodná smyčka všech póz', 'bool'],
     ['dogBig', 'Aegon zvětšený', 'bool'],
@@ -470,7 +470,7 @@ export const SCHEMA = [
     ['highAccuracy', 'Vysoká přesnost GPS', 'bool']
   ] },
   { sec: 'map', title: 'Mapa', fields: [
-    ['style', 'Styl mapy (výchozí)', 'select', { options: [['pohadka', 'Pohádka (den/soumrak podle slunce)'], ['papir', 'Papír a akvarel (den/noc podle slunce)']] }],
+    ['style', 'Styl mapy', 'select', { options: [['papir', 'Papír a akvarel (den/noc podle slunce)'], ['pohadka', 'Pohádka (odloženo, jen na zkoušku)']] }],
     ['compass', 'Tlačítko režimu kompasu', 'bool'],
     ['quickLook', 'Tlačítko „Vzhled“ na mapě (bez PINu)', 'bool'],
     ['vectorUrl', 'Vektorová mapa (TileJSON URL)', 'text'],
@@ -842,7 +842,7 @@ export function mergeDefaults(cfg) {
     Object.assign(out.world, { mythChance: DEFAULTS.world.mythChance, mythMinQuality: DEFAULTS.world.mythMinQuality, mythSeconds: DEFAULTS.world.mythSeconds });
     out.farm.enabled = false; out.general.hernaTest = false;
   }
-  if (!(Number(cfg.version) >= 8) || !['pohadka', 'papir'].includes(out.map.style)) out.map.style = 'pohadka'; // verze 8: výchozí pohádková mapa
+  if (!(Number(cfg.version) >= 10) || !['pohadka', 'papir'].includes(out.map.style)) out.map.style = 'papir'; // verze 10: pohádková mapa odložena, zpět papír
   // Verze 4 → 5: vestavěné předvolby pryč, vlastní zůstanou
   if (!(Number(cfg.version) >= 5)) out.mapPresets = out.mapPresets.filter(p => !(p && OLD_PRESETS.has(p.name)));
   // Verze 2 → 3: doplnit nové výchozí předvolby vzhledu (vlastní předvolby zůstanou)

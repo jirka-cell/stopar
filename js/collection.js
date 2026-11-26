@@ -1,7 +1,8 @@
-// Sbírka: každý úlovek je samostatný jedinec s vlastními vlastnostmi, roztříděný do ubikací podle skupiny
+// Sbírka: každý úlovek je samostatný jedinec (druh, stádium, datum), roztříděný podle skupiny
 import { esc } from './config.js';
 import { icId } from './icons.js';
 import { birdImg } from './birds.js';
+import { stageNames } from './economy.js';
 
 // Ikony skupin pro obrázkové třídění (zástupné, dokud nebudou ikony z kroku 2.6)
 export const GROUP_ICON = { 'Ptáci': '🐦', 'Savci': '🐾', 'Ryby': '🐟', 'Obojživelníci': '🐸', 'Plazi': '🦎', 'Hmyz': '🦋', 'Pavoukovci': '🕷️', 'Měkkýši': '🐌', 'Ostatní': '🌿' };
@@ -50,16 +51,18 @@ export function enclosureOf(cfg, group) {
   return cfg.enclosures.find(e => String(e.groups || '').split(',').map(s => s.trim()).includes(g)) || cfg.enclosures[cfg.enclosures.length - 1] || { id: '', name: 'Sbírka', icon: '' };
 }
 
-export const SORTS = [['new', 'Nejnovější'], ['power', 'Nejsilnější'], ['species', 'Podle druhu']];
+export const SORTS = [['new', 'Nejnovější'], ['stage', 'Nejvyvinutější'], ['species', 'Podle druhu']];
 export function sortAnimals(list, by, SP) {
   const l = list.slice();
-  if (by === 'power') l.sort((a, b) => power(b) - power(a));
+  if (by === 'stage' || by === 'power') l.sort((a, b) => b.stage - a.stage || b.date - a.date);
   else if (by === 'species') l.sort((a, b) => String(SP[a.sp]?.name || a.sp).localeCompare(String(SP[b.sp]?.name || b.sp), 'cs') || power(b) - power(a));
   else l.sort((a, b) => b.date - a.date);
   return l;
 }
 
-export const stars = n => n > 0 ? ' ' + '★'.repeat(Math.min(5, n)) : '';
+// Hvězdy podle stádia: poslední tři stádia = 1–3 hvězdy (mládě/dospělý/mistr); larva u 4 stádií je bez hvězdy
+export const starCount = (stage, n = 3) => Math.max(0, Math.min(3, stage - (n - 3) + 1));
+export const stars = (stage, n = 3) => { const k = starCount(stage, n); return k ? ` <span class="stars" aria-label="${k} z 3 hvězd">${'★'.repeat(k)}<span class="off">${'★'.repeat(3 - k)}</span></span>` : ''; };
 
 // Obrazovka Sbírka: řada ikon ubikací, řazení a karty jedinců
 export function collectionHTML(cfg, state, SP, view) {
@@ -72,7 +75,7 @@ export function collectionHTML(cfg, state, SP, view) {
   <div class="ahead"><b>${icId('enc_' + cur.e.id, esc(cur.e.icon))} ${esc(cur.e.name)}</b><select data-sort aria-label="Řazení">${SORTS.map(([k, n]) => `<option value="${k}"${view.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
   ${list.length ? `<div class="grid">${list.map(a => {
     const sp = SP[a.sp];
-    return `<div class="acard" data-animal="${esc(a.uid)}"><div class="im${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp, '', a.stage)}</div><div class="nm">${esc(a.nick || sp.name)}${stars(a.stage)}</div><div class="rr">síla ${power(a)}${a.variant ? ' · ' + esc(variantName(a.variant)) : ''}</div></div>`;
+    return `<div class="acard" data-animal="${esc(a.uid)}"><div class="im${a.variant ? ' var-' + esc(a.variant) : ''}">${birdImg(sp, '', a.stage)}</div><div class="nm">${esc(a.nick || sp.name)}${stars(a.stage, stageNames(cfg, sp.group, sp.id).length)}</div><div class="rr">${a.variant ? esc(variantName(a.variant)) : new Date(a.date).toLocaleDateString('cs-CZ')}</div></div>`;
   }).join('')}</div>` : `<p class="msg">${esc(cur.e.name)} je zatím prázdná. Chyť zvíře z této skupiny.</p>`}`;
 }
 // Přezdívka: krátká, jen písmena, číslice, mezera a pomlčka

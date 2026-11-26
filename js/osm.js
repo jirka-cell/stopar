@@ -33,7 +33,7 @@ export function osmSetConfig(cfg, cb) {
   targetRules = String(cfg.osm.targetTags || '').split('\n').map(l => l.split('|').map(x => x.trim())).filter(([kv]) => kv && kv.includes('='))
     .map(([kv, kind, icon]) => { const [k, v] = kv.split('='); return { k: k.trim(), v: v.trim(), kind: kind || kv, icon: icon || '📍' }; });
   const h = JSON.stringify(rules) + '|' + cfg.osm.chunkDeg + '|places:' + [...placeSets.v, ...placeSets.t].join(',') + '|' + cfg.osm.villageRadius
-    + '|t:' + JSON.stringify(targetRules) + '|pa:' + (cfg.osm.protectedPaths ? 1 : 0);
+    + '|t:' + JSON.stringify(targetRules) + '|pa:' + (cfg.osm.protectedPaths ? 1 : 0) + '|q:2'; // q = verze dotazu (2: cíle i jako vztahy) – změna znovu stáhne okolí
   if (h !== rulesHash) { rulesHash = h; chunks.clear(); }
 }
 
@@ -64,7 +64,7 @@ function buildQuery(bb) {
     const dLat = CFG.osm.villageRadius / 111320, dLon = CFG.osm.villageRadius / (111320 * Math.cos(bb[0] * Math.PI / 180));
     parts.push(`node["place"~"^(${places.join('|')})$"](${bb[0] - dLat},${bb[1] - dLon},${bb[2] + dLat},${bb[3] + dLon});`);
   }
-  for (const t of targetRules) if (/^[\w:]+$/.test(t.k) && /^[\w:]+$/.test(t.v)) parts.push(`node["${t.k}"="${t.v}"]["name"]${box};way["${t.k}"="${t.v}"]["name"]${box};`);
+  for (const t of targetRules) if (/^[\w:]+$/.test(t.k) && /^[\w:]+$/.test(t.v)) parts.push(`node["${t.k}"="${t.v}"]["name"]${box};way["${t.k}"="${t.v}"]["name"]${box};relation["${t.k}"="${t.v}"]["name"]${box};`); // i vztahy: velké hrady jako Loket
   // chráněné území: rozhoduje střed čtverce (oblasti z databáze Overpass, bez těžké geometrie hranic)
   const pa = CFG.osm.protectedPaths ? `is_in(${((bb[0] + bb[2]) / 2).toFixed(5)},${((bb[1] + bb[3]) / 2).toFixed(5)})->.a;(area.a["boundary"="protected_area"];area.a["leisure"="nature_reserve"];area.a["boundary"="national_park"];);out tags;` : '';
   return `[out:json][timeout:${CFG.osm.timeout}];(${parts.join('')});out geom;${pa}`;
@@ -118,9 +118,9 @@ export function parseOverpass(json) {
     if (el.type === 'area') { feats.push({ pa: pickTags(tags) }); continue; }
     const tg = tags.name && targetRules.find(t => tags[t.k] === t.v);
     if (tg) {
-      const pts = el.type === 'node' ? [[el.lat, el.lon]] : (el.geometry || []).map(g => [g.lat, g.lon]);
+      const b = el.bounds, pts = el.type === 'node' ? [[el.lat, el.lon]] : el.type === 'relation' ? (b ? [[(b.minlat + b.maxlat) / 2, (b.minlon + b.maxlon) / 2]] : []) : (el.geometry || []).map(g => [g.lat, g.lon]);
       if (pts.length) feats.push({ tg: tg.kind, icon: tg.icon, name: String(tags.name).slice(0, 80), id: el.type[0] + el.id, lat: pts.reduce((a, p) => a + p[0], 0) / pts.length, lon: pts.reduce((a, p) => a + p[1], 0) / pts.length });
-      if (el.type === 'node') continue;
+      if (el.type === 'node' || el.type === 'relation') continue;
     }
     if (el.type === 'node') {
       if (tags.place && el.lat != null) feats.push({ pl: tags.place, lat: el.lat, lon: el.lon });
