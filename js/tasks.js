@@ -56,7 +56,7 @@ export function taskFor(kind, id, day) {
   const q = list[Math.abs(h) % list.length], order = [0, 1, 2].sort((a, b) => ((h >> (a * 3)) & 7) - ((h >> (b * 3)) & 7));
   return { kind, q: q.q, a: order.map(i => q.a[i]), c: order.indexOf(q.c), why: q.why };
 }
-const TITLE = { park: '🌳 Úkol v parku', hrad: '🏰 Úkol u hradu', voda: '💧 Úkol u vody', vyhled: '🔭 Úkol na vyhlídce', jeskyne: '🕳️ Úkol u jeskyně' };
+const TITLE = { park: 'Úkol v parku', hrad: 'Úkol u hradu', voda: 'Úkol u vody', vyhled: 'Úkol na vyhlídce', jeskyne: 'Úkol u jeskyně' };
 export function taskHTML(t) {
   return `<h2>${TITLE[t.kind] || 'Úkol místa'}</h2><p class="msg">${esc(t.q)}</p>
   ${t.a.map((x, i) => `<button class="btn full" data-act="taskAns" data-i="${i}">${esc(x)}</button>`).join('')}

@@ -11,7 +11,7 @@ import { SPECIES_FIXES } from './species-fixes.js';
 import { SIGNS } from './signs.js';
 export { EDU_FIELDS, GROUPS };
 
-export const CONFIG_VERSION = 10;
+export const CONFIG_VERSION = 11;
 // Názvy předvoleb, které byly vestavěné do verze 4 – při převodu na verzi 5 se z telefonů odeberou (vlastní zůstanou)
 const OLD_PRESETS = new Set(["Úsporný","Výlet","Město","Les a hory","Hledání zvířat","U vody","Na kole","Naučná procházka","Zima","Papírová mapa","Maximum"]);
 
@@ -124,7 +124,7 @@ export const DEFAULTS = {
     chunkDeg: 0.01,         // velikost stahovaného čtverce ve stupních (~1,1 × 0,7 km)
     cacheDays: 30,
     lineBuffer: 15,         // m – šířka řek/potoků zadaných jako čára
-    timeout: 25,            // s
+    timeout: 60,            // s (veřejné servery bývají pomalé – 26. 11. trval dotaz u Lokte 39 s)
     parallel: 2,            // kolik čtverců stahovat najednou (Overpass povoluje ~2 dotazy z jedné adresy)
     defaultBiotope: 'louka', // biotop, když OSM nic nemá
     villagePlaces: 'village,hamlet,isolated_dwelling', // place=… vesnice (rozliší vesnici od města)
@@ -238,6 +238,7 @@ export const DEFAULTS = {
     releaseBase: 5, releaseRarity: '1:1, 2:2.5, 3:6', // vědomosti za vypuštění = základ × vzácnost × (stádium + 1)
     know: 'quiz:15, track:5, task:10, journal:5, newSpecies:10, keyId:5', // šišky za učení
     quizConesPerDay: 3,     // za kolik kvízů denně jsou šišky
+    conesCatchQuiz: 5,      // šišky za správnou odpověď v kvízu po chycení (bez denního limitu)
     streakSkip: 3,          // řada dní v kuse: kolik dní v měsíci se smí vynechat
     radiusMult: 2, radiusMinutes: 15, lensMult: 1.5,
     xpContest: 10           // XP za odehranou soutěž
@@ -595,7 +596,7 @@ export const SCHEMA = [
     ['rarityLevel', 'Vzácnost odemčená od úrovně (vzácnost:úroveň, …)', 'text'],
     ['unlocks', 'Funkce od úrovně (funkce:úroveň, …)', 'text'],
     ['questsPerDay', 'Denních úkolů', 'number', { min: 0, max: 10, step: 1 }], ['questsPerWeek', 'Týdenních úkolů', 'number', { min: 0, max: 10, step: 1 }],
-    ['quizConesPerDay', 'Kvízy: za kolik denně jsou šišky', 'number', { min: 0, max: 20, step: 1 }], ['streakSkip', 'Řada dní: povolené vynechání za měsíc', 'number', { min: 0, max: 10, step: 1 }],
+    ['quizConesPerDay', 'Kvízy: za kolik denně jsou šišky', 'number', { min: 0, max: 20, step: 1 }], ['conesCatchQuiz', 'Kvíz po chycení: šišky za správnou odpověď', 'number', { min: 0, max: 100, step: 1 }], ['streakSkip', 'Řada dní: povolené vynechání za měsíc', 'number', { min: 0, max: 10, step: 1 }],
     ['conesPerKm', 'Šišky za 1 km chůze', 'number', { min: 0, step: 1 }],
     ['trainCost', 'Trénink: cena (šišky)', 'number', { min: 0, step: 1 }], ['trainPerDay', 'Trénink: max. denně na jedince', 'number', { min: 0, step: 1 }],
     ['trainXp', 'Trénink: XP jedince', 'number', { min: 0, step: 1 }], ['trainGain', 'Trénink: + k nejslabší vlastnosti', 'number', { min: 0, step: 1 }],
@@ -829,6 +830,8 @@ export function mergeDefaults(cfg) {
     return m;
   });
   delete out.listsKnown; delete out.speciesKnown;
+  // Verze 10 → 11: delší čekání na Overpass (25 → 60 s), šišky za kvíz po chycení
+  if (!(Number(cfg.version) >= 11) && Number(out.osm.timeout) === 25) out.osm.timeout = DEFAULTS.osm.timeout;
   // Verze 8 → 9: doložené opravy údajů o druzích a názvy stádií (čolci, mlok, hmyz s nymfou) i v uloženém nastavení
   if (!(Number(cfg.version) >= 9)) {
     out.species = out.species.map(applyFix);

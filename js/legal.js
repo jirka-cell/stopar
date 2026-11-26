@@ -2,7 +2,7 @@
 // Změna textu zásad nebo podmínek = zvýšit TERMS_VERSION → všichni potvrdí znovu.
 import { esc } from './config.js';
 export const TERMS_VERSION = 4; // 4: datum narození, souhlas rodiče přes QR, e-mail rodiče
-export const APP_VERSION = '4.3.1';
+export const APP_VERSION = '4.3.2';
 export const MIN_AGE = 15; // v ČR může souhlas se zpracováním údajů dát sám až patnáctiletý
 
 const host = u => { try { return new URL(u).host; } catch (e) { return String(u); } };
@@ -58,7 +58,7 @@ export function consentHTML(cfg, par = {}, ic = () => '') {
     <div class="introinfo">${ic('pin')}<span>Tvůj postup zůstává jen v tomto telefonu. Nemáme účty, reklamy ani sledování.</span></div>
     <div class="introinfo">${ic('map')}<span>Mapa se stahuje z internetu, a tak mapové služby uvidí, kde přibližně jsi. <button class="linkbtn" data-act="legal">Podrobnosti v zásadách</button></span></div>
     <div id="cParent" hidden>
-      <div class="introbox"><b>Zavolej rodiče! 👋</b><span>Je ti méně než ${MIN_AGE} let, takže souhlas dá rodič. Ať si svým telefonem naskenuje tenhle kód.</span></div>
+      <div class="introbox"><b>Zavolej rodiče!</b><span>Je ti méně než ${MIN_AGE} let, takže souhlas dá rodič. Ať si svým telefonem naskenuje tenhle kód.</span></div>
       <div class="qrbox">${par.qr || ''}<small>Kód: <b>${esc(par.code || '')}</b></small></div>
       <div class="fld"><label for="cCode">Potvrzovací kód od rodiče (4 číslice)</label><input type="text" id="cCode" inputmode="numeric" maxlength="4" autocomplete="off"></div>
       <div class="fld"><label for="cMail">E-mail rodiče (nepovinné)</label><input type="email" id="cMail" autocomplete="email" maxlength="80"><small class="msg small">Zatím zůstane jen v telefonu. Až bude mít aplikace server, přijde na něj odkaz k potvrzení souhlasu a pomůže s obnovou PINu.</small></div>

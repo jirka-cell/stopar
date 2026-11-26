@@ -114,6 +114,6 @@ export function legendsHTML(cfg, st, BIO, daysTo) {
   const reg = cfg.myths.filter(t => !t.fest);
   return `<h2>${icOr('legends', '📜')} Pověsti</h2><p class="msg small">České pověsti o tajemných tvorech. Každý se občas ukáže u svého místa.</p>
   ${reg.map(t => { const where = String(t.bio || '').split(',').map(x => x.trim()).filter(Boolean).map(b => (BIO[b] ? BIO[b].name : b.replace('_', ' '))).join(', ') || 'kdekoli';
-    return `<div class="fcard"><div class="fico"><img src="${mythURL(t)}" alt="" style="width:44px;height:38px;object-fit:contain${st.myths[t.id] ? '' : ';filter:grayscale(1) opacity(.5)'}"></div><div class="finfo"><b>${st.myths[t.id] ? esc(t.name) : '???'}</b><small>📍 ${esc(where)}${t.night ? ' · 🌙 jen v noci' : ''}${t.months ? ' · měsíce ' + esc(t.months) : ''}</small><small>${esc(t.fact || '')}</small></div></div>`; }).join('')}
+    return `<div class="fcard"><div class="fico"><img src="${mythURL(t)}" alt="" style="width:44px;height:38px;object-fit:contain${st.myths[t.id] ? '' : ';filter:grayscale(1) opacity(.5)'}"></div><div class="finfo"><b>${st.myths[t.id] ? esc(t.name) : '???'}</b><small>${icOr('pin', '')} ${esc(where)}${t.night ? ' · ' + icOr('night', '') + ' jen v noci' : ''}${t.months ? ' · měsíce ' + esc(t.months) : ''}</small><small>${esc(t.fact || '')}</small></div></div>`; }).join('')}
   <button class="btn full ghost" data-act="close">Zavřít</button>`;
 }

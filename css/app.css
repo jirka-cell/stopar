@@ -210,7 +210,7 @@ body.kid .dog{--dog:120px}
 .mute b{display:block;font-size:20px;margin-bottom:6px}
 body.muted .mute{display:block}
 body.muted #map{filter:grayscale(1) brightness(1.05) opacity(.6)}
-body.muted .bmk,body.muted .tgmk{display:none}
+body.muted .bmk{display:none} /* cíle (.tgmk) zůstávají vidět – nelákají k ťukání */
 .measure{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:400}
 .measure-lbl{position:absolute;transform:translateX(-50%);background:#24301f;color:#fff;font-weight:700;font-size:15px;padding:5px 10px;border-radius:12px;pointer-events:none;z-index:401}
 .bmk.myth img{animation:bob 1.2s ease-in-out infinite,glow 1.6s ease-in-out infinite alternate}
@@ -710,6 +710,8 @@ body.dark .hcard,body.dark .hfeed,body.dark .hflock{background:radial-gradient(c
 .bcard .bico img.ic{width:40px;height:40px}.fsh-h b img.ic,#mbox h2 img.ic,#mbox h3 img.ic,.grp img.ic{width:1.3em;height:1.3em}
 #mbox[style*="--ebg"] .encimg:not(.master),#mbox[style*="--ebg"] .frame{background:var(--ebg) center/cover}
 body.dark #mbox[style*="--ebg"] .encimg:not(.master),body.dark #mbox[style*="--ebg"] .frame{background:linear-gradient(rgba(16,22,34,.5),rgba(16,22,34,.5)),var(--ebg) center/cover}
+/* světlý režim: Atlas a Moje zvířata – krajina z úvodu nahoře, dolů papír (pozadí 7) */
+body:not(.dark) #atlasv,body:not(.dark) #sbirkav{background:linear-gradient(rgba(246,240,226,.5),rgba(246,240,226,.88) 45%),var(--abg,none) top/cover no-repeat,#f6f0e2}
 /* světlý režim: jemný akvarelový papír pod obrazovkami (tmavý režim beze změny) */
 body:not(.dark) main{background:var(--bg) url("../images/mapa/tex_papir.webp") repeat;background-size:256px}
 body:not(.dark) .jtile,body:not(.dark) .jahead,body:not(.dark) .jastats>div{background-color:rgba(255,253,247,.88)}

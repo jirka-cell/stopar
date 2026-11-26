@@ -1,6 +1,7 @@
 // Můj kalendář: sám zapisuje dny, kdy jsem hrál, a co jsem ten den chytil; nad měsícem co se v přírodě děje.
 import { esc, parseMonths, MONTH_NAMES } from './config.js';
 import { activeEvents } from './world.js';
+import { icOr } from './icons.js';
 
 export const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -34,7 +35,7 @@ function natureHTML(cfg, y, m, img) {
   const fresh = act.filter(s => { const ms = parseMonths(s.months); return ms.size < 12 && ms.has(m) && !ms.has(prev); }).slice(0, 8);
   const text = (cfg.calendar.find(c => String(c.id) === String(m)) || {}).text || '';
   const ev = activeEvents(cfg, new Date(y, m - 1, 15));
-  return `<div class="calnat">${text ? `<p>${esc(text)}</p>` : ''}${ev.length ? `<p class="calev">${ev.map(e => '🎉 ' + esc(e.name)).join(' · ')}</p>` : ''}
+  return `<div class="calnat">${text ? `<p>${esc(text)}</p>` : ''}${ev.length ? `<p class="calev">${ev.map(e => icOr('fest', '') + ' ' + esc(e.name)).join(' · ')}</p>` : ''}
     ${fresh.length ? `<div class="calfresh"><small>Nově se objevují</small><div>${fresh.map(s => `<span title="${esc(s.name)}">${img(s)}</span>`).join('')}</div></div>` : ''}</div>`;
 }
 // img(sp) = HTML obrázku druhu, km(den) = metry ušlé ten den
@@ -66,7 +67,7 @@ export function dayHTML(st, k, { img, km = () => 0, SP = {}, badges = [] }) {
   const got = [...badges.filter(b => st.badges[b.id] && dayKey(new Date(st.badges[b.id])) === k), ...Object.values(st.stamps || {}).filter(s => dayKey(new Date(s.d)) === k).map(s => ({ icon: '', name: s.n }))]; // i odznaky míst
   const notes = (st.journal || []).filter(e => dayKey(new Date(e.date)) === k);
   const extra = (got.length ? `<h3>Odznaky</h3><p class="msg">${got.map(b => esc(b.icon + ' ' + b.name)).join(' · ')}</p>` : '')
-    + (notes.length ? `<h3>Deník</h3>${notes.map(e => `<div class="quest"><span><b>${esc((e.sp && SP[e.sp] ? SP[e.sp].name : e.name) || 'Neznámý druh')}</b>${e.note ? `<br><small>${esc(e.note)}</small>` : ''}</span><span>${e.photo != null ? '📷' : ''}</span></div>`).join('')}` : '');
+    + (notes.length ? `<h3>Deník</h3>${notes.map(e => `<div class="quest"><span><b>${esc((e.sp && SP[e.sp] ? SP[e.sp].name : e.name) || 'Neznámý druh')}</b>${e.note ? `<br><small>${esc(e.note)}</small>` : ''}</span><span>${e.photo != null ? icOr('photo', '📷') : ''}</span></div>`).join('')}` : '');
   return `<h2>${d}. ${esc(MONTH_NAMES[m - 1])} ${y}</h2>${meters >= 100 ? `<p class="msg">Ušel jsi ${(meters / 1000).toFixed(1).replace('.', ',')} km.</p>` : ''}
   ${list.length ? `<div class="grid">${list.map(s => `<div class="acard" data-sp="${esc(s.id)}"><div class="im">${img(s)}</div><div class="nm">${esc(s.name)}</div><div class="rr">×${r.c.filter(x => x === s.id).length}</div></div>`).join('')}</div>` : '<p class="msg small">Ten den sis jen hrál – nic jsi nechytil.</p>'}
   ${extra}
